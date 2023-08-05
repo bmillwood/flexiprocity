@@ -1,0 +1,62 @@
+cabal-version:      3.4
+
+name:               auth-server
+version:            0.1.0.0
+synopsis:           Server which provides jwts
+-- description:
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Ben Millwood
+maintainer:         thebenmachine+git@gmail.com
+
+category:           Web
+build-type:         Simple
+
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+common language
+    default-language: GHC2021
+    default-extensions:
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      OverloadedStrings
+    -- other-extensions:
+
+library
+    import:           warnings
+    import:           language
+    exposed-modules:  AuthServer
+    other-modules:
+      Api
+      Facebook
+      MakeJwt
+    build-depends:
+      aeson,
+      base ^>=4.16.4.0,
+      bytestring ^>=0.11.4.0,
+      containers ^>=0.6.5.1,
+      jwt ^>=0.11.0,
+      req ^>=3.13.0,
+      servant ^>=0.19.1,
+      servant-server ^>=0.19.1,
+      text ^>=1.2.5.0,
+      time ^>=1.11.1.1,
+      wai ^>=3.2.3,
+      wai-cors ^>=0.2.7,
+      warp ^>=3.3.23,
+    hs-source-dirs:   src
+
+executable auth-server
+    import:           warnings
+    import:           language
+    main-is:          Main.hs
+    -- other-modules:
+    -- other-extensions:
+    build-depends:
+      auth-server,
+      base ^>=4.16.4.0,
+    hs-source-dirs:   app

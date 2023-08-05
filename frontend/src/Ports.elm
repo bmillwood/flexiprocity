@@ -22,12 +22,17 @@ facebookFriends { userId } =
 
 type FromJS
   = DriverProtocolError String
-  | FacebookLoginUpdate { userId : Maybe String }
+  | FacebookConnected { userId : String, accessToken: String }
+  | FacebookLoginFailed
   | FacebookFriends (List Json.Decode.Value)
 
 fromJS : Json.Decode.Decoder FromJS
 fromJS =
   let
+    decodeAuthResponse =
+      Json.Decode.map2 (\i t -> { userId = i, accessToken = t })
+        (Json.Decode.field "userID" Json.Decode.string)
+        (Json.Decode.field "accessToken" Json.Decode.string)
     decodePayload kind =
       case kind of
         "facebook-login-status" ->
@@ -35,9 +40,9 @@ fromJS =
           |> Json.Decode.andThen (\status ->
             if status == "connected"
             then
-              Json.Decode.at ["authResponse", "userID"] Json.Decode.string
-              |> Json.Decode.map (\id -> FacebookLoginUpdate { userId = Just id })
-            else Json.Decode.succeed (FacebookLoginUpdate { userId = Nothing })
+              Json.Decode.field "authResponse" decodeAuthResponse
+              |> Json.Decode.map FacebookConnected
+            else Json.Decode.succeed FacebookLoginFailed
           )
         "facebook-friends" ->
           Json.Decode.field "data"
