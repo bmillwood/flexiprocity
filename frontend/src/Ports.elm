@@ -12,6 +12,11 @@ facebookLogin =
   Json.Encode.object [ ("kind", Json.Encode.string "facebook-login") ]
   |> sendToJS
 
+facebookLogout : Cmd msg
+facebookLogout =
+  Json.Encode.object [ ("kind", Json.Encode.string "facebook-logout") ]
+  |> sendToJS
+
 facebookApi : { path : String, id : String } -> Cmd msg
 facebookApi { path, id } =
   Json.Encode.object

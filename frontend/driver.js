@@ -27,6 +27,15 @@ app.ports.sendToJS.subscribe(function(request) {
             });
         }, {scope: 'public_profile,user_friends'});
         break;
+    case 'facebook-logout':
+        FB.logout(function(response) {
+            console.log('logout', response);
+            app.ports.receiveFromJS.send({
+                kind: 'facebook-login-status',
+                response
+            });
+        });
+        break;
     case 'facebook-api':
         FB.api(
             request.path,

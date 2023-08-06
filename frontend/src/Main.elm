@@ -12,8 +12,10 @@ import Ports
 
 type LoginStatus a
   = Unknown
-  | NotLoggedIn { pending : Bool }
+  | NotLoggedIn
+  | LoggingIn
   | LoggedIn a
+  | LoggingOut
 
 type alias Model =
   { errors : List String
@@ -26,6 +28,7 @@ type Msg
   = AddError String
   | FromJS Ports.FromJS
   | StartFacebookLogin
+  | StartFacebookLogout
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : String })
 
@@ -48,27 +51,51 @@ view { errors, facebookLoggedIn, apiLoggedIn, facebookFriends } =
   , body =
       [ Html.h1 [] [ Html.text "flexiprocity" ]
       , Html.ul [] (List.map viewError errors)
-      , Html.p [] [
-          let
-            button disabled =
-              Html.button
-                [ Events.onClick StartFacebookLogin
-                , Attributes.disabled disabled
-                , Attributes.id "facebook-login"
-                ]
-                [ Html.text "Login with Facebook" ]
-          in
-          case facebookLoggedIn of
-            Unknown -> button True
-            NotLoggedIn { pending } -> button pending
-            LoggedIn _ -> Html.text "Logged in to Facebook"
-        ]
+      , let
+          button disabled text =
+            Html.button
+              [ Events.onClick StartFacebookLogin
+              , Attributes.disabled disabled
+              , Attributes.class "facebook-button"
+              , Attributes.class "facebook-login"
+              ]
+              [ Html.text text ]
+        in
+        case facebookLoggedIn of
+          Unknown -> Html.p [] [button True "Checking Facebook login status"]
+          NotLoggedIn -> Html.p [] [ button False "Login with Facebook" ]
+          LoggingIn -> Html.p [] [ button True "Logging in..." ]
+          LoggedIn _ ->
+            Html.p []
+              [ Html.span
+                  [ Attributes.class "facebook-button"
+                  , Attributes.class "facebook-logged-in"
+                  ]
+                  [ Html.text "Logged in to Facebook" ]
+              , Html.button
+                  [ Attributes.class "facebook-button"
+                  , Attributes.class "facebook-logout"
+                  , Events.onClick StartFacebookLogout
+                  ]
+                  [ Html.text "Logout" ]
+              ]
+          LoggingOut ->
+            Html.p []
+              [ Html.button
+                  [ Attributes.class "facebook-button"
+                  , Attributes.class "facebook-logout"
+                  , Attributes.disabled True
+                  ]
+                  [ Html.text "Logging out..." ]
+              ]
       , Html.p [] [
           case apiLoggedIn of
             Unknown -> Html.text "Checking API login..."
-            NotLoggedIn _ -> Html.text "API not logged in"
+            NotLoggedIn -> Html.text "API not logged in"
+            LoggingIn -> Html.text "API logging in..."
             LoggedIn { userId } ->
               Html.text ("API user ID: " ++ userId)
+            LoggingOut -> Html.text "API logging out..."
         ]
       , Html.p [] [
           case facebookFriends of
@@ -103,7 +130,7 @@ checkApiLogin =
         (Json.Decode.nullable Json.Decode.string)
       |> Json.Decode.map (\u ->
         case u of
-          Nothing -> ApiLoginResult (NotLoggedIn { pending = False })
+          Nothing -> ApiLoginResult NotLoggedIn
           Just userId -> ApiLoginResult (LoggedIn { userId = userId })
       )
   in
@@ -131,14 +158,16 @@ tryApiLogin model =
   let
     needToSend =
       case model.apiLoggedIn of
-        LoggedIn _ -> False
         Unknown -> False -- checkApiLogin probably inflight
-        NotLoggedIn { pending } -> not pending
+        NotLoggedIn -> True
+        LoggingIn -> False
+        LoggedIn _ -> False
+        LoggingOut -> True
   in
   if needToSend
   then case model.facebookLoggedIn of
     LoggedIn { accessToken } ->
-      ( { model | apiLoggedIn = NotLoggedIn { pending = True } }
+      ( { model | apiLoggedIn = LoggingIn }
       , apiLogin { accessToken = accessToken }
       )
     _ -> (model, Cmd.none)
@@ -163,22 +192,23 @@ update msg model =
         ] |> Cmd.batch
       )
     FromJS Ports.FacebookLoginFailed ->
-      ({ model | facebookLoggedIn = NotLoggedIn { pending = False } }, Cmd.none)
+      ({ model | facebookLoggedIn = NotLoggedIn }, Cmd.none)
     FromJS (Ports.FacebookFriends friends) ->
       ({ model | facebookFriends = Just friends }, Cmd.none)
     StartFacebookLogin ->
-      let
-        alreadyPending =
-          case model.facebookLoggedIn of
-            NotLoggedIn { pending } -> pending
-            _ -> False
-      in
-      if alreadyPending
-      then (model, Cmd.none)
-      else
-        ( { model | facebookLoggedIn = NotLoggedIn { pending = True } }
-        , Ports.facebookLogin
-        )
+      case model.facebookLoggedIn of
+        LoggingIn -> (model, Cmd.none)
+        _ ->
+          ( { model | facebookLoggedIn = LoggingIn }
+          , Ports.facebookLogin
+          )
+    StartFacebookLogout ->
+      case model.facebookLoggedIn of
+        LoggingOut -> (model, Cmd.none)
+        _ ->
+          ( { model | facebookLoggedIn = LoggingOut }
+          , Ports.facebookLogout
+          )
     CheckApiLogin ->
       (model, checkApiLogin)
     ApiLoginResult newState ->

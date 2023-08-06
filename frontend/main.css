@@ -1,9 +1,32 @@
-#facebook-login {
-    /* https://developers.facebook.com/docs/facebook-login/userexperience */
-    background-color: #1877F2;
+.facebook-button {
+    font-family: serif;
+    font-size: 100%;
     color: white;
     border: 0;
     border-radius: 0.2em;
     padding: 0.4em 0.8em;
+    margin: 0 0.2em;
     font-weight: bold;
+}
+.facebook-login {
+    /* https://developers.facebook.com/docs/facebook-login/userexperience */
+    background-color: #1877F2; /* hsl(214, 89, 52) */
+}
+.facebook-login:hover {
+    background-color: hsl(214, 89%, 39%);
+}
+.facebook-login:disabled {
+    background-color: hsl(214, 89%, 75%);
+}
+.facebook-logged-in {
+    background-color: hsl(214, 89%, 75%);
+}
+.facebook-logout {
+    background-color: hsl(334, 89%, 52%);
+}
+.facebook-logout:hover {
+    background-color: hsl(334, 89%, 39%);
+}
+.facebook-logout:disabled {
+    background-color: hsl(334, 89%, 75%);
 }
