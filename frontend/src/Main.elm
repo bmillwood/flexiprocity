@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (Html)
+import Html.Attributes as Attributes
 import Html.Events as Events
 import Http
 import Json.Decode
@@ -11,13 +12,13 @@ import Ports
 
 type LoginStatus a
   = Unknown
-  | NotLoggedIn
+  | NotLoggedIn { pending : Bool }
   | LoggedIn a
 
 type alias Model =
   { errors : List String
   , facebookLoggedIn : LoginStatus { userId : String, accessToken : String }
-  , ourLoggedIn : LoginStatus ()
+  , apiLoggedIn : LoginStatus { userId : String }
   , facebookFriends : Maybe (List Json.Decode.Value)
   }
 
@@ -25,20 +26,21 @@ type Msg
   = AddError String
   | FromJS Ports.FromJS
   | StartFacebookLogin
-  | OurLoginResult (LoginStatus ())
+  | CheckApiLogin
+  | ApiLoginResult (LoginStatus { userId : String })
 
 init : () -> (Model, Cmd Msg)
 init () =
   ( { errors = []
     , facebookLoggedIn = Unknown
-    , ourLoggedIn = Unknown
+    , apiLoggedIn = Unknown
     , facebookFriends = Nothing
     }
-  , Cmd.none
+  , checkApiLogin
   )
 
 view : Model -> Browser.Document Msg
-view { errors, facebookLoggedIn, facebookFriends } =
+view { errors, facebookLoggedIn, apiLoggedIn, facebookFriends } =
   let
     viewError err = Html.li [] [Html.text err]
   in
@@ -48,48 +50,95 @@ view { errors, facebookLoggedIn, facebookFriends } =
       , Html.p [] [
           case facebookLoggedIn of
             Unknown -> Html.text "Facebook init not completed"
-            NotLoggedIn ->
+            NotLoggedIn { pending } ->
               Html.button
-                [ Events.onClick StartFacebookLogin ]
+                [ Events.onClick StartFacebookLogin
+                , Attributes.disabled pending
+                ]
                 [ Html.text "Log in to Facebook" ]
             LoggedIn _ ->
               Html.text "Logged in to Facebook"
         ]
-      , case facebookFriends of
-          Nothing -> Html.text "Don't know friends yet"
-          Just friends ->
-            [ "Read "
-            , String.fromInt (List.length friends)
-            , " friends from Facebook"
-            ] |> String.concat |> Html.text
+      , Html.p [] [
+          case apiLoggedIn of
+            Unknown -> Html.text "Checking API login..."
+            NotLoggedIn _ -> Html.text "API not logged in"
+            LoggedIn { userId } ->
+              Html.text ("API user ID: " ++ userId)
+        ]
+      , Html.p [] [
+          case facebookFriends of
+            Nothing -> Html.text "Don't know friends yet"
+            Just friends ->
+              [ "Read "
+              , String.fromInt (List.length friends)
+              , " friends from Facebook"
+              ] |> String.concat |> Html.text
+        ]
       ]
   }
 
-getFriendsIfNecessary : Model -> { userId : String } -> Cmd msg
-getFriendsIfNecessary model { userId } =
-  case model.facebookFriends of
-    Nothing -> Ports.facebookFriends { userId = userId }
-    Just _ -> Cmd.none
+handleHttpResult : Result Http.Error Msg -> Msg
+handleHttpResult r =
+  case r of
+    Err e -> AddError (Debug.toString e)
+    Ok msg -> msg
 
-ourLoginIfNecessary : Model -> { accessToken : String } -> Cmd Msg
-ourLoginIfNecessary model { accessToken } =
+checkApiLogin : Cmd Msg
+checkApiLogin =
   let
-    decodeResult = Json.Decode.succeed (LoggedIn ())
-    handleResult r =
-      case r of
-        Err err -> AddError (Debug.toString err)
-        Ok result -> OurLoginResult result
+    query = "mutation L{getOrCreateUserId(input: {}) {userId}}"
+    body =
+      [ ("query", Json.Encode.string query)
+      , ("operationName", Json.Encode.string "L")
+      , ("variables", Json.Encode.object [])
+      ] |> Json.Encode.object
+    decodeResult =
+      Json.Decode.at
+        ["data", "getOrCreateUserId", "userId"]
+        (Json.Decode.nullable Json.Decode.string)
+      |> Json.Decode.map (\u ->
+        case u of
+          Nothing -> ApiLoginResult (NotLoggedIn { pending = False })
+          Just userId -> ApiLoginResult (LoggedIn { userId = userId })
+      )
   in
-  case model.ourLoggedIn of
-    LoggedIn _ -> Cmd.none
-    _ ->
-      Http.post
-        { url = "/login/facebook"
-        , body =
-            [ ("userToken", Json.Encode.string accessToken) ]
-            |> Json.Encode.object |> Http.jsonBody
-        , expect = Http.expectJson handleResult decodeResult
-        }
+  Http.post
+    { url = "/graphql"
+    , body = Http.jsonBody body
+    , expect = Http.expectJson handleHttpResult decodeResult
+    }
+
+apiLogin : { accessToken : String } -> Cmd Msg
+apiLogin { accessToken } =
+  let
+    decodeResult = Json.Decode.succeed CheckApiLogin
+  in
+  Http.post
+    { url = "/login/facebook"
+    , body =
+        [ ("userToken", Json.Encode.string accessToken) ]
+        |> Json.Encode.object |> Http.jsonBody
+    , expect = Http.expectJson handleHttpResult decodeResult
+    }
+
+tryApiLogin : Model -> (Model, Cmd Msg)
+tryApiLogin model =
+  let
+    needToSend =
+      case model.apiLoggedIn of
+        LoggedIn _ -> False
+        Unknown -> False -- checkApiLogin probably inflight
+        NotLoggedIn { pending } -> not pending
+  in
+  if needToSend
+  then case model.facebookLoggedIn of
+    LoggedIn { accessToken } ->
+      ( { model | apiLoggedIn = NotLoggedIn { pending = True } }
+      , apiLogin { accessToken = accessToken }
+      )
+    _ -> (model, Cmd.none)
+  else (model, Cmd.none)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -99,19 +148,37 @@ update msg model =
     FromJS (Ports.DriverProtocolError err) ->
       ({ model | errors = err :: model.errors }, Cmd.none)
     FromJS (Ports.FacebookConnected params) ->
-      ( { model | facebookLoggedIn = LoggedIn params }
-      , [ getFriendsIfNecessary model { userId = params.userId }
-        , ourLoginIfNecessary model { accessToken = params.accessToken }
+      let
+        (newModel, cmd) = tryApiLogin { model | facebookLoggedIn = LoggedIn params }
+      in
+      ( newModel
+      , [ case newModel.facebookFriends of
+            Nothing -> Ports.facebookFriends { userId = params.userId }
+            Just _ -> Cmd.none
+        , cmd
         ] |> Cmd.batch
       )
     FromJS Ports.FacebookLoginFailed ->
-      ({ model | facebookLoggedIn = NotLoggedIn }, Cmd.none)
+      ({ model | facebookLoggedIn = NotLoggedIn { pending = False } }, Cmd.none)
     FromJS (Ports.FacebookFriends friends) ->
       ({ model | facebookFriends = Just friends }, Cmd.none)
     StartFacebookLogin ->
-      (model, Ports.facebookLogin)
-    OurLoginResult newState ->
-      ({ model | ourLoggedIn = newState }, Cmd.none)
+      let
+        alreadyPending =
+          case model.facebookLoggedIn of
+            NotLoggedIn { pending } -> pending
+            _ -> False
+      in
+      if alreadyPending
+      then (model, Cmd.none)
+      else
+        ( { model | facebookLoggedIn = NotLoggedIn { pending = True } }
+        , Ports.facebookLogin
+        )
+    CheckApiLogin ->
+      (model, checkApiLogin)
+    ApiLoginResult newState ->
+      tryApiLogin { model | apiLoggedIn = newState }
 
 subscriptions : Model -> Sub Msg
 subscriptions model = Sub.map FromJS Ports.subscriptions

@@ -1,0 +1,12 @@
+{
+  version: 1,
+  config: {
+    procedure: {
+      get_or_create_user_id: {
+        tags: {
+          resultFieldName: 'userId',
+        },
+      },
+    },
+  },
+}

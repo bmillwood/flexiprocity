@@ -22,6 +22,6 @@ makeJwt fbUserId = do
         , JWT.exp = JWT.numericDate (now + TimePosix.posixDayLength)
         , JWT.aud = Left <$> JWT.stringOrURI "postgraphile"
         , JWT.unregisteredClaims =
-            JWT.ClaimsMap (Map.singleton "fbUserId" (Aeson.toJSON fbUserId))
+            JWT.ClaimsMap (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
         }
   pure $ JWT.encodeSigned encodeSigner mempty claims
