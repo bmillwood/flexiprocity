@@ -44,16 +44,18 @@ type alias Model =
   , myBio : String
   }
 
-type Msg
+type OneMsg
   = AddError String
   | FromJS Ports.FromJS
   | StartFacebookLogin
   | StartFacebookLogout
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : String })
-  | ApiUsers (List ApiUser)
+  | GotApiUser ApiUser
   | EditBio String
   | SubmitBio
+
+type alias Msg = List OneMsg
 
 init : () -> (Model, Cmd Msg)
 init () =
@@ -106,14 +108,14 @@ view model =
                       [ Attributes.type_ "text"
                       , Attributes.placeholder "short bio"
                       , Attributes.value model.myBio
-                      , Events.onInput EditBio
+                      , Events.onInput (List.singleton << EditBio)
                       ]
                       []
                   , let
                       saved = user.bio == model.myBio
                     in
                     Html.button
-                      [ Events.onClick SubmitBio
+                      [ Events.onClick [SubmitBio]
                       , Attributes.disabled saved
                       ]
                       [ Html.text (if saved then "Saved" else "Save") ]
@@ -131,7 +133,7 @@ view model =
         , let
             button disabled text =
               Html.button
-                [ Events.onClick StartFacebookLogin
+                [ Events.onClick [StartFacebookLogin]
                 , Attributes.disabled disabled
                 , Attributes.class "facebook-button"
                 , Attributes.class "facebook-login"
@@ -157,7 +159,7 @@ view model =
                 , Html.button
                     [ Attributes.class "facebook-button"
                     , Attributes.class "facebook-logout"
-                    , Events.onClick StartFacebookLogout
+                    , Events.onClick [StartFacebookLogout]
                     ]
                     [ Html.text "Logout" ]
                 ]
@@ -198,7 +200,7 @@ view model =
 handleHttpResult : Result Http.Error Msg -> Msg
 handleHttpResult r =
   case r of
-    Err e -> AddError (Debug.toString e)
+    Err e -> [AddError (Debug.toString e)]
     Ok msg -> msg
 
 graphQL
@@ -231,8 +233,8 @@ checkApiLogin =
         (Json.Decode.nullable Json.Decode.string)
       |> Json.Decode.map (\u ->
         case u of
-          Nothing -> ApiLoginResult NotLoggedIn
-          Just userId -> ApiLoginResult (LoggedIn { userId = userId })
+          Nothing -> [ApiLoginResult NotLoggedIn]
+          Just userId -> [ApiLoginResult (LoggedIn { userId = userId })]
       )
   in
   graphQL
@@ -245,7 +247,7 @@ checkApiLogin =
 apiLogin : { accessToken : String } -> Cmd Msg
 apiLogin { accessToken } =
   let
-    decodeResult = Json.Decode.succeed CheckApiLogin
+    decodeResult = Json.Decode.succeed [CheckApiLogin]
   in
   Http.post
     { url = "/login/facebook"
@@ -275,8 +277,8 @@ tryApiLogin model =
     _ -> (model, Cmd.none)
   else (model, Cmd.none)
 
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
+updateOne : OneMsg -> Model -> (Model, Cmd Msg)
+updateOne msg model =
   case msg of
     AddError err ->
       ({ model | errors = err :: model.errors }, Cmd.none)
@@ -329,26 +331,24 @@ update msg model =
             , decodeResult =
                 Json.Decode.at ["data", "userProfiles", "nodes"]
                   (Json.Decode.list decodeApiUser)
-                |> Json.Decode.map ApiUsers
+                |> Json.Decode.map (List.map GotApiUser)
             }
       in
       case newState of
         LoggedIn { userId } ->
           (newModel, Cmd.batch [cmd, lookupMe userId])
         _ -> (newModel, cmd)
-    ApiUsers users ->
+    GotApiUser user ->
       let
         isMe otherId =
           case model.apiLoggedIn of
             LoggedIn { userId } -> userId == otherId
             _ -> False
-        addUser user accModel =
-          { accModel
-          | apiUsers = Dict.insert user.id user accModel.apiUsers
-          , myBio = if isMe user.id then Debug.log "bio" user.bio else accModel.myBio
-          }
       in
-      ( List.foldl addUser model users
+      ( { model
+        | apiUsers = Dict.insert user.id user model.apiUsers
+        , myBio = if isMe user.id then user.bio else model.myBio
+        }
       , Cmd.none
       )
     EditBio bio -> ({ model | myBio = bio }, Cmd.none)
@@ -360,12 +360,23 @@ update msg model =
           , variables = [("b", Json.Encode.string model.myBio)]
           , decodeResult =
               Json.Decode.at ["data", "updateMe", "user"] decodeApiUser
-              |> Json.Decode.map (ApiUsers << List.singleton)
+              |> Json.Decode.map (List.singleton << GotApiUser)
           }
       )
 
+update : Msg -> Model -> (Model, Cmd Msg)
+update msgs model =
+  case msgs of
+    [] -> (model, Cmd.none)
+    msg :: rest ->
+      let
+        (newModel, cmd) = updateOne msg model
+        (finalModel, cmds) = update rest newModel
+      in
+      (finalModel, Cmd.batch [cmd, cmds])
+
 subscriptions : Model -> Sub Msg
-subscriptions model = Sub.map FromJS Ports.subscriptions
+subscriptions model = Sub.map (List.singleton << FromJS) Ports.subscriptions
 
 main =
   Browser.document
