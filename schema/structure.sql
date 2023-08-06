@@ -17,8 +17,7 @@ CREATE TYPE unit AS ENUM ('unit');
 
 CREATE TABLE users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
-  , facebook_id text UNIQUE
-  , name text
+  , facebook_id text UNIQUE NOT NULL
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
   );
@@ -127,7 +126,6 @@ CREATE VIEW user_profiles AS
   SELECT
     users.user_id
   , users.facebook_id
-  , users.name
   , users.bio
   , users.user_id IN (
       SELECT friend_id

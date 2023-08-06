@@ -21,17 +21,15 @@ type LoginStatus a
 type alias ApiUser =
   { id : String
   , facebookId : Maybe String
-  , name : Maybe String
   , bio : String
   }
 
 decodeApiUser : Json.Decode.Decoder ApiUser
 decodeApiUser =
-  Json.Decode.map4
-    (\i f n b -> { id = i, facebookId = f, name = n, bio = b })
+  Json.Decode.map3
+    (\i f b -> { id = i, facebookId = f, bio = b })
     (Json.Decode.field "userId" Json.Decode.string)
     (Json.Decode.field "facebookId" (Json.Decode.nullable Json.Decode.string))
-    (Json.Decode.field "name" (Json.Decode.nullable Json.Decode.string))
     (Json.Decode.field "bio" Json.Decode.string)
 
 type Audience
@@ -110,9 +108,8 @@ view model =
           user.facebookId
           |> Maybe.andThen (\fbid -> Dict.get fbid model.facebookUsers)
         name =
-          case facebookUser of
-            Nothing -> Maybe.withDefault "[unknown]" user.name
-            Just u -> u.name
+          Maybe.map .name facebookUser
+          |> Maybe.withDefault "[unknown]"
         picture = facebookUser |> Maybe.map .picture
       in
       Html.div
