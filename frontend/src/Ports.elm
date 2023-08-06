@@ -30,10 +30,22 @@ facebookFriends : { userId : String } -> Cmd msg
 facebookFriends { userId } =
   facebookApi { path = "/" ++ userId ++ "/friends", id = "friends" }
 
+facebookUser : { personId : String } -> Cmd msg
+facebookUser { personId } =
+  facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture", id = "user" }
+
+type alias FacebookUser =
+  { id : String
+  , name : String
+  , shortName : String
+  , picture : { height : Int, width : Int, url : String }
+  }
+
 type FromJS
   = DriverProtocolError String
   | FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
+  | FacebookGotUser FacebookUser
   | FacebookFriends (List Json.Decode.Value)
 
 fromJS : Json.Decode.Decoder FromJS
@@ -43,6 +55,19 @@ fromJS =
       Json.Decode.map2 (\i t -> { userId = i, accessToken = t })
         (Json.Decode.field "userID" Json.Decode.string)
         (Json.Decode.field "accessToken" Json.Decode.string)
+    decodePicture =
+      Json.Decode.map3
+        (\h w u -> { height = h, width = w, url = u })
+        (Json.Decode.field "height" Json.Decode.int)
+        (Json.Decode.field "width" Json.Decode.int)
+        (Json.Decode.field "url" Json.Decode.string)
+    decodeUser =
+      Json.Decode.map4
+         (\i n sn p -> { id = i, name = n, shortName = sn, picture = p })
+         (Json.Decode.field "id" Json.Decode.string)
+         (Json.Decode.field "name" Json.Decode.string)
+         (Json.Decode.field "short_name" Json.Decode.string)
+         (Json.Decode.at ["picture", "data"] decodePicture)
     decodePayload kind =
       case kind of
         "facebook-login-status" ->
@@ -62,6 +87,9 @@ fromJS =
                 Json.Decode.at ["response", "data"]
                   (Json.Decode.list Json.Decode.value)
                 |> Json.Decode.map FacebookFriends
+              "user" ->
+                Json.Decode.field "response" decodeUser
+                |> Json.Decode.map FacebookGotUser
               _ -> Json.Decode.fail ("Unknown api req id: " ++ id)
           )
         _ -> Json.Decode.fail ("Unknown kind: " ++ kind)

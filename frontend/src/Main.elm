@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Browser
+import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attributes
 import Html.Events as Events
@@ -21,6 +22,7 @@ type alias Model =
   { errors : List String
   , facebookLoggedIn : LoginStatus { userId : String, accessToken : String }
   , apiLoggedIn : LoginStatus { userId : String }
+  , facebookUsers : Dict String Ports.FacebookUser
   , facebookFriends : Maybe (List Json.Decode.Value)
   }
 
@@ -37,20 +39,21 @@ init () =
   ( { errors = []
     , facebookLoggedIn = Unknown
     , apiLoggedIn = Unknown
+    , facebookUsers = Dict.empty
     , facebookFriends = Nothing
     }
   , checkApiLogin
   )
 
 view : Model -> Browser.Document Msg
-view { errors, facebookLoggedIn, apiLoggedIn, facebookFriends } =
+view model =
   let
     viewError err = Html.li [] [Html.text err]
   in
   { title = "Flexiprocity"
   , body =
       [ Html.h1 [] [ Html.text "flexiprocity" ]
-      , Html.ul [] (List.map viewError errors)
+      , Html.ul [] (List.map viewError model.errors)
       , let
           button disabled text =
             Html.button
@@ -60,18 +63,23 @@ view { errors, facebookLoggedIn, apiLoggedIn, facebookFriends } =
               , Attributes.class "facebook-login"
               ]
               [ Html.text text ]
+          viewLoggedIn userId =
+            case Dict.get userId model.facebookUsers of
+              Nothing -> [ Html.text "Logged in with Facebook" ]
+              Just user ->
+                [ Html.text ("Logged in as " ++ user.shortName ++ " ") ]
         in
-        case facebookLoggedIn of
+        case model.facebookLoggedIn of
           Unknown -> Html.p [] [button True "Checking Facebook login status"]
           NotLoggedIn -> Html.p [] [ button False "Login with Facebook" ]
           LoggingIn -> Html.p [] [ button True "Logging in..." ]
-          LoggedIn _ ->
+          LoggedIn { userId } ->
             Html.p []
               [ Html.span
                   [ Attributes.class "facebook-button"
                   , Attributes.class "facebook-logged-in"
                   ]
-                  [ Html.text "Logged in to Facebook" ]
+                  (viewLoggedIn userId)
               , Html.button
                   [ Attributes.class "facebook-button"
                   , Attributes.class "facebook-logout"
@@ -89,16 +97,7 @@ view { errors, facebookLoggedIn, apiLoggedIn, facebookFriends } =
                   [ Html.text "Logging out..." ]
               ]
       , Html.p [] [
-          case apiLoggedIn of
-            Unknown -> Html.text "Checking API login..."
-            NotLoggedIn -> Html.text "API not logged in"
-            LoggingIn -> Html.text "API logging in..."
-            LoggedIn { userId } ->
-              Html.text ("API user ID: " ++ userId)
-            LoggingOut -> Html.text "API logging out..."
-        ]
-      , Html.p [] [
-          case facebookFriends of
+          case model.facebookFriends of
             Nothing -> Html.text "Don't know friends yet"
             Just friends ->
               [ "Read "
@@ -188,6 +187,7 @@ update msg model =
       , [ case newModel.facebookFriends of
             Nothing -> Ports.facebookFriends { userId = params.userId }
             Just _ -> Cmd.none
+        , Ports.facebookUser { personId = params.userId }
         , cmd
         ] |> Cmd.batch
       )
@@ -195,6 +195,10 @@ update msg model =
       ({ model | facebookLoggedIn = NotLoggedIn }, Cmd.none)
     FromJS (Ports.FacebookFriends friends) ->
       ({ model | facebookFriends = Just friends }, Cmd.none)
+    FromJS (Ports.FacebookGotUser user) ->
+      ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
+      , Cmd.none
+      )
     StartFacebookLogin ->
       case model.facebookLoggedIn of
         LoggingIn -> (model, Cmd.none)
