@@ -21,7 +21,6 @@ CREATE TABLE users
   , name text
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
-  , fbid_visible_to audience
   );
 
 CREATE FUNCTION current_user_id() RETURNS bigint
@@ -105,13 +104,7 @@ GRANT  EXECUTE ON FUNCTION set_facebook_friends TO api;
 CREATE VIEW user_profiles AS
   SELECT
     users.user_id
-  , CASE
-      WHEN users.fbid_visible_to = 'everyone'
-        OR (users.fbid_visible_to = 'friends' AND fr IS NOT NULL)
-        OR users.user_id = current_user_id()
-        THEN users.facebook_id
-      ELSE NULL
-    END AS facebook_id
+  , users.facebook_id
   , users.name
   , users.bio
   FROM users
