@@ -46,18 +46,22 @@ view { errors, facebookLoggedIn, apiLoggedIn, facebookFriends } =
   in
   { title = "Flexiprocity"
   , body =
-      [ Html.ul [] (List.map viewError errors)
+      [ Html.h1 [] [ Html.text "flexiprocity" ]
+      , Html.ul [] (List.map viewError errors)
       , Html.p [] [
-          case facebookLoggedIn of
-            Unknown -> Html.text "Facebook init not completed"
-            NotLoggedIn { pending } ->
+          let
+            button disabled =
               Html.button
                 [ Events.onClick StartFacebookLogin
-                , Attributes.disabled pending
+                , Attributes.disabled disabled
+                , Attributes.id "facebook-login"
                 ]
-                [ Html.text "Log in to Facebook" ]
-            LoggedIn _ ->
-              Html.text "Logged in to Facebook"
+                [ Html.text "Login with Facebook" ]
+          in
+          case facebookLoggedIn of
+            Unknown -> button True
+            NotLoggedIn { pending } -> button pending
+            LoggedIn _ -> Html.text "Logged in to Facebook"
         ]
       , Html.p [] [
           case apiLoggedIn of

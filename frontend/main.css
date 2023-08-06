@@ -1,0 +1,9 @@
+#facebook-login {
+    /* https://developers.facebook.com/docs/facebook-login/userexperience */
+    background-color: #1877F2;
+    color: white;
+    border: 0;
+    border-radius: 0.2em;
+    padding: 0.4em 0.8em;
+    font-weight: bold;
+}
