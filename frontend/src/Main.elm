@@ -150,7 +150,7 @@ view model =
             ]
         ]
   in
-  { title = "Flexiprocity"
+  { title = "flexiprocity"
   , body =
       [ [ Html.h1 [] [ Html.text "flexiprocity" ]
         , Html.ul [] (List.map viewError model.errors)
@@ -234,7 +234,7 @@ view model =
                   [ if List.isEmpty friends
                     then "None"
                     else String.fromInt (List.length friends)
-                  , " of your Facebook friends use Flexiprocity"
+                  , " of your Facebook friends use flexiprocity"
                   , if List.isEmpty friends
                     then " 🙁"
                     else ""
