@@ -177,19 +177,20 @@ view model =
               Just u -> [viewUser u True]
               Nothing -> []
           _ -> []
-      , [ Html.p [] [
-            case model.facebookFriends of
-              Nothing -> Html.text "Fetching Facebook friends..."
-              Just friends ->
-                [ if List.isEmpty friends
-                  then "None"
-                  else String.fromInt (List.length friends)
-                , " of your Facebook friends use Flexiprocity"
-                , if List.isEmpty friends
-                  then " :("
-                  else ""
-                ] |> String.concat |> Html.text
-          ]
+      , [ Html.p []
+            [
+              case model.facebookFriends of
+                Nothing -> Html.text "Fetching Facebook friends..."
+                Just friends ->
+                  [ if List.isEmpty friends
+                    then "None"
+                    else String.fromInt (List.length friends)
+                  , " of your Facebook friends use Flexiprocity"
+                  , if List.isEmpty friends
+                    then " 🙁"
+                    else ""
+                  ] |> String.concat |> Html.text
+            ]
         ]
       ] |> List.concat
   }
