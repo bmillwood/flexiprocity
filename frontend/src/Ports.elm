@@ -46,7 +46,7 @@ type FromJS
   | FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
-  | FacebookFriends (List Json.Decode.Value)
+  | FacebookFriends (List FacebookUser)
 
 fromJS : Json.Decode.Decoder FromJS
 fromJS =
@@ -84,8 +84,7 @@ fromJS =
           |> Json.Decode.andThen (\id ->
             case id of
               "friends" ->
-                Json.Decode.at ["response", "data"]
-                  (Json.Decode.list Json.Decode.value)
+                Json.Decode.at ["response", "data"] (Json.Decode.list decodeUser)
                 |> Json.Decode.map FacebookFriends
               "user" ->
                 Json.Decode.field "response" decodeUser

@@ -36,12 +36,14 @@ decodeApiUser =
 
 type Audience
   = Self
+  | Friends
   | Everyone
 
 encodeAudience : Audience -> Json.Encode.Value
 encodeAudience audience =
   Json.Encode.string <| case audience of
     Self -> "SELF"
+    Friends -> "FRIENDS"
     Everyone -> "EVERYONE"
 
 decodeAudience : Json.Decode.Decoder Audience
@@ -50,6 +52,7 @@ decodeAudience =
   |> Json.Decode.andThen (\audience ->
     case audience of
       "SELF" -> Json.Decode.succeed Self
+      "FRIENDS" -> Json.Decode.succeed Friends
       "EVERYONE" -> Json.Decode.succeed Everyone
       _ -> Json.Decode.fail ("unknown audience: " ++ audience)
   )
@@ -60,7 +63,7 @@ type alias Model =
   , apiLoggedIn : LoginStatus { userId : String }
   , facebookUsers : Dict String Ports.FacebookUser
   , apiUsers : Dict String ApiUser
-  , facebookFriends : Maybe (List Json.Decode.Value)
+  , facebookFriends : Maybe (List Ports.FacebookUser)
   , myBio : String
   , myVisibility : Maybe Audience
   }
@@ -207,6 +210,7 @@ view model =
                 in
                 [ [ Html.text "Show your profile to:" ]
                 , radio Self "Nobody"
+                , radio Friends "Friends"
                 , radio Everyone "Everyone"
                 ] |> List.concat |> Html.p []
               ]
@@ -324,6 +328,22 @@ tryApiLogin model =
     _ -> (model, Cmd.none)
   else (model, Cmd.none)
 
+sendFriends : Model -> Cmd Msg
+sendFriends model =
+  case (model.myVisibility, model.apiLoggedIn, model.facebookFriends) of
+    (Just Friends, LoggedIn _, Just friends) ->
+      graphQL
+        { query = "mutation F($f:[String]!){setFacebookFriends(input:{friendFbids:$f}){unit}}"
+        , operationName = "F"
+        , variables =
+            [ ( "f"
+              , Json.Encode.list (Json.Encode.string << .id) friends
+              )
+            ]
+        , decodeResult = Json.Decode.succeed []
+        }
+    _ -> Cmd.none
+
 updateOne : OneMsg -> Model -> (Model, Cmd Msg)
 updateOne msg model =
   case msg of
@@ -346,7 +366,7 @@ updateOne msg model =
     FromJS Ports.FacebookLoginFailed ->
       ({ model | facebookLoggedIn = NotLoggedIn }, Cmd.none)
     FromJS (Ports.FacebookFriends friends) ->
-      ({ model | facebookFriends = Just friends }, Cmd.none)
+      ({ model | facebookFriends = Just friends }, sendFriends model)
     FromJS (Ports.FacebookGotUser user) ->
       ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
       , Cmd.none
@@ -388,7 +408,7 @@ updateOne msg model =
       in
       case newState of
         LoggedIn { userId } ->
-          (newModel, Cmd.batch [cmd, lookupMe userId])
+          (newModel, Cmd.batch [cmd, lookupMe userId, sendFriends newModel])
         _ -> (newModel, cmd)
     GotApiUser user ->
       let
@@ -415,7 +435,15 @@ updateOne msg model =
               |> Json.Decode.map (List.singleton << GotApiUser)
           }
       )
-    MyVisibility who -> ({ model | myVisibility = Just who }, Cmd.none)
+    MyVisibility who ->
+      let
+        newModel = { model | myVisibility = Just who }
+      in
+      ( newModel
+      , case model.myVisibility of
+          Just Friends -> Cmd.none -- no need to resend
+          _ -> sendFriends newModel
+      )
     SubmitVisibility ->
       case model.myVisibility |> Maybe.map encodeAudience of
         Nothing -> (model, Cmd.none)
