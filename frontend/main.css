@@ -30,3 +30,6 @@
 .facebook-logout:disabled {
     background-color: hsl(334, 89%, 75%);
 }
+.user > img {
+    margin: 0.2em 0.4em;
+}
