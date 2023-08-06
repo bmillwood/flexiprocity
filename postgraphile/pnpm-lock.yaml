@@ -1,11 +1,18 @@
 lockfileVersion: '6.0'
 
 dependencies:
+  '@graphile-contrib/pg-simplify-inflector':
+    specifier: ^6.1.0
+    version: 6.1.0
   postgraphile:
     specifier: ^4.13.0
     version: 4.13.0
 
 packages:
+
+  /@graphile-contrib/pg-simplify-inflector@6.1.0:
+    resolution: {integrity: sha512-3eI2FP4ulu/fxwkJBNXhR6XEzqVz4wJWFr4LfeyUNNArUtLFx0DpP6YdcARCYgwLExFcIQNE8fnul3JKiciYIw==}
+    dev: false
 
   /@graphile/lru@4.11.0:
     resolution: {integrity: sha512-Fakuk190EAKxWSa9YQyr/87g8mvAv8HBvk6yPCPuIoA3bYXF7n6kl0XSqKjSd5VfjEqhtnzQ6zJGzDf1Gv/tJg==}

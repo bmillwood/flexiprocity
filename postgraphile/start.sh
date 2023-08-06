@@ -3,6 +3,7 @@ set -o errexit -o nounset -o pipefail
 
 # "For development" per https://www.graphile.org/postgraphile/usage-cli/
 node_modules/.bin/postgraphile \
+    --append-plugins @graphile-contrib/pg-simplify-inflector \
     --watch \
     --dynamic-json \
     --no-setof-functions-contain-nulls \
