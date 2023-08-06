@@ -34,6 +34,26 @@ decodeApiUser =
     (Json.Decode.field "name" (Json.Decode.nullable Json.Decode.string))
     (Json.Decode.field "bio" Json.Decode.string)
 
+type Audience
+  = Self
+  | Everyone
+
+encodeAudience : Audience -> Json.Encode.Value
+encodeAudience audience =
+  Json.Encode.string <| case audience of
+    Self -> "SELF"
+    Everyone -> "EVERYONE"
+
+decodeAudience : Json.Decode.Decoder Audience
+decodeAudience =
+  Json.Decode.string
+  |> Json.Decode.andThen (\audience ->
+    case audience of
+      "SELF" -> Json.Decode.succeed Self
+      "EVERYONE" -> Json.Decode.succeed Everyone
+      _ -> Json.Decode.fail ("unknown audience: " ++ audience)
+  )
+
 type alias Model =
   { errors : List String
   , facebookLoggedIn : LoginStatus { userId : String, accessToken : String }
@@ -42,6 +62,7 @@ type alias Model =
   , apiUsers : Dict String ApiUser
   , facebookFriends : Maybe (List Json.Decode.Value)
   , myBio : String
+  , myVisibility : Maybe Audience
   }
 
 type OneMsg
@@ -54,6 +75,8 @@ type OneMsg
   | GotApiUser ApiUser
   | EditBio String
   | SubmitBio
+  | MyVisibility Audience
+  | SubmitVisibility
 
 type alias Msg = List OneMsg
 
@@ -66,6 +89,7 @@ init () =
     , apiUsers = Dict.empty
     , facebookFriends = Nothing
     , myBio = ""
+    , myVisibility = Nothing
     }
   , checkApiLogin
   )
@@ -130,6 +154,7 @@ view model =
   , body =
       [ [ Html.h1 [] [ Html.text "flexiprocity" ]
         , Html.ul [] (List.map viewError model.errors)
+        ]
         , let
             button disabled text =
               Html.button
@@ -146,33 +171,55 @@ view model =
                   [ Html.text ("Logged in as " ++ user.shortName ++ " ") ]
           in
           case model.facebookLoggedIn of
-            Unknown -> Html.p [] [button True "Checking Facebook login status"]
-            NotLoggedIn -> Html.p [] [ button False "Login with Facebook" ]
-            LoggingIn -> Html.p [] [ button True "Logging in..." ]
+            Unknown ->
+              [Html.p [] [button True "Checking Facebook login status"]]
+            NotLoggedIn ->
+              [Html.p [] [button False "Login with Facebook"]]
+            LoggingIn ->
+              [Html.p [] [button True "Logging in..."]]
             LoggedIn { userId } ->
-              Html.p []
-                [ Html.span
-                    [ Attributes.class "facebook-button"
-                    , Attributes.class "facebook-logged-in"
+              [ Html.p []
+                  [ Html.span
+                      [ Attributes.class "facebook-button"
+                      , Attributes.class "facebook-logged-in"
+                      ]
+                      (viewLoggedIn userId)
+                  , Html.button
+                      [ Attributes.class "facebook-button"
+                      , Attributes.class "facebook-logout"
+                      , Events.onClick [StartFacebookLogout]
+                      ]
+                      [ Html.text "Logout" ]
+                  ]
+              , let
+                  radio v s =
+                    [ Html.input
+                      [ Attributes.type_ "radio"
+                      , Attributes.name "visibility"
+                      , Attributes.id ("visible:" ++ s)
+                      , Attributes.checked (model.myVisibility == Just v)
+                      , Events.onCheck (\_ -> [MyVisibility v, SubmitVisibility])
+                      ] []
+                    , Html.label
+                        [ Attributes.for ("visible:" ++ s) ]
+                        [ Html.text s ]
                     ]
-                    (viewLoggedIn userId)
-                , Html.button
-                    [ Attributes.class "facebook-button"
-                    , Attributes.class "facebook-logout"
-                    , Events.onClick [StartFacebookLogout]
-                    ]
-                    [ Html.text "Logout" ]
-                ]
+                in
+                [ [ Html.text "Show your profile to:" ]
+                , radio Self "Nobody"
+                , radio Everyone "Everyone"
+                ] |> List.concat |> Html.p []
+              ]
             LoggingOut ->
-              Html.p []
-                [ Html.button
-                    [ Attributes.class "facebook-button"
-                    , Attributes.class "facebook-logout"
-                    , Attributes.disabled True
-                    ]
-                    [ Html.text "Logging out..." ]
-                ]
-        ]
+              [ Html.p []
+                  [ Html.button
+                      [ Attributes.class "facebook-button"
+                      , Attributes.class "facebook-logout"
+                      , Attributes.disabled True
+                      ]
+                      [ Html.text "Logging out..." ]
+                  ]
+              ]
       , case model.apiLoggedIn of
           LoggedIn { userId } ->
             case Dict.get userId model.apiUsers of
@@ -323,15 +370,20 @@ updateOne msg model =
     ApiLoginResult newState ->
       let
         (newModel, cmd) = tryApiLogin { model | apiLoggedIn = newState }
+        decodeProfiles =
+          Json.Decode.at ["data", "userProfiles", "nodes"]
+            (Json.Decode.list decodeApiUser)
+          |> Json.Decode.map (List.map GotApiUser)
+        decodeVisible =
+          Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
+          |> Json.Decode.map (List.singleton << MyVisibility)
         lookupMe userId =
           graphQL
-            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId name bio}}}"
+            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId name bio}}myUser{visibleTo}}"
             , operationName = "Q"
             , variables = [("u", Json.Encode.string userId)]
             , decodeResult =
-                Json.Decode.at ["data", "userProfiles", "nodes"]
-                  (Json.Decode.list decodeApiUser)
-                |> Json.Decode.map (List.map GotApiUser)
+                Json.Decode.map2 List.append decodeProfiles decodeVisible
             }
       in
       case newState of
@@ -363,6 +415,21 @@ updateOne msg model =
               |> Json.Decode.map (List.singleton << GotApiUser)
           }
       )
+    MyVisibility who -> ({ model | myVisibility = Just who }, Cmd.none)
+    SubmitVisibility ->
+      case model.myVisibility |> Maybe.map encodeAudience of
+        Nothing -> (model, Cmd.none)
+        Just v ->
+          ( model
+          , graphQL
+              { query = "mutation V($a:Audience!){updateMe(input:{visibleTo:$a}){user{visibleTo}}}"
+              , operationName = "V"
+              , variables = [("a", v)]
+              , decodeResult =
+                  Json.Decode.at ["data", "updateMe", "user", "visibleTo"] decodeAudience
+                  |> Json.Decode.map (List.singleton << MyVisibility)
+              }
+          )
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msgs model =
