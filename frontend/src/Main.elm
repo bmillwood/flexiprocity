@@ -39,12 +39,15 @@ type Audience
   | Friends
   | Everyone
 
-encodeAudience : Audience -> Json.Encode.Value
-encodeAudience audience =
-  Json.Encode.string <| case audience of
+audienceToString : Audience -> String
+audienceToString audience =
+  case audience of
     Self -> "SELF"
     Friends -> "FRIENDS"
     Everyone -> "EVERYONE"
+
+encodeAudience : Audience -> Json.Encode.Value
+encodeAudience = Json.Encode.string << audienceToString
 
 decodeAudience : Json.Decode.Decoder Audience
 decodeAudience =
@@ -199,17 +202,17 @@ view model =
                     [ Html.input
                       [ Attributes.type_ "radio"
                       , Attributes.name "visibility"
-                      , Attributes.id ("visible:" ++ s)
+                      , Attributes.id ("visible-" ++ audienceToString v)
                       , Attributes.checked (model.myVisibility == Just v)
                       , Events.onCheck (\_ -> [MyVisibility v, SubmitVisibility])
                       ] []
                     , Html.label
-                        [ Attributes.for ("visible:" ++ s) ]
+                        [ Attributes.for ("visible-" ++ audienceToString v) ]
                         [ Html.text s ]
                     ]
                 in
-                [ [ Html.text "Show your profile to:" ]
-                , radio Self "Nobody"
+                [ [ Html.text "Show my profile to people I've ticked and:" ]
+                , radio Self "Nobody else"
                 , radio Friends "Friends"
                 , radio Everyone "Everyone"
                 ] |> List.concat |> Html.p []

@@ -101,16 +101,71 @@ CREATE FUNCTION set_facebook_friends(friend_fbids text[]) RETURNS unit
 REVOKE EXECUTE ON FUNCTION set_facebook_friends FROM public;
 GRANT  EXECUTE ON FUNCTION set_facebook_friends TO api;
 
+CREATE TABLE woulds
+  ( would_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
+  , name text NOT NULL
+  );
+INSERT INTO woulds (name)
+VALUES ('Hang out sometime'), ('Go on a date or something');
+GRANT SELECT ON woulds TO api;
+
+CREATE TABLE user_woulds
+  ( user_id bigint  NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
+  , would_id bigint NOT NULL REFERENCES woulds(would_id) ON DELETE CASCADE
+  , with_id bigint  NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
+  , PRIMARY KEY (user_id, would_id, with_id)
+  );
+
+CREATE POLICY only_my_woulds ON user_woulds FOR ALL TO api
+  USING (user_id = current_user_id())
+  WITH CHECK (user_id = current_user_id());
+ALTER TABLE user_woulds ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT, DELETE ON user_woulds TO api;
+
 CREATE VIEW user_profiles AS
   SELECT
     users.user_id
   , users.facebook_id
   , users.name
   , users.bio
+  , users.user_id IN (
+      SELECT friend_id
+      FROM facebook_friends f
+      WHERE f.user_id = current_user_id()
+    ) AS is_friend
+  , COALESCE(
+      array_agg(uw.would_id) FILTER (WHERE uw.would_id IS NOT NULL)
+    , '{}'
+    ) AS you_would
+  , COALESCE(
+      array_agg(matches.would_id) FILTER (WHERE matches.would_id IS NOT NULL)
+    , '{}'
+    ) AS matched_woulds
   FROM users
-  LEFT JOIN facebook_friends fr
-    ON users.user_id = fr.user_id AND fr.friend_id = current_user_id()
+  LEFT JOIN facebook_friends fwu
+    ON users.user_id = fwu.user_id
+   AND fwu.friend_id = current_user_id()
+  LEFT JOIN user_woulds uw
+    ON uw.user_id = current_user_id()
+   AND uw.with_id = users.user_id
+  LEFT JOIN user_woulds matches
+    ON matches.user_id = users.user_id
+   AND matches.would_id = uw.would_id
+   AND matches.with_id = current_user_id()
   WHERE users.visible_to = 'everyone'
-     OR (users.visible_to = 'friends' AND fr IS NOT NULL)
-     OR users.user_id = current_user_id();
+     OR (users.visible_to = 'friends'
+        AND users.user_id IN (
+          SELECT f.user_id
+          FROM facebook_friends f
+          WHERE f.friend_id = current_user_id()
+        ))
+     OR users.user_id = current_user_id()
+     OR users.user_id IN (
+          SELECT w.user_id
+          FROM user_woulds w
+          WHERE w.user_id = users.user_id
+            AND w.with_id = current_user_id()
+        )
+  GROUP BY users.user_id;
 GRANT SELECT ON user_profiles TO api;
