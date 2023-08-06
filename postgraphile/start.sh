@@ -16,7 +16,7 @@ node_modules/.bin/postgraphile \
     --allow-explain \
     --enable-query-batching \
     --legacy-relations omit \
-    --owner-connection "socket:/run/postgresql?db=flexiprocity&user=ben" \
+    --owner-connection "socket:/run/postgresql?db=flexiprocity&user=postgres" \
     --connection "socket:/run/postgresql?db=flexiprocity&user=api" \
     --jwt-secret "$(cat ../secrets/jwt/public-key.pem)" \
     --jwt-verify-algorithms RS256 \
