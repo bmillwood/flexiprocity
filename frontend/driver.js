@@ -9,7 +9,7 @@ window.fbAsyncInit = function() {
         console.log('status', response);
         app.ports.receiveFromJS.send({
             kind: 'facebook-login-status',
-            payload: response
+            response
         });
     });
 };
@@ -23,22 +23,24 @@ app.ports.sendToJS.subscribe(function(request) {
             console.log('login', response);
             app.ports.receiveFromJS.send({
                 kind: 'facebook-login-status',
-                payload: response
+                response
             });
         }, {scope: 'public_profile,user_friends'});
         break;
-    case 'facebook-friends':
+    case 'facebook-api':
         FB.api(
-            `/${request.userId}/friends`,
+            request.path,
             'GET',
             {},
             function(response) {
-                console.log('friends', response);
+                console.log('api response', request.id, response);
                 app.ports.receiveFromJS.send({
-                    kind: 'facebook-friends',
-                    payload: response
+                    kind: 'facebook-api',
+                    id: request.id,
+                    response
                 });
             }
         );
+        break;
     }
 });

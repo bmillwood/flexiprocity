@@ -12,13 +12,18 @@ facebookLogin =
   Json.Encode.object [ ("kind", Json.Encode.string "facebook-login") ]
   |> sendToJS
 
-facebookFriends : { userId : String } -> Cmd msg
-facebookFriends { userId } =
+facebookApi : { path : String, id : String } -> Cmd msg
+facebookApi { path, id } =
   Json.Encode.object
-    [ ("kind", Json.Encode.string "facebook-friends")
-    , ("userId", Json.Encode.string userId)
+    [ ("kind", Json.Encode.string "facebook-api")
+    , ("path", Json.Encode.string path)
+    , ("id", Json.Encode.string id)
     ]
   |> sendToJS
+
+facebookFriends : { userId : String } -> Cmd msg
+facebookFriends { userId } =
+  facebookApi { path = "/" ++ userId ++ "/friends", id = "friends" }
 
 type FromJS
   = DriverProtocolError String
@@ -43,17 +48,21 @@ fromJS =
               Json.Decode.field "authResponse" decodeAuthResponse
               |> Json.Decode.map FacebookConnected
             else Json.Decode.succeed FacebookLoginFailed
+          ) |> Json.Decode.field "response"
+        "facebook-api" ->
+          Json.Decode.field "id" Json.Decode.string
+          |> Json.Decode.andThen (\id ->
+            case id of
+              "friends" ->
+                Json.Decode.at ["response", "data"]
+                  (Json.Decode.list Json.Decode.value)
+                |> Json.Decode.map FacebookFriends
+              _ -> Json.Decode.fail ("Unknown api req id: " ++ id)
           )
-        "facebook-friends" ->
-          Json.Decode.field "data"
-            (Json.Decode.list Json.Decode.value)
-          |> Json.Decode.map FacebookFriends
         _ -> Json.Decode.fail ("Unknown kind: " ++ kind)
   in
   Json.Decode.field "kind" Json.Decode.string
-  |> Json.Decode.andThen (\kind ->
-    Json.Decode.field "payload" (decodePayload kind)
-  )
+  |> Json.Decode.andThen decodePayload
 
 subscriptions : Sub FromJS
 subscriptions =
