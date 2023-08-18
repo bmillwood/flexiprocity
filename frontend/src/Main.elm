@@ -8,6 +8,7 @@ import Html.Events as Events
 import Http
 import Json.Decode
 import Json.Encode
+import Set exposing (Set)
 
 import Ports
 
@@ -18,19 +19,30 @@ type LoginStatus a
   | LoggedIn a
   | LoggingOut
 
-type alias ApiUser =
-  { id : String
+type alias Profile =
+  { userId : String
   , facebookId : String
   , bio : String
+  , isFriend : Bool
+  , matchedWoulds : List { wouldId : String }
+  , youWould : List { wouldId : String }
   }
 
-decodeApiUser : Json.Decode.Decoder ApiUser
-decodeApiUser =
-  Json.Decode.map3
-    (\i f b -> { id = i, facebookId = f, bio = b })
+decodeProfile : Json.Decode.Decoder Profile
+decodeProfile =
+  let
+    decodeWouldIds =
+      Json.Decode.list
+        (Json.Decode.map (\i -> { wouldId = i }) Json.Decode.string)
+  in
+  Json.Decode.map6
+    Profile
     (Json.Decode.field "userId" Json.Decode.string)
     (Json.Decode.field "facebookId" Json.Decode.string)
     (Json.Decode.field "bio" Json.Decode.string)
+    (Json.Decode.field "isFriend" Json.Decode.bool)
+    (Json.Decode.field "matchedWoulds" decodeWouldIds)
+    (Json.Decode.field "youWould" decodeWouldIds)
 
 type Audience
   = Self
@@ -63,7 +75,7 @@ type alias Model =
   , facebookLoggedIn : LoginStatus { userId : String, accessToken : String }
   , apiLoggedIn : LoginStatus { userId : String }
   , facebookUsers : Dict String Ports.FacebookUser
-  , apiUsers : Dict String ApiUser
+  , profiles : Dict String Profile
   , facebookFriends : Maybe (List Ports.FacebookUser)
   , wouldsByName : Dict String { id : String }
   , myBio : String
@@ -78,7 +90,7 @@ type OneMsg
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : String })
   | Woulds (Dict String { id : String })
-  | GotApiUser ApiUser
+  | GotProfile Profile
   | EditBio String
   | SubmitBio
   | MyVisibility Audience
@@ -92,7 +104,7 @@ init () =
     , facebookLoggedIn = Unknown
     , apiLoggedIn = Unknown
     , facebookUsers = Dict.empty
-    , apiUsers = Dict.empty
+    , profiles = Dict.empty
     , facebookFriends = Nothing
     , wouldsByName = Dict.empty
     , myBio = ""
@@ -104,7 +116,6 @@ init () =
 view : Model -> Browser.Document Msg
 view model =
   let
-    viewError err = Html.li [] [Html.text err]
     viewUser user isMe =
       let
         facebookUser = Dict.get user.facebookId model.facebookUsers
@@ -157,7 +168,10 @@ view model =
   { title = "flexiprocity"
   , body =
       [ [ Html.h1 [] [ Html.text "flexiprocity" ]
-        , Html.ul [] (List.map viewError model.errors)
+        , let
+            viewError err = Html.li [] [Html.text err]
+          in
+          Html.ul [] (List.map viewError model.errors)
         ]
         , let
             button disabled text =
@@ -227,7 +241,7 @@ view model =
               ]
       , case model.apiLoggedIn of
           LoggedIn { userId } ->
-            case Dict.get userId model.apiUsers of
+            case Dict.get userId model.profiles of
               Just u -> [viewUser u True]
               Nothing -> []
           _ -> []
@@ -245,28 +259,60 @@ view model =
                     else ""
                   ] |> String.concat |> Html.text
             ]
-        , Html.table
+        , let
+            wouldNames = Dict.keys model.wouldsByName
+          in
+          Html.table
             [ Attributes.style "width" "100%"
             , Attributes.style "padding" "1em"
             ]
             [ Html.thead []
                 [ let
-                    wouldCols =
-                      Dict.keys model.wouldsByName
-                      |> List.map (\name ->
-                        Html.th
-                          [ Attributes.style "width" "10%" ]
-                          [ Html.text name ]
-                      )
+                    wouldCol name =
+                      Html.th
+                        [ Attributes.style "width" "10%" ]
+                        [ Html.text name ]
                     cols =
                       Html.th
                         [ Attributes.style "text-align" "left" ]
                         [ Html.text "People" ]
-                      :: wouldCols
+                      :: List.map wouldCol wouldNames
                   in
                   Html.tr [] cols
                 ]
-            , Html.tbody [] []
+            , let
+                wouldsById =
+                  Dict.toList model.wouldsByName
+                  |> List.map (\(n, i) -> (i.id, n))
+                  |> Dict.fromList
+                viewProfile profile =
+                  let
+                    toNames ids =
+                      List.filterMap (\i -> Dict.get i.wouldId wouldsById) ids
+                      |> Set.fromList
+                    youWouldNames = toNames profile.youWould
+                    matchedNames = toNames profile.matchedWoulds
+                    wouldCol name =
+                      Html.td
+                        [ Attributes.style "text-align" "center" ]
+                        [ if Set.member name matchedNames
+                          then Html.text "✅"
+                          else
+                            Html.input
+                              [ Attributes.type_ "checkbox"
+                              , Attributes.checked (Set.member name youWouldNames)
+                              ]
+                              []
+                        ]
+                    cols =
+                      Html.td [] [viewUser profile False]
+                      :: List.map wouldCol wouldNames
+                  in
+                  Html.tr [] cols
+              in
+              Html.tbody
+                []
+                (List.map viewProfile (Dict.values model.profiles))
             ]
         ]
       ] |> List.concat
@@ -416,8 +462,8 @@ updateOne msg model =
         (newModel, cmd) = tryApiLogin { model | apiLoggedIn = newState }
         decodeProfiles =
           Json.Decode.at ["data", "userProfiles", "nodes"]
-            (Json.Decode.list decodeApiUser)
-          |> Json.Decode.map (List.map GotApiUser)
+            (Json.Decode.list decodeProfile)
+          |> Json.Decode.map (List.map GotProfile)
         decodeVisible =
           Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
           |> Json.Decode.map (List.singleton << MyVisibility)
@@ -432,9 +478,9 @@ updateOne msg model =
           |> Json.Decode.map (\woulds -> [Woulds (Dict.fromList woulds)])
         initialQuery userId =
           graphQL
-            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId bio}}myUser{visibleTo}woulds{nodes{wouldId name}}}"
+            { query = "query Q{userProfiles{nodes{userId facebookId bio isFriend matchedWoulds youWould}}myUser{visibleTo}woulds{nodes{wouldId name}}}"
             , operationName = "Q"
-            , variables = [("u", Json.Encode.string userId)]
+            , variables = []
             , decodeResult =
                 Json.Decode.map3
                   (\p v w -> List.concat [p, v, w])
@@ -450,7 +496,7 @@ updateOne msg model =
           )
         _ -> (newModel, cmd)
     Woulds woulds -> ({ model | wouldsByName = woulds }, Cmd.none)
-    GotApiUser user ->
+    GotProfile user ->
       let
         isMe otherId =
           case model.apiLoggedIn of
@@ -458,22 +504,29 @@ updateOne msg model =
             _ -> False
       in
       ( { model
-        | apiUsers = Dict.insert user.id user model.apiUsers
-        , myBio = if isMe user.id then user.bio else model.myBio
+        | profiles = Dict.insert user.userId user model.profiles
+        , myBio = if isMe user.userId then user.bio else model.myBio
         }
       , Cmd.none
       )
     EditBio bio -> ({ model | myBio = bio }, Cmd.none)
     SubmitBio ->
       ( model
-      , graphQL
-          { query = "mutation B($b:String!){updateMe(input:{bio:$b}){user{userId facebookId bio}}}"
-          , operationName = "B"
-          , variables = [("b", Json.Encode.string model.myBio)]
-          , decodeResult =
-              Json.Decode.at ["data", "updateMe", "user"] decodeApiUser
-              |> Json.Decode.map (List.singleton << GotApiUser)
-          }
+      , case model.apiLoggedIn of
+          LoggedIn { userId } ->
+            graphQL
+              { query = "mutation B($b:String!,$u:BigInt!){updateMe(input:{bio:$b}){query{userProfiles(condition:{userId:$u}){nodes{userId facebookId bio isFriend matchedWoulds youWould}}}}}"
+              , operationName = "B"
+              , variables =
+                  [ ("b", Json.Encode.string model.myBio)
+                  , ("u", Json.Encode.string userId)
+                  ]
+              , decodeResult =
+                  Json.Decode.at ["data", "updateMe", "query", "userProfiles", "nodes"]
+                    (Json.Decode.list decodeProfile)
+                  |> Json.Decode.map (List.map GotProfile)
+              }
+          _ -> Cmd.none
       )
     MyVisibility who ->
       let
