@@ -32,7 +32,9 @@ facebookFriends { userId } =
 
 facebookUser : { personId : String } -> Cmd msg
 facebookUser { personId } =
-  facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture", id = "user" }
+  if String.startsWith "_" personId
+  then Cmd.none
+  else facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture", id = "user" }
 
 type alias FacebookUser =
   { id : String

@@ -21,6 +21,9 @@ CREATE TABLE users
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
   );
+INSERT INTO users (facebook_id, visible_to)
+VALUES ('_likes_me', 'everyone'), ('_stranger', 'everyone')
+;
 
 CREATE FUNCTION current_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
