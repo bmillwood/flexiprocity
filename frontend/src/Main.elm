@@ -397,7 +397,7 @@ updateOne msg model =
           |> Json.Decode.map (List.singleton << MyVisibility)
         lookupMe userId =
           graphQL
-            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId name bio}}myUser{visibleTo}}"
+            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId bio}}myUser{visibleTo}}"
             , operationName = "Q"
             , variables = [("u", Json.Encode.string userId)]
             , decodeResult =
