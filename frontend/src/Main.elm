@@ -65,6 +65,7 @@ type alias Model =
   , facebookUsers : Dict String Ports.FacebookUser
   , apiUsers : Dict String ApiUser
   , facebookFriends : Maybe (List Ports.FacebookUser)
+  , wouldsByName : Dict String { id : String }
   , myBio : String
   , myVisibility : Maybe Audience
   }
@@ -76,6 +77,7 @@ type OneMsg
   | StartFacebookLogout
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : String })
+  | Woulds (Dict String { id : String })
   | GotApiUser ApiUser
   | EditBio String
   | SubmitBio
@@ -92,6 +94,7 @@ init () =
     , facebookUsers = Dict.empty
     , apiUsers = Dict.empty
     , facebookFriends = Nothing
+    , wouldsByName = Dict.empty
     , myBio = ""
     , myVisibility = Nothing
     }
@@ -241,6 +244,29 @@ view model =
                     then " 🙁"
                     else ""
                   ] |> String.concat |> Html.text
+            ]
+        , Html.table
+            [ Attributes.style "width" "100%"
+            , Attributes.style "padding" "1em"
+            ]
+            [ Html.thead []
+                [ let
+                    wouldCols =
+                      Dict.keys model.wouldsByName
+                      |> List.map (\name ->
+                        Html.th
+                          [ Attributes.style "width" "10%" ]
+                          [ Html.text name ]
+                      )
+                    cols =
+                      Html.th
+                        [ Attributes.style "text-align" "left" ]
+                        [ Html.text "People" ]
+                      :: wouldCols
+                  in
+                  Html.tr [] cols
+                ]
+            , Html.tbody [] []
             ]
         ]
       ] |> List.concat
@@ -395,19 +421,35 @@ updateOne msg model =
         decodeVisible =
           Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
           |> Json.Decode.map (List.singleton << MyVisibility)
-        lookupMe userId =
+        decodeWould =
+          Json.Decode.map2
+            (\i n -> (n, { id = i }))
+            (Json.Decode.field "wouldId" Json.Decode.string)
+            (Json.Decode.field "name" Json.Decode.string)
+        decodeWoulds =
+          Json.Decode.at ["data", "woulds", "nodes"]
+            (Json.Decode.list decodeWould)
+          |> Json.Decode.map (\woulds -> [Woulds (Dict.fromList woulds)])
+        initialQuery userId =
           graphQL
-            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId bio}}myUser{visibleTo}}"
+            { query = "query Q($u:BigInt!){userProfiles(condition:{userId:$u}){nodes{userId facebookId bio}}myUser{visibleTo}woulds{nodes{wouldId name}}}"
             , operationName = "Q"
             , variables = [("u", Json.Encode.string userId)]
             , decodeResult =
-                Json.Decode.map2 List.append decodeProfiles decodeVisible
+                Json.Decode.map3
+                  (\p v w -> List.concat [p, v, w])
+                  decodeProfiles
+                  decodeVisible
+                  decodeWoulds
             }
       in
       case newState of
         LoggedIn { userId } ->
-          (newModel, Cmd.batch [cmd, lookupMe userId, sendFriends newModel])
+          ( newModel
+          , Cmd.batch [cmd, initialQuery userId, sendFriends newModel]
+          )
         _ -> (newModel, cmd)
+    Woulds woulds -> ({ model | wouldsByName = woulds }, Cmd.none)
     GotApiUser user ->
       let
         isMe otherId =
