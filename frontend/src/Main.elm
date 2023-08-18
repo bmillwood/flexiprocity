@@ -467,7 +467,7 @@ updateOne msg model =
     SubmitBio ->
       ( model
       , graphQL
-          { query = "mutation B($b:String!){updateMe(input:{bio:$b}){user{userId facebookId name bio}}}"
+          { query = "mutation B($b:String!){updateMe(input:{bio:$b}){user{userId facebookId bio}}}"
           , operationName = "B"
           , variables = [("b", Json.Encode.string model.myBio)]
           , decodeResult =
