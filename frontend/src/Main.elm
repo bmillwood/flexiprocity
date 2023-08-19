@@ -19,31 +19,6 @@ type LoginStatus a
   | LoggedIn a
   | LoggingOut
 
-type alias Profile =
-  { userId : String
-  , facebookId : String
-  , bio : String
-  , isFriend : Bool
-  , matchedWoulds : List { wouldId : String }
-  , youWould : List { wouldId : String }
-  }
-
-decodeProfile : Json.Decode.Decoder Profile
-decodeProfile =
-  let
-    decodeWouldIds =
-      Json.Decode.list
-        (Json.Decode.map (\i -> { wouldId = i }) Json.Decode.string)
-  in
-  Json.Decode.map6
-    Profile
-    (Json.Decode.field "userId" Json.Decode.string)
-    (Json.Decode.field "facebookId" Json.Decode.string)
-    (Json.Decode.field "bio" Json.Decode.string)
-    (Json.Decode.field "isFriend" Json.Decode.bool)
-    (Json.Decode.field "matchedWoulds" decodeWouldIds)
-    (Json.Decode.field "youWould" decodeWouldIds)
-
 type Audience
   = Self
   | Friends
@@ -70,6 +45,31 @@ decodeAudience =
       _ -> Json.Decode.fail ("unknown audience: " ++ audience)
   )
 
+type alias Profile =
+  { userId : String
+  , facebookId : String
+  , bio : String
+  , audience : Audience
+  , matchedWoulds : List { wouldId : String }
+  , youWould : List { wouldId : String }
+  }
+
+decodeProfile : Json.Decode.Decoder Profile
+decodeProfile =
+  let
+    decodeWouldIds =
+      Json.Decode.list
+        (Json.Decode.map (\i -> { wouldId = i }) Json.Decode.string)
+  in
+  Json.Decode.map6
+    Profile
+    (Json.Decode.field "userId" Json.Decode.string)
+    (Json.Decode.field "facebookId" Json.Decode.string)
+    (Json.Decode.field "bio" Json.Decode.string)
+    (Json.Decode.field "audience" decodeAudience)
+    (Json.Decode.field "matchedWoulds" decodeWouldIds)
+    (Json.Decode.field "youWould" decodeWouldIds)
+
 type alias Model =
   { errors : List String
   , facebookLoggedIn : LoginStatus { userId : String, accessToken : String }
@@ -80,6 +80,7 @@ type alias Model =
   , wouldsByName : Dict String { id : String }
   , myBio : String
   , myVisibility : Maybe Audience
+  , showMe : Audience
   }
 
 type OneMsg
@@ -95,6 +96,7 @@ type OneMsg
   | SubmitBio
   | MyVisibility Audience
   | SubmitVisibility
+  | ShowMe Audience
 
 type alias Msg = List OneMsg
 
@@ -109,6 +111,7 @@ init () =
     , wouldsByName = Dict.empty
     , myBio = ""
     , myVisibility = Nothing
+    , showMe = Friends
     }
   , checkApiLogin
   )
@@ -164,6 +167,18 @@ view model =
               )
             ]
         ]
+    audienceRadio { name, currentWho, onCheck, who, label } =
+      [ Html.input
+        [ Attributes.type_ "radio"
+        , Attributes.name name
+        , Attributes.id (name ++ "-" ++ audienceToString who)
+        , Attributes.checked (currentWho == Just who)
+        , Events.onCheck (\_ -> onCheck)
+        ] []
+      , Html.label
+          [ Attributes.for (name ++ "-" ++ audienceToString who) ]
+          [ Html.text label ]
+      ]
   in
   { title = "flexiprocity"
   , body =
@@ -210,22 +225,32 @@ view model =
                       [ Html.text "Logout" ]
                   ]
               , let
-                  radio v s =
-                    [ Html.input
-                      [ Attributes.type_ "radio"
-                      , Attributes.name "visibility"
-                      , Attributes.id ("visible-" ++ audienceToString v)
-                      , Attributes.checked (model.myVisibility == Just v)
-                      , Events.onCheck (\_ -> [MyVisibility v, SubmitVisibility])
-                      ] []
-                    , Html.label
-                        [ Attributes.for ("visible-" ++ audienceToString v) ]
-                        [ Html.text s ]
-                    ]
+                  radio who label =
+                    audienceRadio
+                      { name = "visibility"
+                      , currentWho = model.myVisibility
+                      , onCheck = [MyVisibility who, SubmitVisibility]
+                      , who = who
+                      , label = label
+                      }
                 in
                 [ [ Html.text "Show my profile to people I've ticked and:" ]
                 , radio Self "Nobody else"
                 , radio Friends "Friends"
+                , radio Everyone "Everyone"
+                ] |> List.concat |> Html.p []
+              , let
+                  radio who label =
+                    audienceRadio
+                      { name = "search"
+                      , currentWho = Just model.showMe
+                      , onCheck = [ShowMe who]
+                      , who = who
+                      , label = label
+                      }
+                in
+                [ [ Html.text "Show me:" ]
+                , radio Friends "My friends"
                 , radio Everyone "Everyone"
                 ] |> List.concat |> Html.p []
               ]
@@ -309,10 +334,17 @@ view model =
                       :: List.map wouldCol wouldNames
                   in
                   Html.tr [] cols
+                profiles =
+                  case model.showMe of
+                    Everyone ->
+                      Dict.values model.profiles
+                      |> List.filter (\profile -> profile.audience /= Self)
+                    Friends ->
+                      Dict.values model.profiles
+                      |> List.filter (\profile -> profile.audience == Friends)
+                    Self -> []
               in
-              Html.tbody
-                []
-                (List.map viewProfile (Dict.values model.profiles))
+              Html.tbody [] (List.map viewProfile profiles)
             ]
         ]
       ] |> List.concat
@@ -414,6 +446,58 @@ sendFriends model =
         }
     _ -> Cmd.none
 
+getProfiles
+  :  { getMyVisibility : Bool, getWoulds : Bool, userId: String }
+  -> Model -> Cmd Msg
+getProfiles { getMyVisibility, getWoulds, userId } model =
+  let
+    decodeProfiles =
+      Json.Decode.list decodeProfile
+      |> Json.Decode.map (List.map GotProfile)
+    decodeVisible =
+      Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
+      |> Json.Decode.map (List.singleton << MyVisibility)
+    decodeWould =
+      Json.Decode.map2
+        (\i n -> (n, { id = i }))
+        (Json.Decode.field "wouldId" Json.Decode.string)
+        (Json.Decode.field "name" Json.Decode.string)
+    decodeWoulds =
+      Json.Decode.at ["data", "woulds", "nodes"]
+        (Json.Decode.list decodeWould)
+      |> Json.Decode.map (\woulds -> [Woulds (Dict.fromList woulds)])
+  in
+  graphQL
+    { query =
+        [ "fragment F on UserProfile"
+        , "{userId facebookId bio audience matchedWoulds youWould}"
+        , "query Q($u:BigInt!){"
+          , "me:userProfiles(condition:{userId:$u}){nodes{...F}}"
+          , let
+              condition = case model.showMe of
+                Self ->
+                  -- doesn't really make sense, but we don't use this anyway
+                  "(condition:{userId:$u})"
+                Friends -> "(condition:{audience:FRIENDS})"
+                Everyone -> ""
+            in
+            "them:userProfiles" ++ condition ++ "{nodes{...F}}"
+          , if getMyVisibility then "myUser{visibleTo}" else ""
+          , if getWoulds then "woulds{nodes{wouldId name}}" else ""
+        , "}"
+        ] |> String.concat
+    , operationName = "Q"
+    , variables =
+        [ ("u", Json.Encode.string userId) ]
+    , decodeResult =
+        Json.Decode.map4
+          (\me p v w -> List.concat [me, p, v, w])
+          (Json.Decode.at ["data", "me", "nodes"] decodeProfiles)
+          (Json.Decode.at ["data", "them", "nodes"] decodeProfiles)
+          (if getMyVisibility then decodeVisible else Json.Decode.succeed [])
+          (if getWoulds then decodeWoulds else Json.Decode.succeed [])
+    }
+
 updateOne : OneMsg -> Model -> (Model, Cmd Msg)
 updateOne msg model =
   case msg of
@@ -460,34 +544,10 @@ updateOne msg model =
     ApiLoginResult newState ->
       let
         (newModel, cmd) = tryApiLogin { model | apiLoggedIn = newState }
-        decodeProfiles =
-          Json.Decode.at ["data", "userProfiles", "nodes"]
-            (Json.Decode.list decodeProfile)
-          |> Json.Decode.map (List.map GotProfile)
-        decodeVisible =
-          Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
-          |> Json.Decode.map (List.singleton << MyVisibility)
-        decodeWould =
-          Json.Decode.map2
-            (\i n -> (n, { id = i }))
-            (Json.Decode.field "wouldId" Json.Decode.string)
-            (Json.Decode.field "name" Json.Decode.string)
-        decodeWoulds =
-          Json.Decode.at ["data", "woulds", "nodes"]
-            (Json.Decode.list decodeWould)
-          |> Json.Decode.map (\woulds -> [Woulds (Dict.fromList woulds)])
         initialQuery userId =
-          graphQL
-            { query = "query Q{userProfiles{nodes{userId facebookId bio isFriend matchedWoulds youWould}}myUser{visibleTo}woulds{nodes{wouldId name}}}"
-            , operationName = "Q"
-            , variables = []
-            , decodeResult =
-                Json.Decode.map3
-                  (\p v w -> List.concat [p, v, w])
-                  decodeProfiles
-                  decodeVisible
-                  decodeWoulds
-            }
+          getProfiles
+            { getMyVisibility = True, getWoulds = True, userId = userId }
+            model
       in
       case newState of
         LoggedIn { userId } ->
@@ -515,7 +575,7 @@ updateOne msg model =
       , case model.apiLoggedIn of
           LoggedIn { userId } ->
             graphQL
-              { query = "mutation B($b:String!,$u:BigInt!){updateMe(input:{bio:$b}){query{userProfiles(condition:{userId:$u}){nodes{userId facebookId bio isFriend matchedWoulds youWould}}}}}"
+              { query = "mutation B($b:String!,$u:BigInt!){updateMe(input:{bio:$b}){query{userProfiles(condition:{userId:$u}){nodes{userId facebookId bio audience matchedWoulds youWould}}}}}"
               , operationName = "B"
               , variables =
                   [ ("b", Json.Encode.string model.myBio)
@@ -551,6 +611,18 @@ updateOne msg model =
                   |> Json.Decode.map (List.singleton << MyVisibility)
               }
           )
+    ShowMe who ->
+      let
+        newModel = { model | showMe = who }
+      in
+      ( newModel
+      , case model.apiLoggedIn of
+          LoggedIn { userId } ->
+            getProfiles
+              { getMyVisibility = False, getWoulds = False, userId = userId }
+              newModel
+          _ -> Cmd.none
+      )
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msgs model =

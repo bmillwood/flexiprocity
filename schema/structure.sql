@@ -130,11 +130,15 @@ CREATE VIEW user_profiles AS
     users.user_id
   , users.facebook_id
   , users.bio
-  , users.user_id IN (
-      SELECT friend_id
-      FROM facebook_friends f
-      WHERE f.user_id = current_user_id()
-    ) AS is_friend
+  , CASE
+      WHEN users.user_id = current_user_id() THEN 'self'
+      WHEN users.user_id IN (
+        SELECT friend_id
+        FROM facebook_friends f
+        WHERE f.user_id = current_user_id()
+      ) THEN 'friends'
+      ELSE 'everyone'
+    END::audience AS audience
   , COALESCE(
       array_agg(uw.would_id) FILTER (WHERE uw.would_id IS NOT NULL)
     , '{}'
