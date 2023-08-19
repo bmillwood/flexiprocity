@@ -77,7 +77,7 @@ type alias Model =
   , facebookUsers : Dict String Ports.FacebookUser
   , profiles : Dict String Profile
   , facebookFriends : Maybe (List Ports.FacebookUser)
-  , wouldsByName : Dict String { id : String }
+  , wouldsById : Dict String String
   , myBio : String
   , myVisibility : Maybe Audience
   , showMe : Audience
@@ -90,7 +90,7 @@ type OneMsg
   | StartFacebookLogout
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : String })
-  | Woulds (Dict String { id : String })
+  | Woulds (Dict String String)
   | GotProfile Profile
   | EditBio String
   | SubmitBio
@@ -108,7 +108,7 @@ init () =
     , facebookUsers = Dict.empty
     , profiles = Dict.empty
     , facebookFriends = Nothing
-    , wouldsByName = Dict.empty
+    , wouldsById = Dict.empty
     , myBio = ""
     , myVisibility = Nothing
     , showMe = Friends
@@ -285,7 +285,7 @@ view model =
                   ] |> String.concat |> Html.text
             ]
         , let
-            wouldNames = Dict.keys model.wouldsByName
+            wouldNames = Dict.values model.wouldsById
           in
           Html.table
             [ Attributes.style "width" "100%"
@@ -306,14 +306,10 @@ view model =
                   Html.tr [] cols
                 ]
             , let
-                wouldsById =
-                  Dict.toList model.wouldsByName
-                  |> List.map (\(n, i) -> (i.id, n))
-                  |> Dict.fromList
                 viewProfile profile =
                   let
                     toNames ids =
-                      List.filterMap (\i -> Dict.get i.wouldId wouldsById) ids
+                      List.filterMap (\i -> Dict.get i.wouldId model.wouldsById) ids
                       |> Set.fromList
                     youWouldNames = toNames profile.youWould
                     matchedNames = toNames profile.matchedWoulds
@@ -459,7 +455,7 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
       |> Json.Decode.map (List.singleton << MyVisibility)
     decodeWould =
       Json.Decode.map2
-        (\i n -> (n, { id = i }))
+        (\i n -> (i, n))
         (Json.Decode.field "wouldId" Json.Decode.string)
         (Json.Decode.field "name" Json.Decode.string)
     decodeWoulds =
@@ -555,7 +551,7 @@ updateOne msg model =
           , Cmd.batch [cmd, initialQuery userId, sendFriends newModel]
           )
         _ -> (newModel, cmd)
-    Woulds woulds -> ({ model | wouldsByName = woulds }, Cmd.none)
+    Woulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
     GotProfile user ->
       let
         isMe otherId =
