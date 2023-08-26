@@ -516,7 +516,12 @@ updateOne msg model =
     FromJS Ports.FacebookLoginFailed ->
       ({ model | facebookLoggedIn = NotLoggedIn }, Cmd.none)
     FromJS (Ports.FacebookFriends friends) ->
-      ({ model | facebookFriends = Just friends }, sendFriends model)
+      let
+        addUser user acc = Dict.insert user.id user acc
+        newUsers = List.foldr addUser model.facebookUsers friends
+        newModel = { model | facebookFriends = Just friends, facebookUsers = newUsers }
+      in
+      (newModel, sendFriends newModel)
     FromJS (Ports.FacebookGotUser user) ->
       ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
       , Cmd.none

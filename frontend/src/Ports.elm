@@ -28,7 +28,10 @@ facebookApi { path, id } =
 
 facebookFriends : { userId : String } -> Cmd msg
 facebookFriends { userId } =
-  facebookApi { path = "/" ++ userId ++ "/friends", id = "friends" }
+  facebookApi
+    { path = "/" ++ userId ++ "/friends?fields=id,name,short_name,picture"
+    , id = "friends"
+    }
 
 facebookUser : { personId : String } -> Cmd msg
 facebookUser { personId } =
