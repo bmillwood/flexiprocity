@@ -45,13 +45,17 @@ decodeAudience =
       _ -> Json.Decode.fail ("unknown audience: " ++ audience)
   )
 
+type alias FacebookId = String
+type alias UserId = String
+type alias WouldId = String
+
 type alias Profile =
-  { userId : String
+  { userId : UserId
   , facebookId : String
   , bio : String
   , audience : Audience
-  , matchedWoulds : List { wouldId : String }
-  , youWould : List { wouldId : String }
+  , matchedWoulds : List { wouldId : WouldId }
+  , youWould : List { wouldId : WouldId }
   }
 
 decodeProfile : Json.Decode.Decoder Profile
@@ -72,15 +76,16 @@ decodeProfile =
 
 type alias Model =
   { errors : List String
-  , facebookLoggedIn : LoginStatus { userId : String, accessToken : String }
-  , apiLoggedIn : LoginStatus { userId : String }
-  , facebookUsers : Dict String Ports.FacebookUser
-  , profiles : Dict String Profile
+  , facebookLoggedIn : LoginStatus { userId : FacebookId, accessToken : String }
+  , apiLoggedIn : LoginStatus { userId : UserId }
+  , facebookUsers : Dict FacebookId Ports.FacebookUser
+  , profiles : Dict UserId Profile
   , facebookFriends : Maybe (List Ports.FacebookUser)
-  , wouldsById : Dict String String
+  , wouldsById : Dict WouldId String
   , myBio : String
   , myVisibility : Maybe Audience
   , showMe : Audience
+  , wouldChange : Dict UserId (Dict WouldId Bool)
   }
 
 type OneMsg
@@ -89,14 +94,16 @@ type OneMsg
   | StartFacebookLogin
   | StartFacebookLogout
   | CheckApiLogin
-  | ApiLoginResult (LoginStatus { userId : String })
-  | Woulds (Dict String String)
+  | ApiLoginResult (LoginStatus { userId : UserId })
+  | Woulds (Dict WouldId String)
   | GotProfile Profile
   | EditBio String
   | SubmitBio
   | MyVisibility Audience
   | SubmitVisibility
   | ShowMe Audience
+  | WouldChange { userId : UserId, wouldId : WouldId, changeTo : Bool }
+  | SubmitWouldChanges
 
 type alias Msg = List OneMsg
 
@@ -112,6 +119,7 @@ init () =
     , myBio = ""
     , myVisibility = Nothing
     , showMe = Friends
+    , wouldChange = Dict.empty
     }
   , checkApiLogin
   )
@@ -285,23 +293,35 @@ view model =
                   ] |> String.concat |> Html.text
             ]
         , let
-            wouldNames = Dict.values model.wouldsById
+            wouldsById = Dict.toList model.wouldsById
           in
           Html.table
             [ Attributes.style "width" "100%"
             , Attributes.style "padding" "1em"
             ]
             [ Html.thead []
-                [ let
-                    wouldCol name =
+                [ Html.tr
+                    []
+                    [ Html.th [] []
+                    , Html.th
+                        [ Attributes.colspan (List.length wouldsById) ]
+                        [ Html.button
+                            [ Events.onClick [SubmitWouldChanges]
+                            , Attributes.disabled (Dict.isEmpty model.wouldChange)
+                            ]
+                            [ Html.text "Submit" ]
+                        ]
+                    ]
+                , let
+                    wouldCol (_, wName) =
                       Html.th
                         [ Attributes.style "width" "10%" ]
-                        [ Html.text name ]
+                        [ Html.text wName ]
                     cols =
                       Html.th
                         [ Attributes.style "text-align" "left" ]
                         [ Html.text "People" ]
-                      :: List.map wouldCol wouldNames
+                      :: List.map wouldCol wouldsById
                   in
                   Html.tr [] cols
                 ]
@@ -313,21 +333,39 @@ view model =
                       |> Set.fromList
                     youWouldNames = toNames profile.youWould
                     matchedNames = toNames profile.matchedWoulds
-                    wouldCol name =
+                    wouldCol (wId, wName) =
                       Html.td
                         [ Attributes.style "text-align" "center" ]
-                        [ if Set.member name matchedNames
+                        [ if Set.member wName matchedNames
                           then Html.text "✅"
                           else
+                            let
+                              isChecked =
+                                case
+                                  Dict.get profile.userId model.wouldChange
+                                  |> Maybe.withDefault Dict.empty
+                                  |> Dict.get wId
+                                of
+                                  Nothing -> Set.member wName youWouldNames
+                                  Just b -> b
+                            in
                             Html.input
                               [ Attributes.type_ "checkbox"
-                              , Attributes.checked (Set.member name youWouldNames)
+                              , Attributes.checked isChecked
+                              , Events.onCheck (\newChecked ->
+                                  [ WouldChange
+                                      { userId = profile.userId
+                                      , wouldId = wId
+                                      , changeTo = newChecked
+                                      }
+                                  ]
+                                )
                               ]
                               []
                         ]
                     cols =
                       Html.td [] [viewUser profile False]
-                      :: List.map wouldCol wouldNames
+                      :: List.map wouldCol wouldsById
                   in
                   Html.tr [] cols
                 profiles =
@@ -442,8 +480,12 @@ sendFriends model =
         }
     _ -> Cmd.none
 
+profileFragment : String
+profileFragment =
+  "fragment F on UserProfile{userId facebookId bio audience matchedWoulds youWould}"
+
 getProfiles
-  :  { getMyVisibility : Bool, getWoulds : Bool, userId: String }
+  :  { getMyVisibility : Bool, getWoulds : Bool, userId: UserId }
   -> Model -> Cmd Msg
 getProfiles { getMyVisibility, getWoulds, userId } model =
   let
@@ -465,8 +507,7 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
   in
   graphQL
     { query =
-        [ "fragment F on UserProfile"
-        , "{userId facebookId bio audience matchedWoulds youWould}"
+        [ profileFragment
         , "query Q($u:BigInt!){"
           , "me:userProfiles(condition:{userId:$u}){nodes{...F}}"
           , let
@@ -563,9 +604,24 @@ updateOne msg model =
           case model.apiLoggedIn of
             LoggedIn { userId } -> userId == otherId
             _ -> False
+        redundantChange =
+          Maybe.andThen (\woulds ->
+            let
+              newWoulds =
+                Dict.filter
+                  (\wId changeTo ->
+                    List.member { wouldId = wId } user.youWould /= changeTo
+                  )
+                  woulds
+            in
+            if Dict.isEmpty newWoulds
+            then Nothing
+            else Just newWoulds
+          )
       in
       ( { model
         | profiles = Dict.insert user.userId user model.profiles
+        , wouldChange = Dict.update user.userId redundantChange model.wouldChange
         , myBio = if isMe user.userId then user.bio else model.myBio
         }
       , Cmd.none
@@ -624,6 +680,63 @@ updateOne msg model =
               newModel
           _ -> Cmd.none
       )
+    WouldChange { userId, wouldId, changeTo } ->
+      let
+        change v =
+          Maybe.withDefault Dict.empty v
+          |> Dict.insert wouldId changeTo
+          |> Just
+      in
+      ( { model | wouldChange = Dict.update userId change model.wouldChange }
+      , Cmd.none
+      )
+    SubmitWouldChanges ->
+      case model.apiLoggedIn of
+        LoggedIn { userId } ->
+          ( model
+          , Dict.toList model.wouldChange
+            |> List.map (\(uid, woulds) ->
+                Dict.toList woulds
+                |> List.map (\(wId, changeTo) ->
+                    graphQL
+                      { query =
+                          [ profileFragment
+                          , "mutation C($u:BigInt!,$wo:BigInt!,$wi:BigInt!){"
+                          , if changeTo
+                            then "createUserWould(input:{userWould:"
+                            else "deleteUserWould(input:"
+                          , "{userId:$u,wouldId:$wo,withId:$wi}"
+                          , if changeTo
+                            then "})"
+                            else ")"
+                          , "{query{userProfiles(condition:{userId:$wi}){"
+                          , "nodes{...F}"
+                          , "}}}"
+                          , "}"
+                          ] |> String.concat
+                      , operationName = "C"
+                      , variables =
+                          [ ("u", Json.Encode.string userId)
+                          , ("wo", Json.Encode.string wId)
+                          , ("wi", Json.Encode.string uid)
+                          ]
+                      , decodeResult =
+                          Json.Decode.at
+                            [ "data"
+                            , if changeTo then "createUserWould" else "deleteUserWould"
+                            , "query"
+                            , "userProfiles"
+                            , "nodes"
+                            ]
+                            (Json.Decode.list decodeProfile)
+                          |> Json.Decode.map (List.map GotProfile)
+                      }
+                  )
+              )
+            |> List.concat
+            |> Cmd.batch
+          )
+        _ -> (model, Cmd.none)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msgs model =

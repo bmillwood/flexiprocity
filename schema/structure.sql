@@ -118,6 +118,8 @@ CREATE TABLE user_woulds
 CREATE POLICY only_my_woulds ON user_woulds FOR ALL TO api
   USING (user_id = current_user_id())
   WITH CHECK (user_id = current_user_id());
+CREATE POLICY no_delete_matches ON user_woulds AS RESTRICTIVE FOR DELETE TO api
+  USING ((with_id, would_id, user_id) NOT IN (SELECT user_id, would_id, with_id FROM user_woulds));
 ALTER TABLE user_woulds ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, DELETE ON user_woulds TO api;
