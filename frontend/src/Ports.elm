@@ -47,12 +47,17 @@ type alias FacebookUser =
   , link : Maybe String
   }
 
+type FacebookError
+  = AccessTokenExpired { whileDoing : String }
+  | UnknownError { whileDoing : String, error : Json.Decode.Value }
+
 type FromJS
   = DriverProtocolError String
   | FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
   | FacebookFriends (List FacebookUser)
+  | FacebookGotError FacebookError
 
 fromJS : Json.Decode.Decoder FromJS
 fromJS =
@@ -75,6 +80,20 @@ fromJS =
          (Json.Decode.field "short_name" Json.Decode.string)
          (Json.Decode.at ["picture", "data"] decodePicture)
          (Json.Decode.maybe (Json.Decode.field "link" Json.Decode.string))
+    decodeApiError whileDoing =
+      Json.Decode.field "code" Json.Decode.int
+      |> Json.Decode.andThen (\code ->
+        case code of
+          190 ->
+            AccessTokenExpired { whileDoing = whileDoing }
+            |> Json.Decode.succeed
+          _ ->
+            Json.Decode.value
+            |> Json.Decode.map (\v ->
+              UnknownError { whileDoing = whileDoing, error = v }
+            )
+      )
+      |> Json.Decode.map FacebookGotError
     decodePayload kind =
       case kind of
         "facebook-login-status" ->
@@ -89,14 +108,17 @@ fromJS =
         "facebook-api" ->
           Json.Decode.field "id" Json.Decode.string
           |> Json.Decode.andThen (\id ->
-            case id of
-              "friends" ->
-                Json.Decode.at ["response", "data"] (Json.Decode.list decodeUser)
-                |> Json.Decode.map FacebookFriends
-              "user" ->
-                Json.Decode.field "response" decodeUser
-                |> Json.Decode.map FacebookGotUser
-              _ -> Json.Decode.fail ("Unknown api req id: " ++ id)
+            Json.Decode.oneOf
+              [ case id of
+                  "friends" ->
+                    Json.Decode.at ["response", "data"] (Json.Decode.list decodeUser)
+                    |> Json.Decode.map FacebookFriends
+                  "user" ->
+                    Json.Decode.field "response" decodeUser
+                    |> Json.Decode.map FacebookGotUser
+                  _ -> Json.Decode.fail ("Unknown api req id: " ++ id)
+              , Json.Decode.at ["response", "error"] (decodeApiError id)
+              ]
           )
         _ -> Json.Decode.fail ("Unknown kind: " ++ kind)
   in

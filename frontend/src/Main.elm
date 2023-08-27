@@ -622,6 +622,32 @@ updateOne msg model =
       ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
       , Cmd.none
       )
+    FromJS (Ports.FacebookGotError (Ports.AccessTokenExpired { whileDoing })) ->
+      let
+        ignore =
+          case model.facebookLoggedIn of
+            LoggingOut -> True
+            NotLoggedIn -> True
+            LoggingIn -> False
+            Unknown -> False
+            LoggedIn _ -> False
+      in
+      if ignore
+      then (model, Cmd.none)
+      else
+        ( { model
+          | errors = ("Facebook auth failed for " ++ whileDoing) :: model.errors
+          }
+        , Cmd.none
+        )
+    FromJS (Ports.FacebookGotError (Ports.UnknownError { whileDoing, error })) ->
+      ( { model
+        | errors =
+            ("Error (" ++ whileDoing ++ "): " ++ Json.Encode.encode 0 error)
+            :: model.errors
+        }
+      , Cmd.none
+      )
     StartFacebookLogin ->
       case model.facebookLoggedIn of
         LoggingIn -> (model, Cmd.none)
