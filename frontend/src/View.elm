@@ -73,6 +73,139 @@ viewUser model user { isMe } =
         ]
     ]
 
+viewPeople : Model -> List (Html Msg)
+viewPeople model =
+  [ let
+      showClass cl =
+        Html.span
+          [ Attributes.class cl
+          , Attributes.style "padding" "0 0.2em"
+          ]
+          [ Html.text cl ]
+    in
+    Html.div
+      [ Attributes.style "text-align" "right" ]
+      [ showClass "modified"
+      , Html.text " "
+      , showClass "submitted"
+      , Html.text " "
+      , showClass "matched"
+      ]
+  , let
+      wouldsById = Dict.toList model.wouldsById
+    in
+    Html.table
+      [ Attributes.style "width" "100%"
+      , Attributes.style "padding" "1em"
+      , Attributes.style "border-collapse" "collapse"
+      , Attributes.id "people"
+      ]
+      [ Html.thead
+          [ Attributes.style "position" "sticky"
+          , Attributes.style "top" "0"
+          ]
+          [ let
+              wouldCol (_, wName) =
+                Html.th
+                  [ Attributes.style "width" "10%" ]
+                  [ Html.text wName ]
+              cols =
+                Html.th
+                  [ Attributes.style "text-align" "left"
+                  , Attributes.style "padding-left" "1em"
+                  ]
+                  [ Html.text "People" ]
+                :: List.map wouldCol wouldsById
+            in
+            Html.tr [] cols
+          , Html.tr
+              []
+              [ Html.th [] []
+              , Html.th
+                  [ Attributes.colspan (List.length wouldsById) ]
+                  [ Html.button
+                      [ Events.onClick [Model.SubmitWouldChanges]
+                      , Attributes.disabled (Dict.isEmpty model.wouldChange)
+                      ]
+                      [ Html.text "Submit" ]
+                  ]
+              ]
+          ]
+      , let
+          viewProfile profile =
+            let
+              toNames ids =
+                List.filterMap (\i -> Dict.get i.wouldId model.wouldsById) ids
+                |> Set.fromList
+              youWouldNames = toNames profile.youWould
+              matchedNames = toNames profile.matchedWoulds
+              wouldCol (wId, wName) =
+                let
+                  isMatched = Set.member wName matchedNames
+                  isYouWould = Set.member wName youWouldNames
+                  isModified =
+                    Dict.get profile.userId model.wouldChange
+                    |> Maybe.map (Dict.member wId)
+                    |> Maybe.withDefault False
+                  styles =
+                    [ [ Attributes.style "text-align" "center"
+                      , Attributes.style "transition" "background-color 0.2s"
+                      ]
+                    , if isMatched
+                      then [ Attributes.class "matched" ]
+                      else if isModified
+                      then [ Attributes.class "modified" ]
+                      else if isYouWould
+                      then [ Attributes.class "submitted" ]
+                      else []
+                    ] |> List.concat
+                in
+                Html.td
+                  styles
+                  [ let
+                      isChecked =
+                        case
+                          Dict.get profile.userId model.wouldChange
+                          |> Maybe.withDefault Dict.empty
+                          |> Dict.get wId
+                        of
+                          Nothing -> Set.member wName youWouldNames
+                          Just b -> b
+                    in
+                    Html.input
+                      [ Attributes.type_ "checkbox"
+                      , Attributes.disabled isMatched
+                      , Attributes.checked isChecked
+                      , Events.onCheck (\newChecked ->
+                          [ Model.WouldChange
+                              { userId = profile.userId
+                              , wouldId = wId
+                              , changeTo = newChecked
+                              }
+                          ]
+                        )
+                      ]
+                      []
+                  ]
+              cols =
+                Html.td [] [viewUser model profile { isMe = False }]
+                :: List.map wouldCol wouldsById
+            in
+            Html.tr [] cols
+          profiles =
+            case model.showMe of
+              Model.Everyone ->
+                Dict.values model.profiles
+                |> List.filter (\profile -> profile.audience /= Model.Self)
+              Model.Friends ->
+                Dict.values model.profiles
+                |> List.filter (\profile -> profile.audience == Model.Friends)
+              Model.Self -> []
+        in
+        Html.tbody [] (List.map viewProfile profiles)
+      ]
+  ]
+
 view : Model -> Browser.Document Msg
 view model =
   let
@@ -179,150 +312,20 @@ view model =
               Just u -> [viewUser model u { isMe = True }]
               Nothing -> []
           _ -> []
-      , [ Html.p []
-            (
-              case model.facebookFriends of
-                Nothing -> []
-                Just friends ->
-                  [ if List.isEmpty friends
+      , case model.facebookFriends of
+          Nothing -> []
+          Just friends ->
+            [ Html.p []
+                [ [ if List.isEmpty friends
                     then "None"
                     else String.fromInt (List.length friends)
                   , " of your Facebook friends use flexiprocity"
                   , if List.isEmpty friends
                     then " 🙁"
                     else ""
-                  ] |> String.concat |> Html.text |> List.singleton
-            )
-        , let
-            showClass cl =
-              Html.span
-                [ Attributes.class cl
-                , Attributes.style "padding" "0 0.2em"
+                  ] |> String.concat |> Html.text
                 ]
-                [ Html.text cl ]
-          in
-          Html.div
-            [ Attributes.style "text-align" "right" ]
-            [ showClass "modified"
-            , Html.text " "
-            , showClass "submitted"
-            , Html.text " "
-            , showClass "matched"
-            ]
-        , let
-            wouldsById = Dict.toList model.wouldsById
-          in
-          Html.table
-            [ Attributes.style "width" "100%"
-            , Attributes.style "padding" "1em"
-            , Attributes.style "border-collapse" "collapse"
-            , Attributes.id "people"
-            ]
-            [ Html.thead
-                [ Attributes.style "position" "sticky"
-                , Attributes.style "top" "0"
-                ]
-                [ let
-                    wouldCol (_, wName) =
-                      Html.th
-                        [ Attributes.style "width" "10%" ]
-                        [ Html.text wName ]
-                    cols =
-                      Html.th
-                        [ Attributes.style "text-align" "left"
-                        , Attributes.style "padding-left" "1em"
-                        ]
-                        [ Html.text "People" ]
-                      :: List.map wouldCol wouldsById
-                  in
-                  Html.tr [] cols
-                , Html.tr
-                    []
-                    [ Html.th [] []
-                    , Html.th
-                        [ Attributes.colspan (List.length wouldsById) ]
-                        [ Html.button
-                            [ Events.onClick [Model.SubmitWouldChanges]
-                            , Attributes.disabled (Dict.isEmpty model.wouldChange)
-                            ]
-                            [ Html.text "Submit" ]
-                        ]
-                    ]
-                ]
-            , let
-                viewProfile profile =
-                  let
-                    toNames ids =
-                      List.filterMap (\i -> Dict.get i.wouldId model.wouldsById) ids
-                      |> Set.fromList
-                    youWouldNames = toNames profile.youWould
-                    matchedNames = toNames profile.matchedWoulds
-                    wouldCol (wId, wName) =
-                      let
-                        isMatched = Set.member wName matchedNames
-                        isYouWould = Set.member wName youWouldNames
-                        isModified =
-                          Dict.get profile.userId model.wouldChange
-                          |> Maybe.map (Dict.member wId)
-                          |> Maybe.withDefault False
-                        styles =
-                          [ [ Attributes.style "text-align" "center"
-                            , Attributes.style "transition" "background-color 0.2s"
-                            ]
-                          , if isMatched
-                            then [ Attributes.class "matched" ]
-                            else if isModified
-                            then [ Attributes.class "modified" ]
-                            else if isYouWould
-                            then [ Attributes.class "submitted" ]
-                            else []
-                          ] |> List.concat
-                      in
-                      Html.td
-                        styles
-                        [ let
-                            isChecked =
-                              case
-                                Dict.get profile.userId model.wouldChange
-                                |> Maybe.withDefault Dict.empty
-                                |> Dict.get wId
-                              of
-                                Nothing -> Set.member wName youWouldNames
-                                Just b -> b
-                          in
-                          Html.input
-                            [ Attributes.type_ "checkbox"
-                            , Attributes.disabled isMatched
-                            , Attributes.checked isChecked
-                            , Events.onCheck (\newChecked ->
-                                [ Model.WouldChange
-                                    { userId = profile.userId
-                                    , wouldId = wId
-                                    , changeTo = newChecked
-                                    }
-                                ]
-                              )
-                            ]
-                            []
-                        ]
-                    cols =
-                      Html.td [] [viewUser model profile { isMe = False }]
-                      :: List.map wouldCol wouldsById
-                  in
-                  Html.tr [] cols
-                profiles =
-                  case model.showMe of
-                    Model.Everyone ->
-                      Dict.values model.profiles
-                      |> List.filter (\profile -> profile.audience /= Model.Self)
-                    Model.Friends ->
-                      Dict.values model.profiles
-                      |> List.filter (\profile -> profile.audience == Model.Friends)
-                    Model.Self -> []
-              in
-              Html.tbody [] (List.map viewProfile profiles)
-            ]
-        ]
+            ] ++ viewPeople model
       ] |> List.concat
   }
 
