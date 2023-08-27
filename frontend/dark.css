@@ -1,0 +1,19 @@
+body {
+    color: white;
+    background-color: hsl(300, 100%, 10%);
+}
+a {
+    color: hsl(240, 100%, 75%);
+}
+table#people thead {
+    background-color: hsl(300, 100%, 8%);
+}
+table#people td.matched {
+    background-color: hsl(300, 100%, 40%);
+}
+table#people td.modified {
+    background-color: hsl(240, 25%, 20%);
+}
+table#people td.youWould {
+    background-color: hsl(300, 50%, 20%);
+}

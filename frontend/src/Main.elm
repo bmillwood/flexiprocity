@@ -292,7 +292,7 @@ view model =
               Just u -> [viewUser u True]
               Nothing -> []
           _ -> []
-      , [ Html.div []
+      , [ Html.p []
             [
               case model.facebookFriends of
                 Nothing -> Html.text "Fetching Facebook friends..."
@@ -318,7 +318,6 @@ view model =
             [ Html.thead
                 [ Attributes.style "position" "sticky"
                 , Attributes.style "top" "0"
-                , Attributes.style "background-color" "hsl(0, 0%, 100%)"
                 ]
                 [ let
                     wouldCol (_, wName) =
@@ -327,7 +326,9 @@ view model =
                         [ Html.text wName ]
                     cols =
                       Html.th
-                        [ Attributes.style "text-align" "left" ]
+                        [ Attributes.style "text-align" "left"
+                        , Attributes.style "padding-left" "1em"
+                        ]
                         [ Html.text "People" ]
                       :: List.map wouldCol wouldsById
                   in
@@ -361,17 +362,16 @@ view model =
                           Dict.get profile.userId model.wouldChange
                           |> Maybe.map (Dict.member wId)
                           |> Maybe.withDefault False
-                        bgColor = Attributes.style "background-color"
                         styles =
                           [ [ Attributes.style "text-align" "center"
                             , Attributes.style "transition" "background-color 0.2s"
                             ]
                           , if isMatched
-                            then [ bgColor "hsl(120, 100%, 90%)" ]
+                            then [ Attributes.class "matched" ]
                             else if isModified
-                            then [ bgColor "hsl(60, 100%, 90%)" ]
+                            then [ Attributes.class "modified" ]
                             else if isYouWould
-                            then [ bgColor "hsl(240, 100%, 90%)" ]
+                            then [ Attributes.class "youWould" ]
                             else []
                           ] |> List.concat
                       in
