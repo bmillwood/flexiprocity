@@ -1,4 +1,4 @@
-module View exposing (..)
+module View exposing (view)
 
 import Browser
 import Dict exposing (Dict)
@@ -9,71 +9,73 @@ import Set exposing (Set)
 
 import Model exposing (Model, Msg)
 
+viewUser : Model -> Model.Profile -> { isMe : Bool } -> Html Msg
+viewUser model user { isMe } =
+  let
+    facebookUser = Dict.get user.facebookId model.facebookUsers
+    name =
+      Maybe.map .name facebookUser
+      |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
+    picture = facebookUser |> Maybe.map .picture
+  in
+  Html.div
+    [ Attributes.style "display" "flex"
+    , Attributes.class "user"
+    ]
+    [ case picture of
+        Nothing -> Html.div [ Attributes.height 50, Attributes.width 50 ] []
+        Just p ->
+          Html.img
+            [ Attributes.src p.url
+            , Attributes.height p.height
+            , Attributes.width p.width
+            , Attributes.style "margin" "0.2em 0.4em"
+            ]
+            []
+    , Html.div
+        []
+        [ Html.div
+            [ Attributes.style "font-weight" "bold" ]
+            [ case facebookUser |> Maybe.andThen .link of
+                Just link ->
+                  Html.a
+                    [ Attributes.href link ]
+                    [ Html.text name ]
+                Nothing -> Html.text name
+            ]
+        , Html.div
+            [ Attributes.style "margin" "0.1em 0.5em" ]
+            (
+            if isMe
+            then
+              [ Html.form
+                  [ Events.onSubmit [Model.SubmitBio] ]
+                  [ Html.input
+                      [ Attributes.type_ "text"
+                      , Attributes.placeholder "short bio"
+                      , Attributes.value model.myBio
+                      , Events.onInput (List.singleton << Model.EditBio)
+                      ]
+                      []
+                  , let
+                      saved = user.bio == model.myBio
+                    in
+                    Html.button
+                      [ Events.onClick [Model.SubmitBio]
+                      , Attributes.disabled saved
+                      ]
+                      [ Html.text (if saved then "Saved" else "Save") ]
+                  ]
+              ]
+            else
+              [ Html.text user.bio ]
+          )
+        ]
+    ]
+
 view : Model -> Browser.Document Msg
 view model =
   let
-    viewUser user isMe =
-      let
-        facebookUser = Dict.get user.facebookId model.facebookUsers
-        name =
-          Maybe.map .name facebookUser
-          |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
-        picture = facebookUser |> Maybe.map .picture
-      in
-      Html.div
-        [ Attributes.style "display" "flex"
-        , Attributes.class "user"
-        ]
-        [ case picture of
-            Nothing -> Html.div [ Attributes.height 50, Attributes.width 50 ] []
-            Just p ->
-              Html.img
-                [ Attributes.src p.url
-                , Attributes.height p.height
-                , Attributes.width p.width
-                , Attributes.style "margin" "0.2em 0.4em"
-                ]
-                []
-        , Html.div
-            []
-            [ Html.div
-                [ Attributes.style "font-weight" "bold" ]
-                [ case facebookUser |> Maybe.andThen .link of
-                    Just link ->
-                      Html.a
-                        [ Attributes.href link ]
-                        [ Html.text name ]
-                    Nothing -> Html.text name
-                ]
-            , Html.div
-                [ Attributes.style "margin" "0.1em 0.5em" ]
-                (
-                if isMe
-                then
-                  [ Html.form
-                      [ Events.onSubmit [Model.SubmitBio] ]
-                      [ Html.input
-                          [ Attributes.type_ "text"
-                          , Attributes.placeholder "short bio"
-                          , Attributes.value model.myBio
-                          , Events.onInput (List.singleton << Model.EditBio)
-                          ]
-                          []
-                      , let
-                          saved = user.bio == model.myBio
-                        in
-                        Html.button
-                          [ Events.onClick [Model.SubmitBio]
-                          , Attributes.disabled saved
-                          ]
-                          [ Html.text (if saved then "Saved" else "Save") ]
-                      ]
-                  ]
-                else
-                  [ Html.text user.bio ]
-              )
-            ]
-        ]
     audienceRadio { name, currentWho, onCheck, who, label } =
       [ Html.input
         [ Attributes.type_ "radio"
@@ -174,7 +176,7 @@ view model =
       , case model.apiLoggedIn of
           Model.LoggedIn { userId } ->
             case Dict.get userId model.profiles of
-              Just u -> [viewUser u True]
+              Just u -> [viewUser model u { isMe = True }]
               Nothing -> []
           _ -> []
       , [ Html.p []
@@ -304,7 +306,7 @@ view model =
                             []
                         ]
                     cols =
-                      Html.td [] [viewUser profile False]
+                      Html.td [] [viewUser model profile { isMe = False }]
                       :: List.map wouldCol wouldsById
                   in
                   Html.tr [] cols
