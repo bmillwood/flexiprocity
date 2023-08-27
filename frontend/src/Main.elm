@@ -162,21 +162,24 @@ view model =
             , Html.div [] (
                 if isMe
                 then
-                  [ Html.input
-                      [ Attributes.type_ "text"
-                      , Attributes.placeholder "short bio"
-                      , Attributes.value model.myBio
-                      , Events.onInput (List.singleton << EditBio)
+                  [ Html.form
+                      [ Events.onSubmit [SubmitBio] ]
+                      [ Html.input
+                          [ Attributes.type_ "text"
+                          , Attributes.placeholder "short bio"
+                          , Attributes.value model.myBio
+                          , Events.onInput (List.singleton << EditBio)
+                          ]
+                          []
+                      , let
+                          saved = user.bio == model.myBio
+                        in
+                        Html.button
+                          [ Events.onClick [SubmitBio]
+                          , Attributes.disabled saved
+                          ]
+                          [ Html.text (if saved then "Saved" else "Save") ]
                       ]
-                      []
-                  , let
-                      saved = user.bio == model.myBio
-                    in
-                    Html.button
-                      [ Events.onClick [SubmitBio]
-                      , Attributes.disabled saved
-                      ]
-                      [ Html.text (if saved then "Saved" else "Save") ]
                   ]
                 else
                   [ Html.text user.bio ]
