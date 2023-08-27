@@ -21,12 +21,12 @@
 .facebook-logged-in {
     background-color: hsl(214, 89%, 75%);
 }
-.facebook-logout {
+.logout {
     background-color: hsl(334, 89%, 52%);
 }
-.facebook-logout:hover {
+.logout:hover {
     background-color: hsl(334, 89%, 39%);
 }
-.facebook-logout:disabled {
+.logout:disabled {
     background-color: hsl(334, 89%, 75%);
 }

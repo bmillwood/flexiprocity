@@ -92,7 +92,7 @@ type OneMsg
   = AddError String
   | FromJS Ports.FromJS
   | StartFacebookLogin
-  | StartFacebookLogout
+  | StartLogout
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : UserId })
   | Woulds (Dict WouldId String)
@@ -241,8 +241,8 @@ view model =
                       (viewLoggedIn userId)
                   , Html.button
                       [ Attributes.class "facebook-button"
-                      , Attributes.class "facebook-logout"
-                      , Events.onClick [StartFacebookLogout]
+                      , Attributes.class "logout"
+                      , Events.onClick [StartLogout]
                       ]
                       [ Html.text "Logout" ]
                   ]
@@ -293,9 +293,9 @@ view model =
               Nothing -> []
           _ -> []
       , [ Html.p []
-            [
+            (
               case model.facebookFriends of
-                Nothing -> Html.text "Fetching Facebook friends..."
+                Nothing -> []
                 Just friends ->
                   [ if List.isEmpty friends
                     then "None"
@@ -304,8 +304,8 @@ view model =
                   , if List.isEmpty friends
                     then " 🙁"
                     else ""
-                  ] |> String.concat |> Html.text
-            ]
+                  ] |> String.concat |> Html.text |> List.singleton
+            )
         , let
             showClass cl =
               Html.span
@@ -629,13 +629,42 @@ updateOne msg model =
           ( { model | facebookLoggedIn = LoggingIn }
           , Ports.facebookLogin
           )
-    StartFacebookLogout ->
-      case model.facebookLoggedIn of
-        LoggingOut -> (model, Cmd.none)
-        _ ->
-          ( { model | facebookLoggedIn = LoggingOut }
-          , Ports.facebookLogout
-          )
+    StartLogout ->
+      let
+        newModel =
+          { model
+          | facebookLoggedIn = LoggingOut
+          , facebookUsers = Dict.empty
+          , profiles = Dict.empty
+          , facebookFriends = Nothing
+          , myBio = ""
+          , myVisibility = Nothing
+          , wouldChange = Dict.empty
+          }
+        apiLogout =
+          case model.apiLoggedIn of
+            LoggingOut -> Cmd.none
+            _ ->
+              let
+                loggedOut () = [ ApiLoginResult NotLoggedIn ]
+              in
+              Http.request
+                { method = "DELETE"
+                , headers = []
+                , url = "/login/facebook"
+                , body = Http.emptyBody
+                , expect =
+                    Http.expectWhatever
+                      (handleHttpResult << Result.map loggedOut)
+                , timeout = Nothing
+                , tracker = Nothing
+                }
+        facebookLogout =
+          case model.facebookLoggedIn of
+            LoggingOut -> Cmd.none
+            _ -> Ports.facebookLogout
+      in
+      (newModel, Cmd.batch [apiLogout, facebookLogout])
     CheckApiLogin ->
       (model, checkApiLogin)
     ApiLoginResult newState ->
