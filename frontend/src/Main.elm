@@ -334,34 +334,53 @@ view model =
                     youWouldNames = toNames profile.youWould
                     matchedNames = toNames profile.matchedWoulds
                     wouldCol (wId, wName) =
+                      let
+                        isMatched = Set.member wName matchedNames
+                        isYouWould = Set.member wName youWouldNames
+                        isModified =
+                          Dict.get profile.userId model.wouldChange
+                          |> Maybe.map (Dict.member wId)
+                          |> Maybe.withDefault False
+                        bgColor = Attributes.style "background-color"
+                        styles =
+                          [ [ Attributes.style "text-align" "center"
+                            , Attributes.style "transition" "background-color 0.2s"
+                            ]
+                          , if isMatched
+                            then [ bgColor "hsl(120, 100%, 90%)" ]
+                            else if isModified
+                            then [ bgColor "hsl(60, 100%, 90%)" ]
+                            else if isYouWould
+                            then [ bgColor "hsl(240, 100%, 90%)" ]
+                            else []
+                          ] |> List.concat
+                      in
                       Html.td
-                        [ Attributes.style "text-align" "center" ]
-                        [ if Set.member wName matchedNames
-                          then Html.text "✅"
-                          else
-                            let
-                              isChecked =
-                                case
-                                  Dict.get profile.userId model.wouldChange
-                                  |> Maybe.withDefault Dict.empty
-                                  |> Dict.get wId
-                                of
-                                  Nothing -> Set.member wName youWouldNames
-                                  Just b -> b
-                            in
-                            Html.input
-                              [ Attributes.type_ "checkbox"
-                              , Attributes.checked isChecked
-                              , Events.onCheck (\newChecked ->
-                                  [ WouldChange
-                                      { userId = profile.userId
-                                      , wouldId = wId
-                                      , changeTo = newChecked
-                                      }
-                                  ]
-                                )
-                              ]
-                              []
+                        styles
+                        [ let
+                            isChecked =
+                              case
+                                Dict.get profile.userId model.wouldChange
+                                |> Maybe.withDefault Dict.empty
+                                |> Dict.get wId
+                              of
+                                Nothing -> Set.member wName youWouldNames
+                                Just b -> b
+                          in
+                          Html.input
+                            [ Attributes.type_ "checkbox"
+                            , Attributes.disabled isMatched
+                            , Attributes.checked isChecked
+                            , Events.onCheck (\newChecked ->
+                                [ WouldChange
+                                    { userId = profile.userId
+                                    , wouldId = wId
+                                    , changeTo = newChecked
+                                    }
+                                ]
+                              )
+                            ]
+                            []
                         ]
                     cols =
                       Html.td [] [viewUser profile False]
@@ -682,10 +701,19 @@ updateOne msg model =
       )
     WouldChange { userId, wouldId, changeTo } ->
       let
+        isAlready =
+          case Dict.get userId model.profiles of
+            Nothing -> False
+            Just p -> List.member { wouldId = wouldId } p.youWould == changeTo
+        doChange =
+          if isAlready
+          then Dict.remove wouldId
+          else Dict.insert wouldId changeTo
+        justIfNonEmpty d = if Dict.isEmpty d then Nothing else Just d
         change v =
           Maybe.withDefault Dict.empty v
-          |> Dict.insert wouldId changeTo
-          |> Just
+          |> doChange
+          |> justIfNonEmpty
       in
       ( { model | wouldChange = Dict.update userId change model.wouldChange }
       , Cmd.none
