@@ -169,14 +169,14 @@ checkApiLogin =
 apiLogin : { accessToken : String } -> Cmd Msg
 apiLogin { accessToken } =
   let
-    decodeResult = Json.Decode.succeed [CheckApiLogin]
+    loggedIn () = [CheckApiLogin]
   in
   Http.post
     { url = "/login/facebook"
     , body =
         [ ("userToken", Json.Encode.string accessToken) ]
         |> Json.Encode.object |> Http.jsonBody
-    , expect = Http.expectJson handleHttpResult decodeResult
+    , expect = Http.expectWhatever (handleHttpResult << Result.map loggedIn)
     }
 
 tryApiLogin : Model -> (Model, Cmd Msg)
