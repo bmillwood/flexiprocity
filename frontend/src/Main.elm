@@ -146,6 +146,7 @@ view model =
                 [ Attributes.src p.url
                 , Attributes.height p.height
                 , Attributes.width p.width
+                , Attributes.style "margin" "0.2em 0.4em"
                 ]
                 []
         , Html.div
@@ -159,7 +160,9 @@ view model =
                         [ Html.text name ]
                     Nothing -> Html.text name
                 ]
-            , Html.div [] (
+            , Html.div
+                [ Attributes.style "margin" "0.1em 0.5em" ]
+                (
                 if isMe
                 then
                   [ Html.form
@@ -268,7 +271,7 @@ view model =
                       , label = label
                       }
                 in
-                [ [ Html.text "Show me:" ]
+                [ [ Html.text "I want to see:" ]
                 , radio Friends "My friends"
                 , radio Everyone "Everyone"
                 ] |> List.concat |> Html.p []
@@ -289,7 +292,7 @@ view model =
               Just u -> [viewUser u True]
               Nothing -> []
           _ -> []
-      , [ Html.p []
+      , [ Html.div []
             [
               case model.facebookFriends of
                 Nothing -> Html.text "Fetching Facebook friends..."
@@ -309,21 +312,15 @@ view model =
           Html.table
             [ Attributes.style "width" "100%"
             , Attributes.style "padding" "1em"
+            , Attributes.style "border-collapse" "collapse"
+            , Attributes.id "people"
             ]
-            [ Html.thead []
-                [ Html.tr
-                    []
-                    [ Html.th [] []
-                    , Html.th
-                        [ Attributes.colspan (List.length wouldsById) ]
-                        [ Html.button
-                            [ Events.onClick [SubmitWouldChanges]
-                            , Attributes.disabled (Dict.isEmpty model.wouldChange)
-                            ]
-                            [ Html.text "Submit" ]
-                        ]
-                    ]
-                , let
+            [ Html.thead
+                [ Attributes.style "position" "sticky"
+                , Attributes.style "top" "0"
+                , Attributes.style "background-color" "hsl(0, 0%, 100%)"
+                ]
+                [ let
                     wouldCol (_, wName) =
                       Html.th
                         [ Attributes.style "width" "10%" ]
@@ -335,6 +332,18 @@ view model =
                       :: List.map wouldCol wouldsById
                   in
                   Html.tr [] cols
+                , Html.tr
+                    []
+                    [ Html.th [] []
+                    , Html.th
+                        [ Attributes.colspan (List.length wouldsById) ]
+                        [ Html.button
+                            [ Events.onClick [SubmitWouldChanges]
+                            , Attributes.disabled (Dict.isEmpty model.wouldChange)
+                            ]
+                            [ Html.text "Submit" ]
+                        ]
+                    ]
                 ]
             , let
                 viewProfile profile =
