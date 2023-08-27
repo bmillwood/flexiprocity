@@ -159,33 +159,43 @@ viewPeople model =
                       then [ Attributes.class "submitted" ]
                       else []
                     ] |> List.concat
+                  onCheck newChecked =
+                    [ Model.WouldChange
+                        { userId = profile.userId
+                        , wouldId = wId
+                        , changeTo = newChecked
+                        }
+                    ]
+                  isChecked =
+                    case
+                      Dict.get profile.userId model.wouldChange
+                      |> Maybe.withDefault Dict.empty
+                      |> Dict.get wId
+                    of
+                      Nothing -> Set.member wName youWouldNames
+                      Just b -> b
+                  tdAttrs =
+                    Events.onClick (onCheck (not isChecked))
+                    :: styles
                 in
                 Html.td
-                  styles
+                  tdAttrs
                   [ let
-                      isChecked =
-                        case
-                          Dict.get profile.userId model.wouldChange
-                          |> Maybe.withDefault Dict.empty
-                          |> Dict.get wId
-                        of
-                          Nothing -> Set.member wName youWouldNames
-                          Just b -> b
+                      checkboxId = "would-" ++ profile.userId ++ "-" ++ wId
                     in
-                    Html.input
-                      [ Attributes.type_ "checkbox"
-                      , Attributes.disabled isMatched
-                      , Attributes.checked isChecked
-                      , Events.onCheck (\newChecked ->
-                          [ Model.WouldChange
-                              { userId = profile.userId
-                              , wouldId = wId
-                              , changeTo = newChecked
-                              }
-                          ]
-                        )
+                    Html.label
+                      [ Attributes.for checkboxId
+                      , Attributes.style "display" "block"
                       ]
-                      []
+                      [ Html.input
+                          [ Attributes.type_ "checkbox"
+                          , Attributes.id checkboxId
+                          , Attributes.disabled isMatched
+                          , Attributes.checked isChecked
+                          , Events.onCheck onCheck
+                          ]
+                          []
+                      ]
                   ]
               cols =
                 Html.td [] [viewUser model profile { isMe = False }]
