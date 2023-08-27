@@ -33,7 +33,7 @@ RUN apk add gmp libffi libstdc++ nginx nodejs tmux
 WORKDIR /opt/flexiprocity
 COPY --from=auth-server-build /opt/auth-server/bin auth-server
 COPY --from=frontend-build /opt/frontend/elm.js frontend/elm.js
-COPY frontend/index.html frontend/driver.js frontend/main.css frontend/
+COPY frontend/index.html frontend/driver.js frontend/*.css frontend/
 COPY nginx/nginx.conf nginx/
 RUN mkdir -p nginx/var/log nginx/var/run
 COPY --from=postgraphile-build /opt/postgraphile/node_modules postgraphile/node_modules
