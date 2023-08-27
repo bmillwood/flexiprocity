@@ -150,8 +150,16 @@ view model =
                 []
         , Html.div
             []
-            [ Html.div [] [Html.text name]
-            , Html.div [Attributes.class "user-bio"] (
+            [ Html.div
+                [ Attributes.style "font-weight" "bold" ]
+                [ case facebookUser |> Maybe.andThen .link of
+                    Just link ->
+                      Html.a
+                        [ Attributes.href link ]
+                        [ Html.text name ]
+                    Nothing -> Html.text name
+                ]
+            , Html.div [] (
                 if isMe
                 then
                   [ Html.input

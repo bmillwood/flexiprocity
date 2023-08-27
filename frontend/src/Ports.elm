@@ -29,7 +29,7 @@ facebookApi { path, id } =
 facebookFriends : { userId : String } -> Cmd msg
 facebookFriends { userId } =
   facebookApi
-    { path = "/" ++ userId ++ "/friends?fields=id,name,short_name,picture"
+    { path = "/" ++ userId ++ "/friends?fields=id,name,short_name,picture,link"
     , id = "friends"
     }
 
@@ -37,13 +37,14 @@ facebookUser : { personId : String } -> Cmd msg
 facebookUser { personId } =
   if String.startsWith "_" personId
   then Cmd.none
-  else facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture", id = "user" }
+  else facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture,link", id = "user" }
 
 type alias FacebookUser =
   { id : String
   , name : String
   , shortName : String
   , picture : { height : Int, width : Int, url : String }
+  , link : Maybe String
   }
 
 type FromJS
@@ -67,12 +68,13 @@ fromJS =
         (Json.Decode.field "width" Json.Decode.int)
         (Json.Decode.field "url" Json.Decode.string)
     decodeUser =
-      Json.Decode.map4
-         (\i n sn p -> { id = i, name = n, shortName = sn, picture = p })
+      Json.Decode.map5
+         (\i n sn p l -> { id = i, name = n, shortName = sn, picture = p, link = l })
          (Json.Decode.field "id" Json.Decode.string)
          (Json.Decode.field "name" Json.Decode.string)
          (Json.Decode.field "short_name" Json.Decode.string)
          (Json.Decode.at ["picture", "data"] decodePicture)
+         (Json.Decode.maybe (Json.Decode.field "link" Json.Decode.string))
     decodePayload kind =
       case kind of
         "facebook-login-status" ->
