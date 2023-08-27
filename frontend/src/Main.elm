@@ -307,6 +307,22 @@ view model =
                   ] |> String.concat |> Html.text
             ]
         , let
+            showClass cl =
+              Html.span
+                [ Attributes.class cl
+                , Attributes.style "padding" "0 0.2em"
+                ]
+                [ Html.text cl ]
+          in
+          Html.div
+            [ Attributes.style "text-align" "right" ]
+            [ showClass "modified"
+            , Html.text " "
+            , showClass "submitted"
+            , Html.text " "
+            , showClass "matched"
+            ]
+        , let
             wouldsById = Dict.toList model.wouldsById
           in
           Html.table
@@ -371,7 +387,7 @@ view model =
                             else if isModified
                             then [ Attributes.class "modified" ]
                             else if isYouWould
-                            then [ Attributes.class "youWould" ]
+                            then [ Attributes.class "submitted" ]
                             else []
                           ] |> List.concat
                       in

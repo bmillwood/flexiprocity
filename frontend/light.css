@@ -1,12 +1,12 @@
 table#people thead {
     background-color: white;
 }
-table#people td.matched {
-    background-color: hsl(120, 100%, 90%);
-}
-table#people td.modified {
+.modified {
     background-color: hsl(60, 100%, 90%);
 }
-table#people td.youWould {
+.submitted {
     background-color: hsl(240, 100%, 90%);
+}
+.matched {
+    background-color: hsl(120, 100%, 90%);
 }

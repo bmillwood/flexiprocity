@@ -8,12 +8,12 @@ a {
 table#people thead {
     background-color: hsl(300, 100%, 8%);
 }
-table#people td.matched {
-    background-color: hsl(300, 100%, 40%);
-}
-table#people td.modified {
+.modified {
     background-color: hsl(240, 25%, 20%);
 }
-table#people td.youWould {
+.submitted {
     background-color: hsl(300, 50%, 20%);
+}
+.matched {
+    background-color: hsl(300, 100%, 40%);
 }
