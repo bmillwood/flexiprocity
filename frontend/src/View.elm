@@ -216,8 +216,55 @@ viewPeople model =
       ]
   ]
 
-view : Model -> Browser.Document Msg
-view model =
+viewLogin : Model -> Html Msg
+viewLogin model =
+  let
+    button disabled text =
+      Html.button
+        [ Events.onClick [Model.StartFacebookLogin]
+        , Attributes.disabled disabled
+        , Attributes.class "facebook-button"
+        , Attributes.class "facebook-login"
+        ]
+        [ Html.text text ]
+    viewLoggedIn userId =
+      case Dict.get userId model.facebookUsers of
+        Nothing -> [ Html.text "Logged in with Facebook" ]
+        Just user ->
+          [ Html.text ("Logged in as " ++ user.shortName ++ " ") ]
+  in
+  Html.p []
+  <| case model.facebookLoggedIn of
+    Model.Unknown ->
+      [ button True "Checking Facebook login status" ]
+    Model.NotLoggedIn ->
+      [ button False "Login with Facebook" ]
+    Model.LoggingIn ->
+      [ button True "Logging in..." ]
+    Model.LoggedIn { userId } ->
+      [ Html.span
+          [ Attributes.class "facebook-button"
+          , Attributes.class "facebook-logged-in"
+          ]
+          (viewLoggedIn userId)
+      , Html.button
+          [ Attributes.class "facebook-button"
+          , Attributes.class "logout"
+          , Events.onClick [Model.StartLogout]
+          ]
+          [ Html.text "Logout" ]
+      ]
+    Model.LoggingOut ->
+      [ Html.button
+          [ Attributes.class "facebook-button"
+          , Attributes.class "logout"
+          , Attributes.disabled True
+          ]
+          [ Html.text "Logging out..." ]
+      ]
+
+viewAudienceControls : Model -> List (Html Msg)
+viewAudienceControls model =
   let
     audienceRadio { name, currentWho, onCheck, who, label } =
       [ Html.input
@@ -232,93 +279,53 @@ view model =
           [ Html.text label ]
       ]
   in
-  { title = "flexiprocity"
-  , body =
-      [ [ Html.h1 [] [ Html.text "flexiprocity" ]
-        , let
-            viewError err = Html.li [] [Html.text err]
-          in
-          Html.ul [] (List.map viewError model.errors)
-        ]
-        , let
-            button disabled text =
-              Html.button
-                [ Events.onClick [Model.StartFacebookLogin]
-                , Attributes.disabled disabled
-                , Attributes.class "facebook-button"
-                , Attributes.class "facebook-login"
-                ]
-                [ Html.text text ]
-            viewLoggedIn userId =
-              case Dict.get userId model.facebookUsers of
-                Nothing -> [ Html.text "Logged in with Facebook" ]
-                Just user ->
-                  [ Html.text ("Logged in as " ++ user.shortName ++ " ") ]
-          in
-          case model.facebookLoggedIn of
-            Model.Unknown ->
-              [Html.p [] [button True "Checking Facebook login status"]]
-            Model.NotLoggedIn ->
-              [Html.p [] [button False "Login with Facebook"]]
-            Model.LoggingIn ->
-              [Html.p [] [button True "Logging in..."]]
-            Model.LoggedIn { userId } ->
-              [ Html.p []
-                  [ Html.span
-                      [ Attributes.class "facebook-button"
-                      , Attributes.class "facebook-logged-in"
-                      ]
-                      (viewLoggedIn userId)
-                  , Html.button
-                      [ Attributes.class "facebook-button"
-                      , Attributes.class "logout"
-                      , Events.onClick [Model.StartLogout]
-                      ]
-                      [ Html.text "Logout" ]
-                  ]
-              , let
-                  radio who label =
-                    audienceRadio
-                      { name = "visibility"
-                      , currentWho = model.myVisibility
-                      , onCheck = [Model.MyVisibility who, Model.SubmitVisibility]
-                      , who = who
-                      , label = label
-                      }
-                in
-                [ [ Html.text "Show my profile to people I've ticked and:" ]
-                , radio Model.Self "Nobody else"
-                , radio Model.Friends "Friends"
-                , radio Model.Everyone "Everyone"
-                ] |> List.concat |> Html.p []
-              , let
-                  radio who label =
-                    audienceRadio
-                      { name = "search"
-                      , currentWho = Just model.showMe
-                      , onCheck = [Model.ShowMe who]
-                      , who = who
-                      , label = label
-                      }
-                in
-                [ [ Html.text "I want to see:" ]
-                , radio Model.Friends "My friends"
-                , radio Model.Everyone "Everyone"
-                ] |> List.concat |> Html.p []
-              ]
-            Model.LoggingOut ->
-              [ Html.p []
-                  [ Html.button
-                      [ Attributes.class "facebook-button"
-                      , Attributes.class "facebook-logout"
-                      , Attributes.disabled True
-                      ]
-                      [ Html.text "Logging out..." ]
-                  ]
-              ]
+  [ let
+      radio who label =
+        audienceRadio
+          { name = "visibility"
+          , currentWho = model.myVisibility
+          , onCheck = [Model.MyVisibility who, Model.SubmitVisibility]
+          , who = who
+          , label = label
+          }
+    in
+    [ [ Html.text "Show my profile to people I've ticked and:" ]
+    , radio Model.Self "Nobody else"
+    , radio Model.Friends "Friends"
+    , radio Model.Everyone "Everyone"
+    ] |> List.concat |> Html.p []
+  , let
+      radio who label =
+        audienceRadio
+          { name = "search"
+          , currentWho = Just model.showMe
+          , onCheck = [Model.ShowMe who]
+          , who = who
+          , label = label
+          }
+    in
+    [ [ Html.text "I want to see:" ]
+    , radio Model.Friends "My friends"
+    , radio Model.Everyone "Everyone"
+    ] |> List.concat |> Html.p []
+  ]
+
+view : Model -> Browser.Document Msg
+view model =
+  let
+    header =
+      [ Html.h1 [] [ Html.text "flexiprocity" ]
+      , let
+          viewError err = Html.li [] [Html.text err]
+        in
+        Html.ul [] (List.map viewError model.errors)
+      ]
+    root =
+      [ [ viewLogin model ]
       , case model.apiLoggedIn of
           Model.LoggedIn { userId } ->
-            case Dict.get userId model.profiles of
+            viewAudienceControls model
+            ++ case Dict.get userId model.profiles of
               Just u -> [viewUser model u { isMe = True }]
               Nothing -> []
           _ -> []
@@ -337,5 +344,14 @@ view model =
                 ]
             ] ++ viewPeople model
       ] |> List.concat
+  in
+  { title =
+      case model.page of
+        Model.PageNotFound -> "Not found - flexiprocity"
+        Model.Root -> "flexiprocity"
+  , body =
+      header
+      ++ case model.page of
+        Model.PageNotFound -> [ Html.text "Page not found" ]
+        Model.Root -> root
   }
-

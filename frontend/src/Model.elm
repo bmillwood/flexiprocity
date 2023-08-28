@@ -1,9 +1,13 @@
 module Model exposing (..)
 
+import Browser
+import Browser.Navigation as Nav
 import Dict exposing (Dict)
 import Http
 import Json.Decode
 import Json.Encode
+import Url exposing (Url)
+import Url.Parser
 
 import Ports
 
@@ -69,8 +73,14 @@ decodeProfile =
     (Json.Decode.field "matchedWoulds" decodeWouldIds)
     (Json.Decode.field "youWould" decodeWouldIds)
 
+type Page
+  = PageNotFound
+  | Root
+
 type alias Model =
   { errors : List String
+  , navKey : Nav.Key
+  , page : Page
   , facebookLoggedIn : LoginStatus { userId : FacebookId, accessToken : String }
   , apiLoggedIn : LoginStatus { userId : UserId }
   , facebookUsers : Dict FacebookId Ports.FacebookUser
@@ -85,6 +95,8 @@ type alias Model =
 
 type OneMsg
   = AddError String
+  | UrlReq Browser.UrlRequest
+  | SetPage Page
   | FromJS Ports.FromJS
   | StartFacebookLogin
   | StartLogout
@@ -102,8 +114,25 @@ type OneMsg
 
 type alias Msg = List OneMsg
 
-init : () -> (Model, Cmd Msg)
-init () =
+parseUrl : Url -> Page
+parseUrl url =
+  let
+    parser =
+      Url.Parser.oneOf
+        [ Url.Parser.map Root Url.Parser.top
+        ]
+  in
+  Url.Parser.parse parser url
+  |> Maybe.withDefault PageNotFound
+
+onUrlRequest : Browser.UrlRequest -> Msg
+onUrlRequest urlReq = [UrlReq urlReq]
+
+onUrlChange : Url -> Msg
+onUrlChange url = [SetPage (parseUrl url)]
+
+init : () -> Url -> Nav.Key -> (Model, Cmd Msg)
+init () url navKey =
   ( { errors = []
     , facebookLoggedIn = Unknown
     , apiLoggedIn = Unknown
@@ -115,6 +144,8 @@ init () =
     , myVisibility = Nothing
     , showMe = Friends
     , wouldChange = Dict.empty
+    , navKey = navKey
+    , page = parseUrl url
     }
   , checkApiLogin
   )
@@ -275,6 +306,13 @@ updateOne msg model =
   case msg of
     AddError err ->
       ({ model | errors = err :: model.errors }, Cmd.none)
+    UrlReq urlReq ->
+      case urlReq of
+        Browser.Internal url ->
+          (model, Nav.pushUrl model.navKey (Url.toString url))
+        Browser.External url ->
+          (model, Nav.load url)
+    SetPage newPage -> ({ model | page = newPage }, Cmd.none)
     FromJS (Ports.DriverProtocolError err) ->
       ({ model | errors = err :: model.errors }, Cmd.none)
     FromJS (Ports.FacebookConnected params) ->

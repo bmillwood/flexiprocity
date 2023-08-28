@@ -6,9 +6,11 @@ import Model
 import View
 
 main =
-  Browser.document
+  Browser.application
     { init = Model.init
     , view = View.view
     , update = Model.update
     , subscriptions = Model.subscriptions
+    , onUrlRequest = Model.onUrlRequest
+    , onUrlChange = Model.onUrlChange
     }
