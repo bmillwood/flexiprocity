@@ -310,6 +310,53 @@ viewAudienceControls model =
     ] |> List.concat |> Html.p []
   ]
 
+viewRoot : Model -> List (Html Msg)
+viewRoot model =
+  [ [ Html.p []
+        [ Html.a
+            [ Attributes.href "privacy-policy" ]
+            [ Html.text "privacy policy" ]
+        ]
+    , viewLogin model
+    ]
+  , case model.apiLoggedIn of
+      Model.LoggedIn { userId } ->
+        viewAudienceControls model
+        ++ case Dict.get userId model.profiles of
+          Just u -> [viewUser model u { isMe = True }]
+          Nothing -> []
+      _ -> []
+  , case model.facebookFriends of
+      Nothing -> []
+      Just friends ->
+        [ Html.p []
+            [ [ if List.isEmpty friends
+                then "None"
+                else String.fromInt (List.length friends)
+              , " of your Facebook friends use flexiprocity"
+              , if List.isEmpty friends
+                then " 🙁"
+                else ""
+              ] |> String.concat |> Html.text
+            ]
+        ] ++ viewPeople model
+  ] |> List.concat
+
+-- https://developers.facebook.com/terms/#privacypolicy
+viewPrivacyPolicy : Model -> List (Html Msg)
+viewPrivacyPolicy _ =
+  [ Html.p []
+      [ Html.a
+          [ Attributes.href "/" ]
+          [ Html.text "back" ]
+      , Html.text " | "
+      , Html.text "privacy policy"
+      ]
+  , Html.p []
+      [ Html.text "not written yet, sorry"
+      ]
+  ]
+
 view : Model -> Browser.Document Msg
 view model =
   let
@@ -320,38 +367,16 @@ view model =
         in
         Html.ul [] (List.map viewError model.errors)
       ]
-    root =
-      [ [ viewLogin model ]
-      , case model.apiLoggedIn of
-          Model.LoggedIn { userId } ->
-            viewAudienceControls model
-            ++ case Dict.get userId model.profiles of
-              Just u -> [viewUser model u { isMe = True }]
-              Nothing -> []
-          _ -> []
-      , case model.facebookFriends of
-          Nothing -> []
-          Just friends ->
-            [ Html.p []
-                [ [ if List.isEmpty friends
-                    then "None"
-                    else String.fromInt (List.length friends)
-                  , " of your Facebook friends use flexiprocity"
-                  , if List.isEmpty friends
-                    then " 🙁"
-                    else ""
-                  ] |> String.concat |> Html.text
-                ]
-            ] ++ viewPeople model
-      ] |> List.concat
   in
   { title =
       case model.page of
         Model.PageNotFound -> "Not found - flexiprocity"
         Model.Root -> "flexiprocity"
+        Model.PrivacyPolicy -> "Privacy policy - flexiprocity"
   , body =
       header
       ++ case model.page of
         Model.PageNotFound -> [ Html.text "Page not found" ]
-        Model.Root -> root
+        Model.Root -> viewRoot model
+        Model.PrivacyPolicy -> viewPrivacyPolicy model
   }

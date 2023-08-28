@@ -32,7 +32,6 @@ entirely fresh implementation.
   be modified or deleted.
 - We have to delete platform data under a variety of circumstances; "whenever
   it's not needed, or whenever requested" should probably suffice.
-- [privacy policy requirements](https://developers.facebook.com/terms/#privacypolicy)
 - "You must have a publicly available way for people to report security
   vulnerabilities in your App to you, and you must promptly address identified
   deficiencies."

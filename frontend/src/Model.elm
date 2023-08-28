@@ -76,6 +76,7 @@ decodeProfile =
 type Page
   = PageNotFound
   | Root
+  | PrivacyPolicy
 
 type alias Model =
   { errors : List String
@@ -120,6 +121,7 @@ parseUrl url =
     parser =
       Url.Parser.oneOf
         [ Url.Parser.map Root Url.Parser.top
+        , Url.Parser.map PrivacyPolicy (Url.Parser.s "privacy-policy")
         ]
   in
   Url.Parser.parse parser url
