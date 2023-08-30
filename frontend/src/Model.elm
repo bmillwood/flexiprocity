@@ -155,7 +155,16 @@ init () url navKey =
 handleHttpResult : Result Http.Error Msg -> Msg
 handleHttpResult r =
   case r of
-    Err e -> [AddError (Debug.toString e)]
+    Err e ->
+      let
+        errorString = case e of
+          Http.BadUrl s -> "BadUrl " ++ s
+          Http.Timeout -> "Timeout"
+          Http.NetworkError -> "NetworkError"
+          Http.BadStatus s -> "BadStatus " ++ String.fromInt s
+          Http.BadBody s -> "BadBody " ++ s
+      in
+      [AddError errorString]
     Ok msg -> msg
 
 graphQL

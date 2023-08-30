@@ -12,14 +12,16 @@ COPY auth-server/src src
 RUN mkdir ./bin
 RUN cabal install --install-method=copy --installdir=/opt/auth-server/bin
 
-FROM alpine:3 AS frontend-build
+FROM node:alpine AS frontend-build
 RUN apk add curl
 WORKDIR /opt/frontend
 RUN curl -L https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz | gunzip > /usr/local/bin/elm
 RUN chmod +x /usr/local/bin/elm
+RUN npm install -g uglify-js
 COPY frontend/elm.json .
 COPY frontend/src src
-RUN elm make --output=elm.js src/Main.elm
+RUN elm make --optimize --output=elm.premin.js src/Main.elm
+RUN uglifyjs elm.premin.js --compress "pure_funcs=[F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9],pure_getters,keep_fargs=false,unsafe_comps,unsafe" | uglifyjs --mangle --output elm.js
 
 FROM alpine:3 AS postgraphile-build
 RUN apk add npm
