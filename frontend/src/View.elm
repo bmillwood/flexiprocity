@@ -135,10 +135,11 @@ viewPeople model =
           viewProfile profile =
             let
               toNames ids =
-                List.filterMap (\i -> Dict.get i.wouldId model.wouldsById) ids
+                Set.toList ids
+                |> List.filterMap (\i -> Dict.get i model.wouldsById)
                 |> Set.fromList
-              youWouldNames = toNames profile.youWould
-              matchedNames = toNames profile.matchedWoulds
+              youWouldNames = toNames profile.youWouldIds
+              matchedNames = toNames profile.matchedWouldIds
               wouldCol (wId, wName) =
                 let
                   isMatched = Set.member wName matchedNames

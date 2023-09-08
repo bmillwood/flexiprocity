@@ -6,6 +6,7 @@ import Dict exposing (Dict)
 import Http
 import Json.Decode
 import Json.Encode
+import Set exposing (Set)
 import Url exposing (Url)
 import Url.Parser
 
@@ -53,16 +54,16 @@ type alias Profile =
   , facebookId : String
   , bio : String
   , audience : Audience
-  , matchedWoulds : List { wouldId : WouldId }
-  , youWould : List { wouldId : WouldId }
+  , matchedWouldIds : Set WouldId
+  , youWouldIds : Set WouldId
   }
 
 decodeProfile : Json.Decode.Decoder Profile
 decodeProfile =
   let
     decodeWouldIds =
-      Json.Decode.list
-        (Json.Decode.map (\i -> { wouldId = i }) Json.Decode.string)
+      Json.Decode.list Json.Decode.string
+      |> Json.Decode.map Set.fromList
   in
   Json.Decode.map6
     Profile
@@ -449,7 +450,7 @@ updateOne msg model =
               newWoulds =
                 Dict.filter
                   (\wId changeTo ->
-                    List.member { wouldId = wId } user.youWould /= changeTo
+                    Set.member wId user.youWouldIds /= changeTo
                   )
                   woulds
             in
@@ -524,7 +525,7 @@ updateOne msg model =
         isAlready =
           case Dict.get userId model.profiles of
             Nothing -> False
-            Just p -> List.member { wouldId = wouldId } p.youWould == changeTo
+            Just p -> Set.member wouldId p.youWouldIds == changeTo
         doChange =
           if isAlready
           then Dict.remove wouldId
