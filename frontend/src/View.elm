@@ -203,14 +203,24 @@ viewPeople model =
                 :: List.map wouldCol wouldsById
             in
             Html.tr [] cols
+          profileAntiPriority profile =
+            ( negate (Set.size profile.matchedWouldIds)
+            , negate (Set.size profile.youWouldIds)
+            , case Dict.get profile.facebookId model.facebookUsers of
+                Nothing -> ""
+                Just { name } -> name
+            )
+          sortProfiles = List.sortBy profileAntiPriority
           profiles =
             case model.showMe of
               Model.Everyone ->
                 Dict.values model.profiles
                 |> List.filter (\profile -> profile.audience /= Model.Self)
+                |> sortProfiles
               Model.Friends ->
                 Dict.values model.profiles
                 |> List.filter (\profile -> profile.audience == Model.Friends)
+                |> sortProfiles
               Model.Self -> []
         in
         Html.tbody [] (List.map viewProfile profiles)
