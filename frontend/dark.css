@@ -3,7 +3,10 @@ body {
     background-color: hsl(300, 100%, 10%);
 }
 a {
-    color: hsl(240, 100%, 75%);
+    color: hsl(240, 100%, 80%);
+}
+a:active {
+    color: hsl(0, 100%, 80%);
 }
 table#people thead {
     background-color: hsl(300, 100%, 8%);
