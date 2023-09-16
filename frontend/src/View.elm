@@ -325,8 +325,8 @@ viewRoot : Model -> List (Html Msg)
 viewRoot model =
   [ [ Html.p []
         [ Html.a
-            [ Attributes.href "privacy-policy" ]
-            [ Html.text "privacy policy" ]
+            [ Attributes.href "/about" ]
+            [ Html.text "about" ]
         ]
     , viewLogin model
     ]
@@ -353,18 +353,42 @@ viewRoot model =
         ] ++ viewPeople model
   ] |> List.concat
 
--- https://developers.facebook.com/terms/#privacypolicy
-viewPrivacyPolicy : Model -> List (Html Msg)
-viewPrivacyPolicy _ =
+viewAbout : Model -> List (Html Msg)
+viewAbout _ =
   [ Html.p []
       [ Html.a
           [ Attributes.href "/" ]
           [ Html.text "back" ]
       , Html.text " | "
-      , Html.text "privacy policy"
+      , Html.text "about"
+      ]
+  , Html.h2 []
+      [ Html.text "Privacy policy" ]
+  , Html.p []
+      -- https://developers.facebook.com/terms/#privacypolicy
+      [ Html.text "not written yet, sorry"
+      ]
+  , Html.h2 []
+      [ Html.text "Security policy" ]
+  , Html.p []
+      [ Html.text "There are two ways to report security flaws in the app:"
+      , Html.ul []
+          [ Html.li [] [ Html.text "e-mail, to security@[this domain]," ]
+          , Html.li []
+              [ Html.a
+                  [ Attributes.href "https://github.com/bmillwood/flexiprocity/issues" ]
+                  [ Html.text "GitHub issue tracker" ]
+              , Html.text "."
+              ]
+          ]
+      , Html.text """The latter is public, so obviously hazardous for critical
+          or immediately exploitable issues."""
       ]
   , Html.p []
-      [ Html.text "not written yet, sorry"
+      [ Html.text """I'm running this website as a volunteer in my free time, so
+          any resolution will be on a best-effort basis, but I hope that I can
+          provide some sort of response within three days, and a full solution
+          within two weeks."""
       ]
   ]
 
@@ -383,11 +407,11 @@ view model =
       case model.page of
         Model.PageNotFound -> "Not found - flexiprocity"
         Model.Root -> "flexiprocity"
-        Model.PrivacyPolicy -> "Privacy policy - flexiprocity"
+        Model.About -> "About - flexiprocity"
   , body =
       header
       ++ case model.page of
         Model.PageNotFound -> [ Html.text "Page not found" ]
         Model.Root -> viewRoot model
-        Model.PrivacyPolicy -> viewPrivacyPolicy model
+        Model.About -> viewAbout model
   }
