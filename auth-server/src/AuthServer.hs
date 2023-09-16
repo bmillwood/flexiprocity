@@ -2,7 +2,6 @@ module AuthServer (app, main) where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Proxy (Proxy (Proxy))
-import Data.Text (Text)
 import qualified Data.Text as Text
 
 import Servant ((:<|>) ((:<|>)))
