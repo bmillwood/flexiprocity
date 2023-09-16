@@ -327,6 +327,14 @@ updateOne msg model =
     SetPage newPage -> ({ model | page = newPage }, Cmd.none)
     FromJS (Ports.DriverProtocolError err) ->
       ({ model | errors = err :: model.errors }, Cmd.none)
+    FromJS Ports.FacebookSDKLoadFailed ->
+      let
+        err = """Facebook SDK failed to load. This app (for now)
+          requires Facebook login in order to function. If your
+          browser blocks Facebook tracking, see if you can enable
+          it for this page specifically."""
+      in
+      ({ model | errors = err :: model.errors }, Cmd.none)
     FromJS (Ports.FacebookConnected params) ->
       let
         (newModel, cmd) = tryApiLogin { model | facebookLoggedIn = LoggedIn params }

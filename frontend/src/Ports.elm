@@ -53,6 +53,7 @@ type FacebookError
 
 type FromJS
   = DriverProtocolError String
+  | FacebookSDKLoadFailed
   | FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
@@ -96,6 +97,8 @@ fromJS =
       |> Json.Decode.map FacebookGotError
     decodePayload kind =
       case kind of
+        "facebook-sdk-load-failure" ->
+          Json.Decode.succeed FacebookSDKLoadFailed
         "facebook-login-status" ->
           Json.Decode.field "status" Json.Decode.string
           |> Json.Decode.andThen (\status ->

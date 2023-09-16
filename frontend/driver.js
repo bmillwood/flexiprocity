@@ -16,6 +16,17 @@ window.fbAsyncInit = function() {
 const app = Elm.Main.init({
     // flags: {}
 });
+const fbScript = document.createElement("script");
+fbScript.async = true;
+fbScript.defer = true;
+fbScript.crossOrigin = "anonymous";
+fbScript.src = "https://connect.facebook.net/en_US/sdk.js";
+fbScript.onerror = function(error) {
+    app.ports.receiveFromJS.send({
+        kind: 'facebook-sdk-load-failure',
+    });
+};
+document.body.appendChild(fbScript);
 app.ports.sendToJS.subscribe(function(request) {
     switch(request.kind) {
     case 'facebook-login':
