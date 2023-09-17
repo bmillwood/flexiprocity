@@ -76,22 +76,16 @@ decodeSignedRequestWithSecret
 decodeSignedRequestWithSecret SignedRequest{ signedRequest } appSecret =
   case BSC.split '.' (Text.encodeUtf8 signedRequest) of
     [encSig, encPayload] -> do
-      decodedSig <- Enc.convertFromBase Enc.Base64 encSig >>= hmacFromBS
-      decodedPayload <- Enc.convertFromBase Enc.Base64 encPayload
-      let computedSig = HMAC.hmac appSecret decodedPayload
+      decodedPayload <- Enc.convertFromBase Enc.Base64URLUnpadded encPayload
+      let computedSig =
+            Enc.convertToBase Enc.Base64URLUnpadded
+              (HMAC.hmac appSecret encPayload :: HMAC.HMAC Hash.SHA256)
       () <-
-        if computedSig == decodedSig
+        if computedSig == encSig
         then Right ()
-        else Left "sig does not match"
+        else Left ("sig does not match: " <> show (computedSig, encSig))
       Aeson.eitherDecode (BSL.fromStrict decodedPayload)
     other -> Left $ "splitting by . gave " <> show (length other) <> " pieces"
-  where
-    hmacFromBS :: BS.ByteString -> Either String (HMAC.HMAC Hash.SHA256)
-    hmacFromBS =
-      maybe
-        (Left "digestFromByteString failed")
-        (Right . HMAC.HMAC)
-      . Hash.digestFromByteString
 
 decodeSignedRequest :: SignedRequest -> IO (Either String Aeson.Value)
 decodeSignedRequest signedReq = do
