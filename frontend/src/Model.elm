@@ -215,7 +215,7 @@ apiLogin { accessToken } =
     loggedIn () = [CheckApiLogin]
   in
   Http.post
-    { url = "/login/facebook"
+    { url = "/auth/login/facebook"
     , body =
         [ ("userToken", Json.Encode.string accessToken) ]
         |> Json.Encode.object |> Http.jsonBody
@@ -415,7 +415,7 @@ updateOne msg model =
               Http.request
                 { method = "DELETE"
                 , headers = []
-                , url = "/login/facebook"
+                , url = "/auth/login/facebook"
                 , body = Http.emptyBody
                 , expect =
                     Http.expectWhatever
