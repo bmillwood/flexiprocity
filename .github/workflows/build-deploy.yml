@@ -22,8 +22,11 @@ jobs:
       - uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5
         with:
           context: .
+          # PRs just build the image to confirm they can
           push: ${{ github.event_name == 'push' }}
           tags: ghcr.io/bmillwood/flexiprocity:${{ github.sha }}
+          # default scope is branch name, this allows branches to start their
+          # cache with the one from main
           cache-from: |
             type=gha
             type=gha,scope=main
