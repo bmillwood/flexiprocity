@@ -28,6 +28,7 @@ facebookApi { path, id } =
 
 facebookFriends : { userId : String } -> Cmd msg
 facebookFriends { userId } =
+  -- If I add more fields here, remember to check the privacy policy
   facebookApi
     { path = "/" ++ userId ++ "/friends?fields=id,name,short_name,picture,link"
     , id = "friends"
@@ -35,6 +36,7 @@ facebookFriends { userId } =
 
 facebookUser : { personId : String } -> Cmd msg
 facebookUser { personId } =
+  -- If I add more fields here, remember to check the privacy policy
   if String.startsWith "_" personId
   then Cmd.none
   else facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture,link", id = "user" }
