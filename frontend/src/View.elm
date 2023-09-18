@@ -396,7 +396,14 @@ view : Model -> Browser.Document Msg
 view model =
   let
     header =
-      [ Html.h1 [] [ Html.text "flexiprocity" ]
+      [ Html.h1 [] [
+          Html.a
+            [ Attributes.href "/"
+            , Attributes.style "text-decoration" "none"
+            , Attributes.style "color" "inherit"
+            ]
+            [ Html.text "flexiprocity" ]
+        ]
       , let
           viewError err = Html.li [] [Html.text err]
         in
