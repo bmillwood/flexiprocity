@@ -77,8 +77,9 @@ decodeProfile =
 type Page
   = PageNotFound
   | Root
-  | About
   | Account { deleteConfirmations : Set String }
+  | Privacy
+  | Security
 
 accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
@@ -128,8 +129,9 @@ parseUrl url =
     parser =
       Url.Parser.oneOf
         [ Url.Parser.map Root Url.Parser.top
-        , Url.Parser.map About (Url.Parser.s "about")
         , Url.Parser.map accountPage (Url.Parser.s "account")
+        , Url.Parser.map Privacy (Url.Parser.s "privacy")
+        , Url.Parser.map Security (Url.Parser.s "security")
         ]
   in
   Url.Parser.parse parser url

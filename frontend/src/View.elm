@@ -347,16 +347,20 @@ viewRoot model =
         ] ++ viewPeople model
   ] |> List.concat
 
-viewAbout : Model -> List (Html Msg)
-viewAbout _ =
+viewPrivacy : Model -> List (Html Msg)
+viewPrivacy _ =
   [ Html.h2 []
       [ Html.text "Privacy policy" ]
   , Html.p []
       -- https://developers.facebook.com/terms/#privacypolicy
       [ Html.text "not written yet, sorry"
       ]
-  , Html.h2 []
-      [ Html.text "Security policy" ]
+  ]
+
+viewSecurity : Model -> List (Html Msg)
+viewSecurity _ =
+  [ Html.h2 []
+      [ Html.text "Reporting security issues" ]
   , Html.p []
       [ Html.text "There are two ways to report security flaws in the app:"
       , Html.ul []
@@ -459,36 +463,43 @@ view model =
       else Html.text text
     navBar =
       let
-        (atHome, atAbout, atAccount) = case model.page of
-          Model.PageNotFound -> (False, False, False)
-          Model.Root         -> (True, False, False)
-          Model.About        -> (False, True, False)
-          Model.Account _    -> (False, False, True)
+        atAccount =
+          case model.page of
+            Model.Account _ -> True
+            _ -> False
       in
-      [ [ linkIf (not atHome) "/" "home"
-        , Html.text " | "
-        , linkIf (not atAbout) "/about" "about"
-        ]
+      [ [ linkIf (model.page /= Model.Root) "/" "home" ]
       , case model.apiLoggedIn of
           Model.LoggedIn _ ->
             [ Html.text " | "
             , linkIf (not atAccount) "/account" "account"
             ]
           _ -> []
+      , [ Html.text " | "
+        , linkIf (model.page /= Model.Privacy) "/privacy" "privacy"
+        , Html.text " | "
+        , linkIf (model.page /= Model.Security) "/security" "security"
+        , Html.text " | "
+        , Html.a
+            [ Attributes.href "https://github.com/bmillwood/flexiprocity" ]
+            [ Html.text "code" ]
+        ]
       ] |> List.concat
   in
   { title =
       case model.page of
         Model.PageNotFound -> "Not found - flexiprocity"
         Model.Root -> "flexiprocity"
-        Model.About -> "About - flexiprocity"
         Model.Account _ -> "Account - flexiprocity"
+        Model.Privacy -> "Privacy - flexiprocity"
+        Model.Security -> "Security - flexiprocity"
   , body =
       header
       ++ navBar
       ++ case model.page of
         Model.PageNotFound -> [ Html.p [] [ Html.text "Page not found" ] ]
         Model.Root -> viewRoot model
-        Model.About -> viewAbout model
         Model.Account account -> viewAccount model account
+        Model.Privacy -> viewPrivacy model
+        Model.Security -> viewSecurity model
   }
