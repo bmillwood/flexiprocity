@@ -21,6 +21,7 @@
 .facebook-logged-in {
     background-color: hsl(214, 89%, 75%);
 }
+/* also used for "delete your account" */
 .logout {
     background-color: hsl(334, 89%, 52%);
 }

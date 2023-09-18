@@ -51,6 +51,17 @@ CREATE FUNCTION update_me(bio text, visible_to audience) RETURNS users
 REVOKE EXECUTE ON FUNCTION update_me FROM public;
 GRANT  EXECUTE ON FUNCTION update_me TO api;
 
+CREATE FUNCTION delete_me() RETURNS unit
+  -- SECURITY DEFINER should allow bypassing RLS where it restricts deletion
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    DELETE FROM users
+    WHERE user_id = current_user_id()
+    RETURNING 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION update_me FROM public;
+GRANT  EXECUTE ON FUNCTION update_me TO api;
+
 CREATE FUNCTION get_or_create_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC

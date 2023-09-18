@@ -323,13 +323,7 @@ viewAudienceControls model =
 
 viewRoot : Model -> List (Html Msg)
 viewRoot model =
-  [ [ Html.p []
-        [ Html.a
-            [ Attributes.href "/about" ]
-            [ Html.text "about" ]
-        ]
-    , viewLogin model
-    ]
+  [ [ viewLogin model ]
   , case model.apiLoggedIn of
       Model.LoggedIn { userId } ->
         viewAudienceControls model
@@ -355,14 +349,7 @@ viewRoot model =
 
 viewAbout : Model -> List (Html Msg)
 viewAbout _ =
-  [ Html.p []
-      [ Html.a
-          [ Attributes.href "/" ]
-          [ Html.text "back" ]
-      , Html.text " | "
-      , Html.text "about"
-      ]
-  , Html.h2 []
+  [ Html.h2 []
       [ Html.text "Privacy policy" ]
   , Html.p []
       -- https://developers.facebook.com/terms/#privacypolicy
@@ -392,6 +379,63 @@ viewAbout _ =
       ]
   ]
 
+viewAccount : Model -> { deleteConfirmations : Set String } -> List (Html Msg)
+viewAccount model { deleteConfirmations } =
+  let
+    confirmations =
+      [ ( "your-stuff-gone"
+        , "Your user data and ticks will be deleted,"
+        )
+      , ( "their-ticks-gone"
+        , """Other people's ticks for you will be deleted, and can't be
+          automatically reinstated if you come back,"""
+        )
+      , ( "dishonorable"
+        , """Deleting your account to avoid someone finding out that you
+          matched them is a violation of the trust on which this site is
+          built."""
+        )
+      ]
+    allConfirmationIds = Set.fromList (List.map (\(i, _) -> i) confirmations)
+    item (checkId, text) =
+      Html.li [] [
+        Html.label
+          [ Attributes.for checkId ]
+          [ Html.input
+              [ Attributes.type_ "checkbox"
+              , Attributes.id checkId
+              , Attributes.checked (Set.member checkId deleteConfirmations)
+              , Events.onCheck (\setTo ->
+                  [Model.SetDeleteConfirm { id = checkId, setTo = setTo }]
+                )
+              ]
+              []
+          , Html.text text
+          ]
+      ]
+  in
+  [ viewLogin model
+  , Html.h2 [] [ Html.text "Delete your account" ]
+  , Html.p [] [
+      Html.text """
+        You can permanently and irrevocably delete your account on this page.
+        Before you do so, you need to confirm acknowledgement of the following:
+        """
+    , Html.ul [] (List.map item confirmations)
+    , Html.button
+        [ Attributes.class "facebook-button"
+        , Attributes.class "logout"
+        , Attributes.disabled (deleteConfirmations /= allConfirmationIds)
+        , Events.onClick
+            [ Model.DeleteAccount
+            , Model.StartLogout
+            , Model.UrlReq { internal = True, url = "/" }
+            ]
+        ]
+        [ Html.text "Delete my account" ]
+    ]
+  ]
+
 view : Model -> Browser.Document Msg
 view model =
   let
@@ -409,16 +453,42 @@ view model =
         in
         Html.ul [] (List.map viewError model.errors)
       ]
+    linkIf condition href text =
+      if condition
+      then Html.a [ Attributes.href href ] [ Html.text text ]
+      else Html.text text
+    navBar =
+      let
+        (atHome, atAbout, atAccount) = case model.page of
+          Model.PageNotFound -> (False, False, False)
+          Model.Root         -> (True, False, False)
+          Model.About        -> (False, True, False)
+          Model.Account _    -> (False, False, True)
+      in
+      [ [ linkIf (not atHome) "/" "home"
+        , Html.text " | "
+        , linkIf (not atAbout) "/about" "about"
+        ]
+      , case model.apiLoggedIn of
+          Model.LoggedIn _ ->
+            [ Html.text " | "
+            , linkIf (not atAccount) "/account" "account"
+            ]
+          _ -> []
+      ] |> List.concat
   in
   { title =
       case model.page of
         Model.PageNotFound -> "Not found - flexiprocity"
         Model.Root -> "flexiprocity"
         Model.About -> "About - flexiprocity"
+        Model.Account _ -> "Account - flexiprocity"
   , body =
       header
+      ++ navBar
       ++ case model.page of
-        Model.PageNotFound -> [ Html.text "Page not found" ]
+        Model.PageNotFound -> [ Html.p [] [ Html.text "Page not found" ] ]
         Model.Root -> viewRoot model
         Model.About -> viewAbout model
+        Model.Account account -> viewAccount model account
   }

@@ -78,6 +78,10 @@ type Page
   = PageNotFound
   | Root
   | About
+  | Account { deleteConfirmations : Set String }
+
+accountPage : Page
+accountPage = Account { deleteConfirmations = Set.empty }
 
 type alias Model =
   { errors : List String
@@ -104,6 +108,8 @@ type OneMsg
   | StartLogout
   | CheckApiLogin
   | ApiLoginResult (LoginStatus { userId : UserId })
+  | SetDeleteConfirm { id : String, setTo : Bool }
+  | DeleteAccount
   | Woulds (Dict WouldId String)
   | GotProfile Profile
   | EditBio String
@@ -123,6 +129,7 @@ parseUrl url =
       Url.Parser.oneOf
         [ Url.Parser.map Root Url.Parser.top
         , Url.Parser.map About (Url.Parser.s "about")
+        , Url.Parser.map accountPage (Url.Parser.s "account")
         ]
   in
   Url.Parser.parse parser url
@@ -446,6 +453,26 @@ updateOne msg model =
           , Cmd.batch [cmd, initialQuery userId, sendFriends newModel]
           )
         _ -> (newModel, cmd)
+    SetDeleteConfirm { id, setTo } ->
+      let
+        newPage =
+          case model.page of
+            Account { deleteConfirmations } ->
+              if setTo
+              then Account { deleteConfirmations = Set.insert id deleteConfirmations }
+              else Account { deleteConfirmations = Set.remove id deleteConfirmations }
+            other -> other
+      in
+      ({ model | page = newPage }, Cmd.none)
+    DeleteAccount ->
+      ( model
+      , graphQL
+          { query = "mutation D{deleteMe(input:{}){unit}}"
+          , operationName = "D"
+          , variables = []
+          , decodeResult = Json.Decode.succeed []
+          }
+      )
     Woulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
     GotProfile user ->
       let
