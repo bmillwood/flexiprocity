@@ -97,7 +97,7 @@ type alias Model =
 
 type OneMsg
   = AddError String
-  | UrlReq Browser.UrlRequest
+  | UrlReq { internal : Bool, url : String }
   | SetPage Page
   | FromJS Ports.FromJS
   | StartFacebookLogin
@@ -129,7 +129,10 @@ parseUrl url =
   |> Maybe.withDefault PageNotFound
 
 onUrlRequest : Browser.UrlRequest -> Msg
-onUrlRequest urlReq = [UrlReq urlReq]
+onUrlRequest urlReq =
+  case urlReq of
+    Browser.Internal url -> [UrlReq { internal = True, url = Url.toString url }]
+    Browser.External url -> [UrlReq { internal = False, url = url }]
 
 onUrlChange : Url -> Msg
 onUrlChange url = [SetPage (parseUrl url)]
@@ -318,12 +321,10 @@ updateOne msg model =
   case msg of
     AddError err ->
       ({ model | errors = err :: model.errors }, Cmd.none)
-    UrlReq urlReq ->
-      case urlReq of
-        Browser.Internal url ->
-          (model, Nav.pushUrl model.navKey (Url.toString url))
-        Browser.External url ->
-          (model, Nav.load url)
+    UrlReq { internal, url } ->
+      if internal
+      then (model, Nav.pushUrl model.navKey url)
+      else (model, Nav.load url)
     SetPage newPage -> ({ model | page = newPage }, Cmd.none)
     FromJS (Ports.DriverProtocolError err) ->
       ({ model | errors = err :: model.errors }, Cmd.none)
