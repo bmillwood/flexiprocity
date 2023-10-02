@@ -31,3 +31,16 @@
 .logout:disabled {
     background-color: hsl(334, 89%, 75%);
 }
+.searchwords .term {
+    margin-right: 0.2em;
+}
+.searchwords button {
+    background-color: inherit;
+    color: inherit;
+    border: 0;
+    padding: 0;
+    margin-left: 0.2em;
+}
+.searchwords input {
+    width: 8em;
+}

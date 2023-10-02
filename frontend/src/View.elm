@@ -8,6 +8,7 @@ import Html.Events as Events
 import Set exposing (Set)
 
 import Model exposing (Model, Msg)
+import SearchWords
 
 viewUser : Model -> Model.Profile -> { isMe : Bool } -> Html Msg
 viewUser model user { isMe } =
@@ -134,12 +135,12 @@ viewPeople model =
       , let
           viewProfile profile =
             let
-              toNames ids =
+              toWouldNames ids =
                 Set.toList ids
                 |> List.filterMap (\i -> Dict.get i model.wouldsById)
                 |> Set.fromList
-              youWouldNames = toNames profile.youWouldIds
-              matchedNames = toNames profile.matchedWouldIds
+              youWouldNames = toWouldNames profile.youWouldIds
+              matchedNames = toWouldNames profile.matchedWouldIds
               wouldCol (wId, wName) =
                 let
                   isMatched = Set.member wName matchedNames
@@ -211,17 +212,24 @@ viewPeople model =
                 Just { name } -> name
             )
           sortProfiles = List.sortBy profileAntiPriority
-          profiles =
+          filterName profile =
+            Dict.get profile.facebookId model.facebookUsers
+            |> Maybe.map (SearchWords.matches model.nameSearch << .name)
+            |> Maybe.withDefault False
+          filterAudience profile =
             case model.showMe of
               Model.Everyone ->
-                Dict.values model.profiles
-                |> List.filter (\profile -> profile.audience /= Model.Self)
-                |> sortProfiles
+                profile.audience /= Model.Self
               Model.Friends ->
-                Dict.values model.profiles
-                |> List.filter (\profile -> profile.audience == Model.Friends)
-                |> sortProfiles
-              Model.Self -> []
+                profile.audience == Model.Friends
+              Model.Self ->
+                -- not exposed, but there's a logical thing to do here
+                False
+          filterProfile profile = filterName profile && filterAudience profile
+          profiles =
+            Dict.values model.profiles
+            |> List.filter filterProfile
+            |> sortProfiles
         in
         Html.tbody [] (List.map viewProfile profiles)
       ]
@@ -343,6 +351,11 @@ viewRoot model =
                 then " 🙁"
                 else ""
               ] |> String.concat |> Html.text
+            ]
+        , Html.div []
+            [ Html.text "Search names: "
+            , SearchWords.view model.nameSearch
+              |> Html.map (List.map Model.NameSearchMsg)
             ]
         ] ++ viewPeople model
   ] |> List.concat

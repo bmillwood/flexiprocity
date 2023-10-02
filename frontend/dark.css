@@ -20,3 +20,12 @@ table#people thead {
 .matched {
     background-color: hsl(300, 100%, 40%);
 }
+.searchwords .term {
+    background-color: hsl(300, 100%, 15%);
+}
+.searchwords button:hover {
+    background-color: hsl(300, 100%, 25%);
+}
+.searchwords button:active {
+    background-color: hsl(300, 100%, 10%);
+}

@@ -11,6 +11,7 @@ import Url exposing (Url)
 import Url.Parser
 
 import Ports
+import SearchWords
 
 type LoginStatus a
   = Unknown
@@ -97,6 +98,7 @@ type alias Model =
   , myBio : String
   , myVisibility : Maybe Audience
   , showMe : Audience
+  , nameSearch : SearchWords.Model
   , wouldChange : Dict UserId (Dict WouldId Bool)
   }
 
@@ -118,6 +120,7 @@ type OneMsg
   | MyVisibility Audience
   | SubmitVisibility
   | ShowMe Audience
+  | NameSearchMsg SearchWords.OutMsg
   | WouldChange { userId : UserId, wouldId : WouldId, changeTo : Bool }
   | SubmitWouldChanges
 
@@ -158,6 +161,7 @@ init () url navKey =
     , myBio = ""
     , myVisibility = Nothing
     , showMe = Friends
+    , nameSearch = SearchWords.init { htmlInputId = "nameSearch" }
     , wouldChange = Dict.empty
     , navKey = navKey
     , page = parseUrl url
@@ -557,6 +561,13 @@ updateOne msg model =
               { getMyVisibility = False, getWoulds = False, userId = userId }
               newModel
           _ -> Cmd.none
+      )
+    NameSearchMsg nsMsg ->
+      let
+        (newNameSearch, cmd) = SearchWords.update model.nameSearch nsMsg
+      in
+      ( { model | nameSearch = newNameSearch }
+      , Cmd.map (List.map NameSearchMsg) cmd
       )
     WouldChange { userId, wouldId, changeTo } ->
       let
