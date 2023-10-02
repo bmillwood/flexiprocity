@@ -1,5 +1,8 @@
+body {
+    background-color: hsl(285, 80%, 90%);
+}
 table#people thead {
-    background-color: white;
+    background-color: hsl(270, 100%, 70%);
 }
 .modified {
     background-color: hsl(60, 100%, 90%);
