@@ -8,6 +8,10 @@ a {
 a:active {
     color: hsl(0, 100%, 80%);
 }
+input {
+    color: white;
+    background-color: hsl(300, 50%, 20%);
+}
 table#people thead {
     background-color: hsl(300, 100%, 8%);
 }
