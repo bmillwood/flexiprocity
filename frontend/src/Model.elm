@@ -99,6 +99,7 @@ type alias Model =
   , myVisibility : Maybe Audience
   , showMe : Audience
   , nameSearch : SearchWords.Model
+  , bioSearch : SearchWords.Model
   , wouldChange : Dict UserId (Dict WouldId Bool)
   }
 
@@ -121,6 +122,7 @@ type OneMsg
   | SubmitVisibility
   | ShowMe Audience
   | NameSearchMsg SearchWords.OutMsg
+  | BioSearchMsg SearchWords.OutMsg
   | WouldChange { userId : UserId, wouldId : WouldId, changeTo : Bool }
   | SubmitWouldChanges
 
@@ -162,6 +164,7 @@ init () url navKey =
     , myVisibility = Nothing
     , showMe = Friends
     , nameSearch = SearchWords.init { htmlInputId = "nameSearch" }
+    , bioSearch = SearchWords.init { htmlInputId = "bioSearch" }
     , wouldChange = Dict.empty
     , navKey = navKey
     , page = parseUrl url
@@ -568,6 +571,13 @@ updateOne msg model =
       in
       ( { model | nameSearch = newNameSearch }
       , Cmd.map (List.map NameSearchMsg) cmd
+      )
+    BioSearchMsg bsMsg ->
+      let
+        (newBioSearch, cmd) = SearchWords.update model.bioSearch bsMsg
+      in
+      ( { model | bioSearch = newBioSearch }
+      , Cmd.map (List.map BioSearchMsg) cmd
       )
     WouldChange { userId, wouldId, changeTo } ->
       let

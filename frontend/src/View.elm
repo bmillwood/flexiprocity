@@ -216,6 +216,7 @@ viewPeople model =
             Dict.get profile.facebookId model.facebookUsers
             |> Maybe.map (SearchWords.matches model.nameSearch << .name)
             |> Maybe.withDefault False
+          filterBio profile = SearchWords.matches model.bioSearch profile.bio
           filterAudience profile =
             case model.showMe of
               Model.Everyone ->
@@ -225,7 +226,8 @@ viewPeople model =
               Model.Self ->
                 -- not exposed, but there's a logical thing to do here
                 False
-          filterProfile profile = filterName profile && filterAudience profile
+          filterProfile profile =
+            filterName profile && filterBio profile && filterAudience profile
           profiles =
             Dict.values model.profiles
             |> List.filter filterProfile
@@ -352,10 +354,21 @@ viewRoot model =
                 else ""
               ] |> String.concat |> Html.text
             ]
-        , Html.div []
-            [ Html.text "Search names: "
-            , SearchWords.view model.nameSearch
-              |> Html.map (List.map Model.NameSearchMsg)
+        , Html.table []
+            [ Html.tr []
+                [ Html.td [] [Html.text "Search names: "]
+                , Html.td []
+                    [ SearchWords.view model.nameSearch
+                      |> Html.map (List.map Model.NameSearchMsg)
+                    ]
+                ]
+            , Html.tr []
+                [ Html.td [] [Html.text "Search bios: "]
+                , Html.td []
+                    [ SearchWords.view model.bioSearch
+                      |> Html.map (List.map Model.BioSearchMsg)
+                    ]
+                ]
             ]
         ] ++ viewPeople model
   ] |> List.concat
