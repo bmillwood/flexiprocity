@@ -23,11 +23,7 @@ matches { terms, composing } input =
           else input
         )
   in
-  if List.isEmpty terms
-  then contains composing
-  else
-    List.all contains terms
-    && not (String.isEmpty composing) && contains composing
+  List.all contains (composing :: terms)
 
 type InMsg
   = Delete String
@@ -90,6 +86,7 @@ view model =
     composeInput =
       [ Html.input
           [ Attributes.type_ "text"
+          , Attributes.placeholder "words"
           , Events.onInput (List.singleton << Compose)
           , Events.on "keydown" (Json.Decode.map onKeydown Events.keyCode)
           , Attributes.id model.htmlInputId
