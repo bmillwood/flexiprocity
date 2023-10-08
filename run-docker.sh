@@ -5,6 +5,9 @@ case $1 in
     build)
         docker build . -t flexiprocity:"$rev"
         ;;
+    build-auth)
+        docker build auth-server -t flexiprocity-auth-server:"$rev"
+        ;;
     run)
         docker run --rm -it --publish 57959:57959 \
             --mount type=bind,src=$PWD/secrets,dst=/opt/flexiprocity/secrets,readonly \
