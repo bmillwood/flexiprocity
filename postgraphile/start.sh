@@ -28,7 +28,7 @@ case "$1" in
     exit 1;;
 esac
 
-node_modules/.bin/postgraphile \
+npm exec -- postgraphile \
     --append-plugins @graphile-contrib/pg-simplify-inflector \
     --dynamic-json \
     --no-setof-functions-contain-nulls \
