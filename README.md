@@ -24,8 +24,18 @@ entirely fresh implementation.
   and expenses associated with conducting the Audit and any related follow-up
   Audits."
 
-
 ### irrelevant ToS commentary
 
 - their licenses for your content seem kind of intense, and survive even when
   you stop using the platform
+
+## things from the Twitter ToS
+
+- The Sign in with Twitter option must be displayed at least as prominently as
+  any other sign-up or sign-in feature on your service. You must also provide
+  people without a Twitter account the opportunity to create one via Twitter.
+- Once someone on your service authenticates via Sign in with Twitter you must
+  clearly display their Twitter identity. Twitter identity includes the person’s
+  current Twitter @handle, avatar, and Twitter logo. Any display of someone’s
+  Twitter followers on your service must clearly show that the relationship is
+  associated with Twitter.

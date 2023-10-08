@@ -12,7 +12,7 @@ do
   if cabal build "$@"
   then
     set +x
-    source ../secrets/facebook.env
+    source ../secrets/secrets.env
     set -x
     cabal run auth-server &
     cabal test
