@@ -34,7 +34,6 @@ library
       Api
       Facebook
       MakeJwt
-      Twitter
     build-depends:
       aeson,
       base >= 4.16.4.0 && < 4.18,
