@@ -64,6 +64,7 @@ viewUser model user { isMe } =
                     Html.button
                       [ Events.onClick [Model.SubmitBio]
                       , Attributes.disabled saved
+                      , Attributes.style "margin-left" "0.2em"
                       ]
                       [ Html.text (if saved then "Saved" else "Save") ]
                   ]

@@ -1,3 +1,6 @@
+input[type="text"] {
+    border: 0;
+}
 .facebook-button {
     font-family: serif;
     font-size: 100%;

@@ -12,6 +12,20 @@ input {
     color: white;
     background-color: hsl(300, 50%, 20%);
 }
+button {
+    margin-left: 0.2em;
+    color: white;
+    background-color: hsl(300, 100%, 20%);
+    border-color: hsl(300, 100%, 20%);
+}
+button:hover {
+    background-color: hsl(300, 100%, 30%);
+}
+button:disabled {
+    color: hsla(0, 0%, 100%, 20%);
+    background-color: hsl(300, 50%, 20%);
+    border-color: hsl(300%, 50%, 20%);
+}
 table#people thead {
     background-color: hsl(300, 100%, 8%);
 }

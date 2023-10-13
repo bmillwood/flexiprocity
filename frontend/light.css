@@ -1,5 +1,5 @@
 body {
-    background-color: hsl(285, 80%, 90%);
+    background-color: hsl(285, 80%, 80%);
 }
 table#people thead {
     background-color: hsl(270, 100%, 70%);
@@ -14,11 +14,11 @@ table#people thead {
     background-color: hsl(120, 100%, 90%);
 }
 .searchwords .term {
-    background-color: hsl(285, 100%, 82.5%);
-}
-.searchwords button:hover {
     background-color: hsl(285, 100%, 75%);
 }
-.searchwords button:active {
+.searchwords button:hover {
     background-color: hsl(285, 100%, 65%);
+}
+.searchwords button:active {
+    background-color: hsl(285, 100%, 60%);
 }
