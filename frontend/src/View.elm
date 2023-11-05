@@ -538,7 +538,7 @@ view model =
             [ Html.text "flexiprocity" ]
         ]
       , let
-          viewError err = Html.li [] [Html.text err]
+          viewError { id, msg } = Html.li [] [Html.text msg]
         in
         Html.ul
           [ Attributes.class "errors" ]

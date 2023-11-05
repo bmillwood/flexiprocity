@@ -86,7 +86,8 @@ accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
 
 type alias Model =
-  { errors : List String
+  { errors : List { id: Int, msg : String }
+  , nextErrorId : Int
   , navKey : Nav.Key
   , page : Page
   , facebookLoggedIn : LoginStatus { userId : FacebookId, accessToken : String }
@@ -107,7 +108,7 @@ type OneMsg
   = AddError String
   | UrlReq { internal : Bool, url : String }
   | SetPage Page
-  | FromJS Ports.FromJS
+  | FromJS Ports.Update
   | StartFacebookLogin
   | StartLogout
   | CheckApiLogin
@@ -154,6 +155,7 @@ onUrlChange url = [SetPage (parseUrl url)]
 init : () -> Url -> Nav.Key -> (Model, Cmd Msg)
 init () url navKey =
   ( { errors = []
+    , nextErrorId = 0
     , facebookLoggedIn = Unknown
     , apiLoggedIn = Unknown
     , facebookUsers = Dict.empty
@@ -336,22 +338,17 @@ updateOne : OneMsg -> Model -> (Model, Cmd Msg)
 updateOne msg model =
   case msg of
     AddError err ->
-      ({ model | errors = err :: model.errors }, Cmd.none)
+      ( { model
+        | errors = { id = model.nextErrorId, msg = err } :: model.errors
+        , nextErrorId = model.nextErrorId + 1
+        }
+      , Cmd.none
+      )
     UrlReq { internal, url } ->
       if internal
       then (model, Nav.pushUrl model.navKey url)
       else (model, Nav.load url)
     SetPage newPage -> ({ model | page = newPage }, Cmd.none)
-    FromJS (Ports.DriverProtocolError err) ->
-      ({ model | errors = err :: model.errors }, Cmd.none)
-    FromJS Ports.FacebookSDKLoadFailed ->
-      let
-        err = """Facebook SDK failed to load. This app (for now)
-          requires Facebook login in order to function. If your
-          browser blocks Facebook tracking, see if you can enable
-          it for this page specifically."""
-      in
-      ({ model | errors = err :: model.errors }, Cmd.none)
     FromJS (Ports.FacebookConnected params) ->
       let
         (newModel, cmd) = tryApiLogin { model | facebookLoggedIn = LoggedIn params }
@@ -375,32 +372,6 @@ updateOne msg model =
       (newModel, sendFriends newModel)
     FromJS (Ports.FacebookGotUser user) ->
       ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
-      , Cmd.none
-      )
-    FromJS (Ports.FacebookGotError (Ports.AccessTokenExpired { whileDoing })) ->
-      let
-        ignore =
-          case model.facebookLoggedIn of
-            LoggingOut -> True
-            NotLoggedIn -> True
-            LoggingIn -> False
-            Unknown -> False
-            LoggedIn _ -> False
-      in
-      if ignore
-      then (model, Cmd.none)
-      else
-        ( { model
-          | errors = ("Facebook auth failed for " ++ whileDoing) :: model.errors
-          }
-        , Cmd.none
-        )
-    FromJS (Ports.FacebookGotError (Ports.UnknownError { whileDoing, error })) ->
-      ( { model
-        | errors =
-            ("Error (" ++ whileDoing ++ "): " ++ Json.Encode.encode 0 error)
-            :: model.errors
-        }
       , Cmd.none
       )
     StartFacebookLogin ->
@@ -658,4 +629,32 @@ update msgs model =
       (finalModel, Cmd.batch [cmd, cmds])
 
 subscriptions : Model -> Sub Msg
-subscriptions model = Sub.map (List.singleton << FromJS) Ports.subscriptions
+subscriptions model =
+  let
+    translateMsg msg =
+      case msg of
+        Ok fromJS -> [FromJS fromJS]
+        Err (Ports.DriverProtocolError s) -> [AddError s]
+        Err Ports.FacebookSDKLoadFailed ->
+          [ AddError """Facebook SDK failed to load. This app (for now)
+              requires Facebook login in order to function. If your
+              browser blocks Facebook tracking, see if you can enable
+              it for this page specifically."""
+          ]
+        Err (Ports.FacebookAccessTokenExpired { whileDoing }) ->
+          let
+            ignore =
+              case model.facebookLoggedIn of
+                LoggingOut -> True
+                NotLoggedIn -> True
+                LoggingIn -> False
+                Unknown -> False
+                LoggedIn _ -> False
+          in
+          if ignore
+          then []
+          else [AddError ("Facebook auth failed for " ++ whileDoing)]
+        Err (Ports.FacebookUnknownError { whileDoing, error }) ->
+          [AddError ("Error (" ++ whileDoing ++ "): " ++ Json.Encode.encode 0 error)]
+  in
+  Sub.map translateMsg Ports.subscriptions

@@ -49,18 +49,19 @@ type alias FacebookUser =
   , link : Maybe String
   }
 
-type FacebookError
-  = AccessTokenExpired { whileDoing : String }
-  | UnknownError { whileDoing : String, error : Json.Decode.Value }
-
-type FromJS
+type Error
   = DriverProtocolError String
   | FacebookSDKLoadFailed
-  | FacebookConnected { userId : String, accessToken: String }
+  | FacebookAccessTokenExpired { whileDoing : String }
+  | FacebookUnknownError { whileDoing : String, error : Json.Decode.Value }
+
+type Update
+  = FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
   | FacebookFriends (List FacebookUser)
-  | FacebookGotError FacebookError
+
+type alias FromJS = Result Error Update
 
 fromJS : Json.Decode.Decoder FromJS
 fromJS =
@@ -88,27 +89,27 @@ fromJS =
       |> Json.Decode.andThen (\code ->
         case code of
           190 ->
-            AccessTokenExpired { whileDoing = whileDoing }
+            FacebookAccessTokenExpired { whileDoing = whileDoing }
             |> Json.Decode.succeed
           _ ->
             Json.Decode.value
             |> Json.Decode.map (\v ->
-              UnknownError { whileDoing = whileDoing, error = v }
+              FacebookUnknownError { whileDoing = whileDoing, error = v }
             )
       )
-      |> Json.Decode.map FacebookGotError
+      |> Json.Decode.map Err
     decodePayload kind =
       case kind of
         "facebook-sdk-load-failure" ->
-          Json.Decode.succeed FacebookSDKLoadFailed
+          Json.Decode.succeed (Err FacebookSDKLoadFailed)
         "facebook-login-status" ->
           Json.Decode.field "status" Json.Decode.string
           |> Json.Decode.andThen (\status ->
             if status == "connected"
             then
               Json.Decode.field "authResponse" decodeAuthResponse
-              |> Json.Decode.map FacebookConnected
-            else Json.Decode.succeed FacebookLoginFailed
+              |> Json.Decode.map (Ok << FacebookConnected)
+            else Json.Decode.succeed (Ok FacebookLoginFailed)
           ) |> Json.Decode.field "response"
         "facebook-api" ->
           Json.Decode.field "id" Json.Decode.string
@@ -117,10 +118,10 @@ fromJS =
               [ case id of
                   "friends" ->
                     Json.Decode.at ["response", "data"] (Json.Decode.list decodeUser)
-                    |> Json.Decode.map FacebookFriends
+                    |> Json.Decode.map (Ok << FacebookFriends)
                   "user" ->
                     Json.Decode.field "response" decodeUser
-                    |> Json.Decode.map FacebookGotUser
+                    |> Json.Decode.map (Ok << FacebookGotUser)
                   _ -> Json.Decode.fail ("Unknown api req id: " ++ id)
               , Json.Decode.at ["response", "error"] (decodeApiError id)
               ]
@@ -135,4 +136,4 @@ subscriptions =
   receiveFromJS <| \value ->
     case Json.Decode.decodeValue fromJS value of
       Ok msg -> msg
-      Err error -> DriverProtocolError (Json.Decode.errorToString error)
+      Err error -> Err (DriverProtocolError (Json.Decode.errorToString error))
