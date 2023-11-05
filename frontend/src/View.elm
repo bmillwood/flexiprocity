@@ -538,7 +538,15 @@ view model =
             [ Html.text "flexiprocity" ]
         ]
       , let
-          viewError { id, msg } = Html.li [] [Html.text msg]
+          viewError { id, msg } =
+            Html.li []
+              [ Html.button
+                  [ Events.onClick [Model.DismissError { id = id }]
+                  , Attributes.style "margin-right" "0.2em"
+                  ]
+                  [ Html.text "✕" ]
+              , Html.text msg
+              ]
         in
         Html.ul
           [ Attributes.class "errors" ]

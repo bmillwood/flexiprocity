@@ -106,6 +106,7 @@ type alias Model =
 
 type OneMsg
   = AddError String
+  | DismissError { id : Int }
   | UrlReq { internal : Bool, url : String }
   | SetPage Page
   | FromJS Ports.Update
@@ -342,6 +343,10 @@ updateOne msg model =
         | errors = { id = model.nextErrorId, msg = err } :: model.errors
         , nextErrorId = model.nextErrorId + 1
         }
+      , Cmd.none
+      )
+    DismissError { id } ->
+      ( { model | errors = List.filter (\e -> e.id /= id) model.errors }
       , Cmd.none
       )
     UrlReq { internal, url } ->
