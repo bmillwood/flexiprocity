@@ -540,7 +540,9 @@ view model =
       , let
           viewError err = Html.li [] [Html.text err]
         in
-        Html.ul [] (List.map viewError model.errors)
+        Html.ul
+          [ Attributes.class "errors" ]
+          (List.map viewError model.errors)
       ]
     linkIf condition href text =
       if condition

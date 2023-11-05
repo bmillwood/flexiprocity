@@ -47,3 +47,9 @@ input[type="text"] {
 .searchwords input {
     width: 8em;
 }
+.errors {
+    list-style-type: none;
+}
+.errors > li {
+    padding: 0.2em;
+}
