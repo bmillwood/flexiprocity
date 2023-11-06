@@ -47,6 +47,9 @@ http {
         location /gateway {
             proxy_pass http://localhost:57960/;
         }
+        location /sentry.js {
+            return 301 SENTRY_URL;
+        }
         location / {
             gzip on;
             gzip_types text/css application/javascript;

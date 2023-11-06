@@ -1,2 +1,3 @@
 *.pem
+nginx.conf
 var
