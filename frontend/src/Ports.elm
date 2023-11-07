@@ -41,6 +41,14 @@ facebookUser { personId } =
   then Cmd.none
   else facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture,link", id = "user" }
 
+sentry : { message : String } -> Cmd msg
+sentry { message } =
+  Json.Encode.object
+    [ ("kind", Json.Encode.string "sentry")
+    , ("message", Json.Encode.string message)
+    ]
+  |> sendToJS
+
 type alias FacebookUser =
   { id : String
   , name : String
@@ -59,7 +67,7 @@ type Update
   = FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
-  | FacebookFriends (List FacebookUser)
+  | FacebookFriends { data : List FacebookUser, hasPagination : Bool }
 
 type alias FromJS = Result Error Update
 
@@ -117,8 +125,22 @@ fromJS =
             Json.Decode.oneOf
               [ case id of
                   "friends" ->
-                    Json.Decode.at ["response", "data"] (Json.Decode.list decodeUser)
-                    |> Json.Decode.map (Ok << FacebookFriends)
+                    let
+                      friends = Json.Decode.field "data" (Json.Decode.list decodeUser)
+                      isJust x =
+                        case x of
+                          Just () -> True
+                          Nothing -> False
+                      paging =
+                        Json.Decode.at ["paging", "next"] (Json.Decode.succeed ())
+                        |> Json.Decode.maybe
+                        |> Json.Decode.map isJust
+                      ofFields d hp =
+                        Ok (FacebookFriends { data = d, hasPagination = hp })
+                      parseResponse =
+                        Json.Decode.map2 ofFields friends paging
+                    in
+                    Json.Decode.field "response" parseResponse
                   "user" ->
                     Json.Decode.field "response" decodeUser
                     |> Json.Decode.map (Ok << FacebookGotUser)

@@ -62,5 +62,8 @@ app.ports.sendToJS.subscribe(function(request) {
             }
         );
         break;
+    case 'sentry':
+        window.Sentry && Sentry.captureMessage(request.message);
+        break;
     }
 });
