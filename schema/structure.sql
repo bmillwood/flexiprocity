@@ -169,12 +169,7 @@ CREATE VIEW user_profiles AS
    AND matches.would_id = uw.would_id
    AND matches.with_id = current_user_id()
   WHERE users.visible_to = 'everyone'
-     OR (users.visible_to = 'friends'
-        AND users.user_id IN (
-          SELECT f.user_id
-          FROM facebook_friends f
-          WHERE f.friend_id = current_user_id()
-        ))
+     OR (users.visible_to = 'friends' AND fwu IS DISTINCT FROM NULL)
      OR users.user_id = current_user_id()
      OR users.user_id IN (
           SELECT w.user_id
