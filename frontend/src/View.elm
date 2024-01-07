@@ -371,7 +371,7 @@ viewRoot model =
             [ [ if List.isEmpty friends
                 then "None"
                 else String.fromInt (List.length friends)
-              , " of your Facebook friends use flexiprocity"
+              , " of your Facebook friends use reciprocity"
               , if List.isEmpty friends
                 then " 🙁"
                 else ""
@@ -502,9 +502,7 @@ viewAccount model { deleteConfirmations } =
         )
       , ( "dishonorable"
         , """Deleting your account in order to avoid someone finding out that
-          you matched them violates their trust and you shouldn't do it. One day
-          I'll implement some technical countermeasures for this, but they don't
-          exist yet."""
+          you matched them violates their trust and you shouldn't do it."""
         )
       ]
     allConfirmationIds = Set.fromList (List.map (\(i, _) -> i) confirmations)
@@ -557,7 +555,7 @@ view model =
             , Attributes.style "text-decoration" "none"
             , Attributes.style "color" "inherit"
             ]
-            [ Html.text "flexiprocity" ]
+            [ Html.text "reciprocity" ]
         ]
       , let
           viewError { id, msg } =
@@ -605,11 +603,11 @@ view model =
   in
   { title =
       case model.page of
-        Model.PageNotFound -> "Not found - flexiprocity"
-        Model.Root -> "flexiprocity"
-        Model.Account _ -> "Account - flexiprocity"
-        Model.Privacy -> "Privacy - flexiprocity"
-        Model.Security -> "Security - flexiprocity"
+        Model.PageNotFound -> "Not found - reciprocity"
+        Model.Root -> "reciprocity"
+        Model.Account _ -> "Account - reciprocity"
+        Model.Privacy -> "Privacy - reciprocity"
+        Model.Security -> "Security - reciprocity"
   , body =
       header
       ++ navBar

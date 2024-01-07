@@ -4,7 +4,8 @@
 interest in people that they only find out about if it's reciprocated.
 
 flexiprocity is inspired by reciprocity, with a different feature set and
-entirely fresh implementation.
+entirely fresh implementation. The site calls itself reciprocity still, but you
+can refer to this particular version of it as flexiprocity.
 
 ## things from Facebook ToS to ensure
 
