@@ -20,6 +20,7 @@ CREATE TABLE users
   , facebook_id text UNIQUE NOT NULL
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
+  , created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
 CREATE FUNCTION current_user_id() RETURNS bigint
@@ -86,6 +87,7 @@ GRANT  EXECUTE ON FUNCTION get_or_create_user_id TO api;
 CREATE TABLE facebook_friends
   ( user_id   bigint REFERENCES users(user_id) ON DELETE CASCADE
   , friend_id bigint REFERENCES users(user_id) ON DELETE CASCADE
+  , since     timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
   , PRIMARY KEY (user_id, friend_id)
   );
 
@@ -149,6 +151,8 @@ CREATE VIEW user_profiles AS
       ) THEN 'friends'
       ELSE 'everyone'
     END::audience AS audience
+  , fwu.since AS friends_since
+  , users.created_at AS created_at
   , COALESCE(
       array_agg(uw.would_id) FILTER (WHERE uw.would_id IS NOT NULL)
     , '{}'
@@ -177,5 +181,5 @@ CREATE VIEW user_profiles AS
           WHERE w.user_id = users.user_id
             AND w.with_id = current_user_id()
         )
-  GROUP BY users.user_id;
+  GROUP BY users.user_id, fwu.since;
 GRANT SELECT ON user_profiles TO api;

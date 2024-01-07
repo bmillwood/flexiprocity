@@ -56,6 +56,8 @@ type alias Profile =
   , facebookId : String
   , bio : String
   , audience : Audience
+  , friendsSince : Maybe String
+  , createdAt : String
   , matchedWouldIds : Set WouldId
   , youWouldIds : Set WouldId
   }
@@ -67,12 +69,14 @@ decodeProfile =
       Json.Decode.list Json.Decode.string
       |> Json.Decode.map Set.fromList
   in
-  Json.Decode.map6
+  Json.Decode.map8
     Profile
     (Json.Decode.field "userId" Json.Decode.string)
     (Json.Decode.field "facebookId" Json.Decode.string)
     (Json.Decode.field "bio" Json.Decode.string)
     (Json.Decode.field "audience" decodeAudience)
+    (Json.Decode.field "friendsSince" (Json.Decode.nullable Json.Decode.string))
+    (Json.Decode.field "createdAt" Json.Decode.string)
     (Json.Decode.field "matchedWoulds" decodeWouldIds)
     (Json.Decode.field "youWould" decodeWouldIds)
 
@@ -283,7 +287,7 @@ sendFriends model =
 
 profileFragment : String
 profileFragment =
-  "fragment F on UserProfile{userId facebookId bio audience matchedWoulds youWould}"
+  "fragment F on UserProfile{userId facebookId bio audience friendsSince createdAt matchedWoulds youWould}"
 
 getProfiles
   :  { getMyVisibility : Bool, getWoulds : Bool, userId: UserId }

@@ -205,14 +205,36 @@ viewPeople model =
                 :: List.map wouldCol wouldsById
             in
             Html.tr [] cols
-          profileAntiPriority profile =
-            ( negate (Set.size profile.matchedWouldIds)
-            , negate (Set.size profile.youWouldIds)
-            , case Dict.get profile.facebookId model.facebookUsers of
-                Nothing -> ""
-                Just { name } -> name
-            )
-          sortProfiles = List.sortBy profileAntiPriority
+          profileCompare p1 p2 =
+            let
+              nameOf p =
+                Dict.get p.facebookId model.facebookUsers
+                |> Maybe.map .name
+              nullsLast m1 m2 =
+                case (m1, m2) of
+                  (Nothing, Nothing) -> EQ
+                  (Nothing, _) -> GT
+                  (_, Nothing) -> LT
+                  (Just v1, Just v2) -> compare v1 v2
+              lexicographic next prev =
+                case prev of
+                  EQ -> next
+                  _ -> prev
+            in
+            -- swap p1 and p2 when we want descending sort
+            [ compare
+                (Set.size p2.matchedWouldIds)
+                (Set.size p1.matchedWouldIds)
+            , compare
+                (Set.size p2.youWouldIds)
+                (Set.size p1.youWouldIds)
+            , compare
+                (Maybe.withDefault "" p2.friendsSince)
+                (Maybe.withDefault "" p1.friendsSince)
+            , compare p2.createdAt p1.createdAt
+            , nullsLast (nameOf p1) (nameOf p2)
+            ] |> List.foldr lexicographic EQ
+          sortProfiles = List.sortWith profileCompare
           filterName profile =
             Dict.get profile.facebookId model.facebookUsers
             |> Maybe.map (SearchWords.matches model.nameSearch << .name)
