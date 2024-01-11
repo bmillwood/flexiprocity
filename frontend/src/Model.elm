@@ -101,6 +101,7 @@ type alias Model =
   , profiles : Dict UserId Profile
   , facebookFriends : Maybe (List Ports.FacebookUser)
   , wouldsById : Dict WouldId String
+  , columns : List WouldId
   , myBio : String
   , myVisibility : Maybe Audience
   , showMe : Audience
@@ -122,6 +123,7 @@ type OneMsg
   | SetDeleteConfirm { id : String, setTo : Bool }
   | DeleteAccount
   | Woulds (Dict WouldId String)
+  | Columns (List WouldId)
   | GotProfile Profile
   | EditBio String
   | SubmitBio
@@ -168,6 +170,7 @@ init () url navKey =
     , profiles = Dict.empty
     , facebookFriends = Nothing
     , wouldsById = Dict.empty
+    , columns = []
     , myBio = ""
     , myVisibility = Nothing
     , showMe = Friends
@@ -306,9 +309,9 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
         (Json.Decode.field "wouldId" Json.Decode.string)
         (Json.Decode.field "name" Json.Decode.string)
     decodeWoulds =
-      Json.Decode.at ["data", "woulds", "nodes"]
-        (Json.Decode.list decodeWould)
-      |> Json.Decode.map (\woulds -> [Woulds (Dict.fromList woulds)])
+      Json.Decode.map2 (\ws cs -> [Woulds (Dict.fromList ws), Columns cs])
+        (Json.Decode.at ["data", "woulds", "nodes"] (Json.Decode.list decodeWould))
+        (Json.Decode.at ["data", "getMyColumns"] (Json.Decode.list Json.Decode.string))
   in
   graphQL
     { query =
@@ -325,7 +328,7 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
             in
             "them:userProfiles" ++ condition ++ "{nodes{...F}}"
           , if getMyVisibility then "myUser{visibleTo}" else ""
-          , if getWoulds then "woulds{nodes{wouldId name}}" else ""
+          , if getWoulds then "woulds{nodes{wouldId name}}getMyColumns" else ""
         , "}"
         ] |> String.concat
     , operationName = "Q"
@@ -477,6 +480,7 @@ updateOne msg model =
           }
       )
     Woulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
+    Columns cols -> ({ model | columns = cols }, Cmd.none)
     GotProfile user ->
       let
         isMe otherId =

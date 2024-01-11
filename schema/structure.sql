@@ -115,17 +115,65 @@ GRANT  EXECUTE ON FUNCTION set_facebook_friends TO api;
 
 CREATE TABLE woulds
   ( would_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
-  , name text NOT NULL
+  , name text NOT NULL UNIQUE
+  , added_by_id bigint REFERENCES users(user_id) ON DELETE SET NULL
+  , is_default boolean NOT NULL DEFAULT false
   );
-INSERT INTO woulds (name)
-VALUES ('Hang out sometime'), ('Go on a date or something');
-GRANT SELECT ON woulds TO api;
+INSERT INTO woulds (name, is_default)
+VALUES ('Hang out sometime', true), ('Go on a date or something', true);
+GRANT SELECT, INSERT, UPDATE(name), DELETE ON woulds TO api;
+
+CREATE POLICY read_all ON woulds FOR SELECT TO api USING (true);
+CREATE POLICY write_mine ON woulds FOR ALL TO api
+  USING (added_by_id = current_user_id());
+ALTER TABLE woulds ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE user_columns
+  ( user_id  bigint NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
+  , would_id bigint NOT NULL REFERENCES woulds(would_id) ON DELETE CASCADE
+  , PRIMARY KEY (user_id, would_id)
+  );
+
+CREATE FUNCTION get_my_columns() RETURNS bigint[]
+  LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    SELECT
+      COALESCE(
+          array_agg(uc.would_id) FILTER (WHERE uc.would_id IS NOT NULL)
+        , (SELECT array_agg(w.would_id) FROM woulds w WHERE w.is_default)
+        )
+    FROM user_columns uc
+    WHERE uc.user_id = current_user_id();
+  END;
+REVOKE EXECUTE ON FUNCTION get_my_columns FROM public;
+GRANT  EXECUTE ON FUNCTION get_my_columns TO api;
+
+CREATE FUNCTION set_my_columns(columns bigint[]) RETURNS unit
+  LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    WITH deleted AS (
+      DELETE FROM user_columns
+      WHERE user_id = current_user_id()
+      AND would_id <> ALL(columns)
+    ), inserted AS (
+      INSERT INTO user_columns (user_id, would_id)
+      SELECT current_user_id(), unnest(columns)
+      EXCEPT
+      SELECT user_id, would_id
+      FROM user_columns
+      ON CONFLICT DO NOTHING
+    )
+    SELECT 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION set_my_columns FROM public;
+GRANT  EXECUTE ON FUNCTION set_my_columns TO api;
 
 CREATE TABLE user_woulds
   ( user_id bigint  NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
   , would_id bigint NOT NULL REFERENCES woulds(would_id) ON DELETE CASCADE
   , with_id bigint  NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
   , PRIMARY KEY (user_id, would_id, with_id)
+  , CHECK (user_id <> with_id)
   );
 
 CREATE POLICY only_my_woulds ON user_woulds FOR ALL TO api
@@ -136,6 +184,64 @@ CREATE POLICY no_delete_matches ON user_woulds AS RESTRICTIVE FOR DELETE TO api
 ALTER TABLE user_woulds ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, DELETE ON user_woulds TO api;
+
+CREATE VIEW would_stats AS
+  SELECT
+    w.would_id
+  , w.name
+  , w.added_by_id
+  , count(*) AS uses
+  FROM woulds w
+  JOIN user_woulds uw USING (would_id)
+  WHERE uw.user_id <> w.added_by_id
+  GROUP BY w.would_id;
+GRANT SELECT ON would_stats TO api;
+
+CREATE FUNCTION num_woulds_allowed(user_id bigint) RETURNS bigint
+  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL SAFE
+  BEGIN ATOMIC
+    SELECT 1 + count(DISTINCT uw.user_id)
+    FROM woulds w
+    JOIN user_woulds uw USING (would_id)
+    WHERE w.added_by_id = num_woulds_allowed.user_id
+    AND uw.user_id <> num_woulds_allowed.user_id;
+  END;
+REVOKE EXECUTE ON FUNCTION num_woulds_allowed FROM public;
+GRANT  EXECUTE ON FUNCTION num_woulds_allowed TO api;
+
+CREATE FUNCTION restrict_custom_woulds() RETURNS TRIGGER
+  LANGUAGE plpgsql AS $$DECLARE
+    this_user_id bigint;
+    num_allowed bigint;
+    num_existing bigint;
+  BEGIN
+    this_user_id := current_user_id();
+    IF TG_OP = 'UPDATE' THEN
+      IF EXISTS (
+          SELECT FROM user_woulds uw
+          WHERE would_id = NEW.would_id
+          AND user_id <> this_user_id
+        ) THEN
+        RAISE EXCEPTION 'Cannot change the name of a column in use';
+      END IF;
+      RETURN NULL;
+    ELSIF TG_OP = 'INSERT' THEN
+      NEW.added_by_id := this_user_id;
+      num_allowed := num_woulds_allowed(this_user_id);
+      SELECT count(*)
+        FROM woulds
+        WHERE added_by_id = this_user_id
+        INTO num_existing;
+      IF num_existing >= num_allowed THEN
+        RAISE EXCEPTION 'Cannot create more columns until people use your existing ones more (you have %, you are allowed %)', num_existing, num_allowed;
+      END IF;
+      RETURN NEW;
+    END IF;
+  END$$;
+
+CREATE TRIGGER restrict_custom_woulds BEFORE INSERT OR UPDATE ON woulds
+  FOR EACH ROW
+  EXECUTE FUNCTION restrict_custom_woulds();
 
 CREATE VIEW user_profiles AS
   SELECT

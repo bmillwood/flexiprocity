@@ -94,7 +94,13 @@ viewPeople model =
       , showClass "matched"
       ]
   , let
-      wouldsById = Dict.toList model.wouldsById
+      colsById =
+        List.filterMap
+          (\id ->
+            Dict.get id model.wouldsById
+            |> Maybe.map (\v -> (id, v))
+          )
+          model.columns
     in
     Html.table
       [ Attributes.style "width" "100%"
@@ -117,14 +123,14 @@ viewPeople model =
                   , Attributes.style "padding-left" "1em"
                   ]
                   [ Html.text "People" ]
-                :: List.map wouldCol wouldsById
+                :: List.map wouldCol colsById
             in
             Html.tr [] cols
           , Html.tr
               []
               [ Html.th [] []
               , Html.th
-                  [ Attributes.colspan (List.length wouldsById) ]
+                  [ Attributes.colspan (List.length colsById) ]
                   [ Html.button
                       [ Events.onClick [Model.SubmitWouldChanges]
                       , Attributes.disabled (Dict.isEmpty model.wouldChange)
@@ -202,7 +208,7 @@ viewPeople model =
                   ]
               cols =
                 Html.td [] [viewUser model profile { isMe = False }]
-                :: List.map wouldCol wouldsById
+                :: List.map wouldCol colsById
             in
             Html.tr [] cols
           profileCompare p1 p2 =
