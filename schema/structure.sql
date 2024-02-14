@@ -118,6 +118,7 @@ CREATE TABLE public.woulds
   , name text NOT NULL UNIQUE
   , added_by_id bigint REFERENCES users(user_id) ON DELETE SET NULL
   , is_default boolean NOT NULL DEFAULT false
+  , created_at timestamptz NOT NULL DEFAULT now()
   );
 INSERT INTO woulds (name, is_default)
 VALUES ('Hang out sometime', true), ('Go on a date or something', true);
@@ -197,23 +198,10 @@ CREATE VIEW public.would_stats AS
   GROUP BY w.would_id;
 GRANT SELECT ON would_stats TO api;
 
-CREATE FUNCTION public.num_woulds_allowed(user_id bigint) RETURNS bigint
-  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL SAFE
-  BEGIN ATOMIC
-    SELECT 1 + count(DISTINCT uw.user_id)
-    FROM woulds w
-    JOIN user_woulds uw USING (would_id)
-    WHERE w.added_by_id = num_woulds_allowed.user_id
-    AND uw.user_id <> num_woulds_allowed.user_id;
-  END;
-REVOKE EXECUTE ON FUNCTION num_woulds_allowed FROM public;
-GRANT  EXECUTE ON FUNCTION num_woulds_allowed TO api;
-
 CREATE FUNCTION public.restrict_custom_woulds() RETURNS TRIGGER
   LANGUAGE plpgsql AS $$DECLARE
     this_user_id bigint;
-    num_allowed bigint;
-    num_existing bigint;
+    num_recent bigint;
   BEGIN
     this_user_id := current_user_id();
     IF TG_OP = 'UPDATE' THEN
@@ -227,13 +215,13 @@ CREATE FUNCTION public.restrict_custom_woulds() RETURNS TRIGGER
       RETURN NULL;
     ELSIF TG_OP = 'INSERT' THEN
       NEW.added_by_id := this_user_id;
-      num_allowed := num_woulds_allowed(this_user_id);
       SELECT count(*)
         FROM woulds
         WHERE added_by_id = this_user_id
-        INTO num_existing;
-      IF num_existing >= num_allowed THEN
-        RAISE EXCEPTION 'Cannot create more columns until people use your existing ones more (you have %, you are allowed %)', num_existing, num_allowed;
+        AND created_at > now() - interval '3 days'
+        INTO STRICT num_recent;
+      IF num_recent >= 3 THEN
+        RAISE EXCEPTION 'Cannot create more than 3 columns every 3 days';
       END IF;
       RETURN NEW;
     END IF;

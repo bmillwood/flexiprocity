@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(7);
+SELECT plan(6);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -27,14 +27,22 @@ SELECT bag_eq(
 
 INSERT INTO users (facebook_id) VALUES ('thatUser');
 
-SELECT is(
-  num_woulds_allowed(current_user_id()),
-  1::bigint,
-  'initially allowed one custom column'
+INSERT INTO woulds (name) VALUES ('secret third thing');
+
+SELECT bag_eq(
+  $$ SELECT added_by_id FROM woulds WHERE name = 'secret third thing' $$,
+  $$ SELECT current_user_id() $$,
+  'added_by_id filled in by trigger'
 );
 
-INSERT INTO woulds (name, added_by_id)
-SELECT 'secret third thing', current_user_id();
+SELECT throws_ok(
+  $$
+    INSERT INTO woulds (name)
+    SELECT 'secret third thing'
+  $$,
+  '23505', 'duplicate key value violates unique constraint "woulds_name_key"',
+  'no duplicate names'
+);
 
 SELECT is(
   get_my_columns(),
@@ -42,42 +50,26 @@ SELECT is(
   'default columns'
 );
 
+INSERT INTO woulds (name) VALUES
+  ('secret fourth thing'),
+  ('secret fifth thing');
+
 SELECT throws_ok(
   $$
-    INSERT INTO woulds (name, added_by_id)
-    SELECT 'secret fourth thing', current_user_id()
+    INSERT INTO woulds (name) VALUES ('secret sixth thing');
   $$,
-  'P0001', 'Cannot create more columns until people use your existing ones more (you have 1, you are allowed 1)',
+  'P0001', 'Cannot create more than 3 columns every 3 days',
   'limit custom columns'
 );
 
-INSERT INTO user_woulds (user_id, would_id, with_id)
-SELECT them.user_id, woulds.would_id, current_user_id()
-FROM users them, woulds
-WHERE them.facebook_id = 'thatUser'
-AND woulds.name = 'secret third thing';
-
-SELECT is(
-  num_woulds_allowed(current_user_id()),
-  2::bigint,
-  'allowed another column because someone is using yours'
-);
-
-SELECT throws_ok(
-  $$
-    INSERT INTO woulds (name, added_by_id)
-    SELECT 'secret third thing', current_user_id()
-  $$,
-  '23505', 'duplicate key value violates unique constraint "woulds_name_key"',
-  'no duplicate names'
-);
+UPDATE mock.mock_now SET t = '2000-01-04 00:00:00+00';
 
 SELECT lives_ok(
   $$
     INSERT INTO woulds (name, added_by_id)
-    SELECT 'secret fourth thing', current_user_id()
+    SELECT 'secret sixth thing', current_user_id()
   $$,
-  'can insert another column with a new name'
+  'can insert another would after three days'
 );
 
 SELECT finish();
