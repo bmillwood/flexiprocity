@@ -6,4 +6,3 @@ export PGDATABASE=${PGDATABASE:-flexiprocity}
 dropdb "$PGDATABASE" || true
 createdb "$PGDATABASE"
 psql -v ON_ERROR_STOP=on -f structure.sql -f ../secrets/seeds.sql
-psql -f test.sql --tuples-only --quiet --no-align

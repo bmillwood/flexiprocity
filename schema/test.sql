@@ -4,6 +4,8 @@ RESET client_min_messages;
 
 BEGIN;
 
+SET search_path = mock,pg_catalog,public;
+
 SELECT plan(7);
 
 SET client_min_messages TO WARNING;

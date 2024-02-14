@@ -1,29 +1,29 @@
 GRANT CONNECT ON DATABASE flexiprocity TO api;
 
-CREATE FUNCTION get_facebook_id() RETURNS text
+CREATE FUNCTION public.get_facebook_id() RETURNS text
   LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     SELECT current_setting('jwt.claims.facebookUserId', true);
   END;
 
-CREATE TYPE audience AS ENUM
+CREATE TYPE public.audience AS ENUM
   ( 'self'
   , 'friends'
   , 'everyone'
   );
 
 -- Postgraphile doesn't support procedures
-CREATE TYPE unit AS ENUM ('unit');
+CREATE TYPE public.unit AS ENUM ('unit');
 
-CREATE TABLE users
+CREATE TABLE public.users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , facebook_id text UNIQUE NOT NULL
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
-  , created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+  , created_at timestamptz NOT NULL DEFAULT now()
   );
 
-CREATE FUNCTION current_user_id() RETURNS bigint
+CREATE FUNCTION public.current_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     SELECT user_id FROM users
@@ -32,7 +32,7 @@ CREATE FUNCTION current_user_id() RETURNS bigint
 REVOKE EXECUTE ON FUNCTION current_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION current_user_id TO api;
 
-CREATE FUNCTION my_user() RETURNS users
+CREATE FUNCTION public.my_user() RETURNS users
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     SELECT * FROM users WHERE user_id = current_user_id();
@@ -40,7 +40,7 @@ CREATE FUNCTION my_user() RETURNS users
 REVOKE EXECUTE ON FUNCTION my_user FROM public;
 GRANT  EXECUTE ON FUNCTION my_user TO api;
 
-CREATE FUNCTION update_me(bio text, visible_to audience) RETURNS users
+CREATE FUNCTION public.update_me(bio text, visible_to audience) RETURNS users
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
     UPDATE users
@@ -52,7 +52,7 @@ CREATE FUNCTION update_me(bio text, visible_to audience) RETURNS users
 REVOKE EXECUTE ON FUNCTION update_me FROM public;
 GRANT  EXECUTE ON FUNCTION update_me TO api;
 
-CREATE FUNCTION delete_me() RETURNS unit
+CREATE FUNCTION public.delete_me() RETURNS unit
   -- SECURITY DEFINER should allow bypassing RLS where it restricts deletion
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
@@ -63,7 +63,7 @@ CREATE FUNCTION delete_me() RETURNS unit
 REVOKE EXECUTE ON FUNCTION update_me FROM public;
 GRANT  EXECUTE ON FUNCTION update_me TO api;
 
-CREATE FUNCTION get_or_create_user_id() RETURNS bigint
+CREATE FUNCTION public.get_or_create_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
     WITH jwt AS (
@@ -84,14 +84,14 @@ CREATE FUNCTION get_or_create_user_id() RETURNS bigint
 REVOKE EXECUTE ON FUNCTION get_or_create_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION get_or_create_user_id TO api;
 
-CREATE TABLE facebook_friends
+CREATE TABLE public.facebook_friends
   ( user_id   bigint REFERENCES users(user_id) ON DELETE CASCADE
   , friend_id bigint REFERENCES users(user_id) ON DELETE CASCADE
-  , since     timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+  , since     timestamptz NOT NULL DEFAULT now()
   , PRIMARY KEY (user_id, friend_id)
   );
 
-CREATE FUNCTION set_facebook_friends(friend_fbids text[]) RETURNS unit
+CREATE FUNCTION public.set_facebook_friends(friend_fbids text[]) RETURNS unit
   LANGUAGE sql SECURITY DEFINER
   BEGIN ATOMIC
     WITH friend_ids AS (
@@ -113,7 +113,7 @@ CREATE FUNCTION set_facebook_friends(friend_fbids text[]) RETURNS unit
 REVOKE EXECUTE ON FUNCTION set_facebook_friends FROM public;
 GRANT  EXECUTE ON FUNCTION set_facebook_friends TO api;
 
-CREATE TABLE woulds
+CREATE TABLE public.woulds
   ( would_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , name text NOT NULL UNIQUE
   , added_by_id bigint REFERENCES users(user_id) ON DELETE SET NULL
@@ -128,13 +128,13 @@ CREATE POLICY write_mine ON woulds FOR ALL TO api
   USING (added_by_id = current_user_id());
 ALTER TABLE woulds ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE user_columns
+CREATE TABLE public.user_columns
   ( user_id  bigint NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
   , would_id bigint NOT NULL REFERENCES woulds(would_id) ON DELETE CASCADE
   , PRIMARY KEY (user_id, would_id)
   );
 
-CREATE FUNCTION get_my_columns() RETURNS bigint[]
+CREATE FUNCTION public.get_my_columns() RETURNS bigint[]
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     SELECT
@@ -148,7 +148,7 @@ CREATE FUNCTION get_my_columns() RETURNS bigint[]
 REVOKE EXECUTE ON FUNCTION get_my_columns FROM public;
 GRANT  EXECUTE ON FUNCTION get_my_columns TO api;
 
-CREATE FUNCTION set_my_columns(columns bigint[]) RETURNS unit
+CREATE FUNCTION public.set_my_columns(columns bigint[]) RETURNS unit
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     WITH deleted AS (
@@ -168,7 +168,7 @@ CREATE FUNCTION set_my_columns(columns bigint[]) RETURNS unit
 REVOKE EXECUTE ON FUNCTION set_my_columns FROM public;
 GRANT  EXECUTE ON FUNCTION set_my_columns TO api;
 
-CREATE TABLE user_woulds
+CREATE TABLE public.user_woulds
   ( user_id bigint  NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
   , would_id bigint NOT NULL REFERENCES woulds(would_id) ON DELETE CASCADE
   , with_id bigint  NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
@@ -185,7 +185,7 @@ ALTER TABLE user_woulds ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, DELETE ON user_woulds TO api;
 
-CREATE VIEW would_stats AS
+CREATE VIEW public.would_stats AS
   SELECT
     w.would_id
   , w.name
@@ -197,7 +197,7 @@ CREATE VIEW would_stats AS
   GROUP BY w.would_id;
 GRANT SELECT ON would_stats TO api;
 
-CREATE FUNCTION num_woulds_allowed(user_id bigint) RETURNS bigint
+CREATE FUNCTION public.num_woulds_allowed(user_id bigint) RETURNS bigint
   LANGUAGE sql SECURITY INVOKER STABLE PARALLEL SAFE
   BEGIN ATOMIC
     SELECT 1 + count(DISTINCT uw.user_id)
@@ -209,7 +209,7 @@ CREATE FUNCTION num_woulds_allowed(user_id bigint) RETURNS bigint
 REVOKE EXECUTE ON FUNCTION num_woulds_allowed FROM public;
 GRANT  EXECUTE ON FUNCTION num_woulds_allowed TO api;
 
-CREATE FUNCTION restrict_custom_woulds() RETURNS TRIGGER
+CREATE FUNCTION public.restrict_custom_woulds() RETURNS TRIGGER
   LANGUAGE plpgsql AS $$DECLARE
     this_user_id bigint;
     num_allowed bigint;
@@ -243,7 +243,7 @@ CREATE TRIGGER restrict_custom_woulds BEFORE INSERT OR UPDATE ON woulds
   FOR EACH ROW
   EXECUTE FUNCTION restrict_custom_woulds();
 
-CREATE VIEW user_profiles AS
+CREATE VIEW public.user_profiles AS
   SELECT
     users.user_id
   , users.facebook_id
