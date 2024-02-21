@@ -75,8 +75,86 @@ viewUser model user { isMe } =
         ]
     ]
 
-viewPeople : Model -> List (Html Msg)
-viewPeople model =
+viewCustomiseColumns : Model -> List (Html Msg)
+viewCustomiseColumns model =
+  let
+    columnChoice (wId, would) =
+      let
+        checkboxId = "column-" ++ wId
+        isChecked = List.member wId model.columns
+        onCheck nowChecked =
+          [ Model.SetColumns (
+              if nowChecked
+              then model.columns ++ [wId]
+              else List.filter (\c -> c /= wId) model.columns
+            )
+          ]
+      in
+      [ Html.label
+          [ Attributes.for checkboxId ]
+          [ Html.input
+              [ Attributes.type_ "checkbox"
+              , Attributes.id checkboxId
+              , Attributes.checked isChecked
+              , Events.onCheck onCheck
+              ]
+              []
+          , Html.span
+              [ Attributes.style "font-size" "50%"
+              , Attributes.style "opacity" "0.5"
+              ]
+              [ Html.text "×"
+              , Html.text (String.fromInt would.uses)
+              , Html.text " "
+              ]
+          , Html.text would.name
+          ]
+      ]
+    columnChoices =
+      Dict.toList model.wouldsById
+      |> List.sortBy (\(wId, would) ->
+        ( ( if List.member wId model.columns then 0 else 1
+          , -would.uses
+          )
+        , ( would.name
+          , wId
+          )
+        )
+      )
+      |> List.map (Html.li [] << columnChoice)
+    createNewColumn =
+      let
+        submit =
+          [ Model.ChangeWoulds (Model.CreateWould { name = model.myNewWould })
+          , Model.EditProposedWould ""
+          ]
+      in
+      [ Html.form
+          [ Events.onSubmit submit ]
+          [ Html.input
+              [ Attributes.type_ "text"
+              , Attributes.placeholder "create new"
+              , Attributes.value model.myNewWould
+              , Events.onInput (List.singleton << Model.EditProposedWould)
+              ]
+              []
+          ]
+      ]
+  in
+  [ Html.div
+      [ Attributes.style "position" "sticky"
+      , Attributes.style "bottom" "0"
+      , Attributes.style "padding" "0.2em"
+      , Attributes.class "customiseColumns"
+      ]
+      [ Html.ul
+          [ Attributes.style "list-style-type" "none" ]
+          (columnChoices ++ [ Html.li [] createNewColumn ])
+      ]
+  ]
+
+viewPeople : { customiseColumns : Bool } -> Model -> List (Html Msg)
+viewPeople { customiseColumns } model =
   [ let
       showClass cl =
         Html.span
@@ -98,7 +176,7 @@ viewPeople model =
         List.filterMap
           (\id ->
             Dict.get id model.wouldsById
-            |> Maybe.map (\v -> (id, v))
+            |> Maybe.map (\v -> (id, v.name))
           )
           model.columns
     in
@@ -122,7 +200,30 @@ viewPeople model =
                   [ Attributes.style "text-align" "left"
                   , Attributes.style "padding-left" "1em"
                   ]
-                  [ Html.text "People" ]
+                  [ Html.div
+                      [ Attributes.style "display" "flex"
+                      , Attributes.style "justify-content" "space-between"
+                      ]
+                      [ Html.span [] [ Html.text "People" ]
+                      , Html.span []
+                          [ Html.button
+                              [ Events.onClick
+                                  [ Model.UrlReq
+                                      { internal = True
+                                      , url =
+                                          if customiseColumns
+                                          then "/"
+                                          else "/columns"
+                                      }
+                                  ]
+                              ]
+                              [ if customiseColumns
+                                then Html.text "Done customising"
+                                else Html.text "Customise"
+                              ]
+                          ]
+                      ]
+                  ]
                 :: List.map wouldCol colsById
             in
             Html.tr [] cols
@@ -144,7 +245,9 @@ viewPeople model =
             let
               toWouldNames ids =
                 Set.toList ids
-                |> List.filterMap (\i -> Dict.get i model.wouldsById)
+                |> List.filterMap (\i ->
+                  Dict.get i model.wouldsById |> Maybe.map .name
+                )
                 |> Set.fromList
               youWouldNames = toWouldNames profile.youWouldIds
               matchedNames = toWouldNames profile.matchedWouldIds
@@ -264,7 +367,7 @@ viewPeople model =
         in
         Html.tbody [] (List.map viewProfile profiles)
       ]
-  ]
+  ] ++ if customiseColumns then viewCustomiseColumns model else []
 
 viewLogin : Model -> Html Msg
 viewLogin model =
@@ -360,8 +463,8 @@ viewAudienceControls model =
     ] |> List.concat |> Html.p []
   ]
 
-viewRoot : Model -> List (Html Msg)
-viewRoot model =
+viewRoot : { customiseColumns : Bool } -> Model -> List (Html Msg)
+viewRoot { customiseColumns } model =
   [ [ viewLogin model ]
   , case model.apiLoggedIn of
       Model.LoggedIn { userId } ->
@@ -399,7 +502,7 @@ viewRoot model =
                     ]
                 ]
             ]
-        ] ++ viewPeople model
+        ] ++ viewPeople { customiseColumns = customiseColumns } model
   ] |> List.concat
 
 viewPrivacy : Model -> List (Html Msg)
@@ -611,6 +714,7 @@ view model =
       case model.page of
         Model.PageNotFound -> "Not found - reciprocity"
         Model.Root -> "reciprocity"
+        Model.Columns -> "reciprocity"
         Model.Account _ -> "Account - reciprocity"
         Model.Privacy -> "Privacy - reciprocity"
         Model.Security -> "Security - reciprocity"
@@ -619,7 +723,8 @@ view model =
       ++ navBar
       ++ case model.page of
         Model.PageNotFound -> [ Html.p [] [ Html.text "Page not found" ] ]
-        Model.Root -> viewRoot model
+        Model.Root -> viewRoot { customiseColumns = False } model
+        Model.Columns -> viewRoot { customiseColumns = True } model
         Model.Account account -> viewAccount model account
         Model.Privacy -> viewPrivacy model
         Model.Security -> viewSecurity model

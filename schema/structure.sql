@@ -191,10 +191,9 @@ CREATE VIEW public.would_stats AS
     w.would_id
   , w.name
   , w.added_by_id
-  , count(*) AS uses
+  , count(uw.would_id) AS uses
   FROM woulds w
-  JOIN user_woulds uw USING (would_id)
-  WHERE uw.user_id <> w.added_by_id
+  LEFT JOIN user_woulds uw USING (would_id)
   GROUP BY w.would_id;
 GRANT SELECT ON would_stats TO api;
 

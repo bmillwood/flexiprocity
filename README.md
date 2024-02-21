@@ -7,6 +7,13 @@ flexiprocity is inspired by reciprocity, with a different feature set and
 entirely fresh implementation. The site calls itself reciprocity still, but you
 can refer to this particular version of it as flexiprocity.
 
+New features that are implemented:
+
+- Attempt to sort newer users to near the top of the list, so you don't have to
+  reread the whole thing,
+- Account self-deletion.
+- User-customisable columns.
+
 ## things from Facebook ToS to ensure
 
 - There's some restrictions on sharing platform data, but my guess is that

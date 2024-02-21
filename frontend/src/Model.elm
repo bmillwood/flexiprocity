@@ -83,12 +83,19 @@ decodeProfile =
 type Page
   = PageNotFound
   | Root
+  | Columns
   | Account { deleteConfirmations : Set String }
   | Privacy
   | Security
 
 accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
+
+type alias Would = { name : String, uses : Int }
+type WouldUpdate
+  = CreateWould { name : String }
+  | RenameWould { id : WouldId, name : String }
+  | DeleteWould { id : WouldId }
 
 type alias Model =
   { errors : List { id: Int, msg : String }
@@ -100,7 +107,7 @@ type alias Model =
   , facebookUsers : Dict FacebookId Ports.FacebookUser
   , profiles : Dict UserId Profile
   , facebookFriends : Maybe (List Ports.FacebookUser)
-  , wouldsById : Dict WouldId String
+  , wouldsById : Dict WouldId Would
   , columns : List WouldId
   , myBio : String
   , myVisibility : Maybe Audience
@@ -108,6 +115,7 @@ type alias Model =
   , nameSearch : SearchWords.Model
   , bioSearch : SearchWords.Model
   , wouldChange : Dict UserId (Dict WouldId Bool)
+  , myNewWould : String
   }
 
 type OneMsg
@@ -122,8 +130,10 @@ type OneMsg
   | ApiLoginResult (LoginStatus { userId : UserId })
   | SetDeleteConfirm { id : String, setTo : Bool }
   | DeleteAccount
-  | Woulds (Dict WouldId String)
-  | Columns (List WouldId)
+  | SetWoulds (Dict WouldId Would)
+  | SetColumns (List WouldId)
+  | EditProposedWould String
+  | ChangeWoulds WouldUpdate
   | GotProfile Profile
   | EditBio String
   | SubmitBio
@@ -143,6 +153,7 @@ parseUrl url =
     parser =
       Url.Parser.oneOf
         [ Url.Parser.map Root Url.Parser.top
+        , Url.Parser.map Columns (Url.Parser.s "columns")
         , Url.Parser.map accountPage (Url.Parser.s "account")
         , Url.Parser.map Privacy (Url.Parser.s "privacy")
         , Url.Parser.map Security (Url.Parser.s "security")
@@ -177,6 +188,7 @@ init () url navKey =
     , nameSearch = SearchWords.init { htmlInputId = "nameSearch" }
     , bioSearch = SearchWords.init { htmlInputId = "bioSearch" }
     , wouldChange = Dict.empty
+    , myNewWould = ""
     , navKey = navKey
     , page = parseUrl url
     }
@@ -292,6 +304,25 @@ profileFragment : String
 profileFragment =
   "fragment F on UserProfile{userId facebookId bio audience friendsSince createdAt matchedWoulds youWould}"
 
+decodeWouldStats : Json.Decode.Decoder (Dict WouldId Would)
+decodeWouldStats =
+  let
+    intAsString =
+      Json.Decode.string
+      |> Json.Decode.andThen (\s ->
+        case String.toInt s of
+          Nothing -> Json.Decode.fail <| "expected string containing int, found " ++ s
+          Just i -> Json.Decode.succeed i
+      )
+  in
+  Json.Decode.map3
+    (\i n u -> (i, { name = n, uses = u }))
+    (Json.Decode.field "wouldId" Json.Decode.string)
+    (Json.Decode.field "name" Json.Decode.string)
+    (Json.Decode.field "uses" intAsString)
+  |> Json.Decode.list
+  |> Json.Decode.map Dict.fromList
+
 getProfiles
   :  { getMyVisibility : Bool, getWoulds : Bool, userId: UserId }
   -> Model -> Cmd Msg
@@ -303,14 +334,9 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
     decodeVisible =
       Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
       |> Json.Decode.map (List.singleton << MyVisibility)
-    decodeWould =
-      Json.Decode.map2
-        (\i n -> (i, n))
-        (Json.Decode.field "wouldId" Json.Decode.string)
-        (Json.Decode.field "name" Json.Decode.string)
     decodeWoulds =
-      Json.Decode.map2 (\ws cs -> [Woulds (Dict.fromList ws), Columns cs])
-        (Json.Decode.at ["data", "woulds", "nodes"] (Json.Decode.list decodeWould))
+      Json.Decode.map2 (\ws cs -> [SetWoulds ws, SetColumns cs])
+        (Json.Decode.at ["data", "wouldStats", "nodes"] decodeWouldStats)
         (Json.Decode.at ["data", "getMyColumns"] (Json.Decode.list Json.Decode.string))
   in
   graphQL
@@ -328,7 +354,7 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
             in
             "them:userProfiles" ++ condition ++ "{nodes{...F}}"
           , if getMyVisibility then "myUser{visibleTo}" else ""
-          , if getWoulds then "woulds{nodes{wouldId name}}getMyColumns" else ""
+          , if getWoulds then "wouldStats{nodes{wouldId name uses}}getMyColumns" else ""
         , "}"
         ] |> String.concat
     , operationName = "Q"
@@ -479,8 +505,56 @@ updateOne msg model =
           , decodeResult = Json.Decode.succeed []
           }
       )
-    Woulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
-    Columns cols -> ({ model | columns = cols }, Cmd.none)
+    SetWoulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
+    SetColumns cols ->
+      ( { model | columns = cols }
+      , Cmd.none
+      )
+    EditProposedWould name -> ({ model | myNewWould = name }, Cmd.none)
+    ChangeWoulds change ->
+      let
+        ((params, variables), (function, args)) = case change of
+          CreateWould { name } ->
+            ( ("($n:String!)", [("n", Json.Encode.string name)])
+            , ("createWould", "(input:{would:{name:$n}})")
+            )
+          RenameWould { id, name } ->
+            ( ( "($i:String!,$n:String!)"
+              , [ ("i", Json.Encode.string id)
+                , ("n", Json.Encode.string name)
+                ]
+              )
+            , ("updateWould", "(input:{wouldId:$i,patch:{name:$n}})")
+            )
+          DeleteWould { id } ->
+            ( ("($i:String!)", [("i", Json.Encode.string id)])
+            , ("deleteWould", "(input:{wouldId:$i})")
+            )
+      in
+      ( model
+      , graphQL
+          { query =
+              String.concat
+                [ "mutation C" ++ params ++ "{"
+                  , function ++ args ++ "{"
+                    , "query{wouldStats{nodes{wouldId name uses}}}"
+                    , "would{wouldId}"
+                  , "}"
+                , "}"
+                ]
+          , operationName = "C"
+          , variables = variables
+          , decodeResult =
+              Json.Decode.at ["data", function]
+              <| Json.Decode.map2
+                (\ws wId -> [SetWoulds ws] ++ case change of
+                  CreateWould _ -> [SetColumns (model.columns ++ [wId])]
+                  _ -> []
+                )
+                (Json.Decode.at ["query", "wouldStats", "nodes"] decodeWouldStats)
+                (Json.Decode.at ["would", "wouldId"] Json.Decode.string)
+          }
+      )
     GotProfile user ->
       let
         isMe otherId =
