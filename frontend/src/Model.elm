@@ -91,7 +91,7 @@ type Page
 accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
 
-type alias Would = { name : String, uses : Int }
+type alias Would = { name : String, uses : Maybe Int }
 type WouldUpdate
   = CreateWould { name : String }
   | RenameWould { id : WouldId, name : String }
@@ -319,7 +319,7 @@ decodeWouldStats =
     (\i n u -> (i, { name = n, uses = u }))
     (Json.Decode.field "wouldId" Json.Decode.string)
     (Json.Decode.field "name" Json.Decode.string)
-    (Json.Decode.field "uses" intAsString)
+    (Json.Decode.field "uses" (Json.Decode.nullable intAsString))
   |> Json.Decode.list
   |> Json.Decode.map Dict.fromList
 
@@ -509,11 +509,17 @@ updateOne msg model =
     SetColumns cols ->
       ( { model | columns = cols }
       , graphQL
-          { query = "mutation M($c:[BigInt!]!){setMyColumns(input:{columns:$c}){unit}}"
+          { query =
+            String.concat
+              [ "mutation M($c:[BigInt!]!){setMyColumns(input:{columns:$c}){"
+                , "query{wouldStats{nodes{wouldId name uses}}}"
+              , "}}"
+              ]
           , operationName = "M"
           , variables = [("c", Json.Encode.list Json.Encode.string cols)]
           , decodeResult =
-              Json.Decode.at ["data", "setMyColumns"] (Json.Decode.succeed [])
+              Json.Decode.at ["data", "setMyColumns", "query", "wouldStats", "nodes"] decodeWouldStats
+              |> Json.Decode.map (\ws -> [SetWoulds ws])
           }
       )
     EditProposedWould name -> ({ model | myNewWould = name }, Cmd.none)

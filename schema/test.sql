@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(10);
+SELECT plan(11);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -84,6 +84,16 @@ SELECT is(
     (SELECT would_id FROM woulds WHERE name = 'Hang out sometime')
   ],
   'columns are as set'
+);
+
+SELECT bag_eq(
+  $$ SELECT name, uses FROM would_stats $$,
+  $$ VALUES
+    ('Hang out sometime', 0),
+    ('Go on a date or something', 0),
+    ('secret third thing', 0)
+  $$,
+  'count'
 );
 
 INSERT INTO woulds (name) VALUES

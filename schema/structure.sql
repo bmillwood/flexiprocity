@@ -122,7 +122,7 @@ CREATE TABLE public.woulds
   );
 INSERT INTO woulds (name, is_default)
 VALUES ('Hang out sometime', true), ('Go on a date or something', true);
-GRANT SELECT, INSERT, UPDATE(name), DELETE ON woulds TO api;
+GRANT SELECT, INSERT, UPDATE(name) ON woulds TO api;
 
 CREATE POLICY read_all ON woulds FOR SELECT TO api USING (true);
 CREATE POLICY write_mine ON woulds FOR ALL TO api
@@ -207,7 +207,11 @@ CREATE VIEW public.would_stats AS
     w.would_id
   , w.name
   , w.added_by_id
-  , count(uc.would_id) AS uses
+  , CASE
+      WHEN w.is_default
+      THEN NULL
+      ELSE count(uc.would_id)
+    END AS uses
   FROM woulds w
   LEFT JOIN user_columns uc USING (would_id)
   GROUP BY w.would_id;

@@ -92,35 +92,50 @@ viewCustomiseColumns model =
       in
       [ Html.label
           [ Attributes.for checkboxId ]
-          [ Html.input
-              [ Attributes.type_ "checkbox"
-              , Attributes.id checkboxId
-              , Attributes.checked isChecked
-              , Events.onCheck onCheck
+          (List.concat
+            [ [ Html.input
+                  [ Attributes.type_ "checkbox"
+                  , Attributes.id checkboxId
+                  , Attributes.checked isChecked
+                  , Events.onCheck onCheck
+                  ]
+                  []
               ]
-              []
-          , Html.span
-              [ Attributes.style "font-size" "50%"
-              , Attributes.style "opacity" "0.5"
-              ]
-              [ Html.text "×"
-              , Html.text (String.fromInt would.uses)
-              , Html.text " "
-              ]
-          , Html.text would.name
-          ]
+            , case would.uses of
+                Nothing -> []
+                Just uses ->
+                  [ Html.span
+                      [ Attributes.style "font-size" "50%"
+                      , Attributes.style "opacity" "0.5"
+                      ]
+                      [ Html.text "×"
+                      , Html.text (String.fromInt uses)
+                      , Html.text " "
+                      ]
+                  ]
+            , [ Html.text would.name ]
+            ]
+          )
       ]
+    lexOrder o1 o2 = if o1 == EQ then o2 else o1
+    indexInOrLength x xs =
+      List.foldr (\this acc -> if x == this then 0 else 1 + acc) 0 xs
+    compareWoulds (wId1, would1) (wId2, would2) =
+      List.foldr lexOrder EQ
+        [ compare
+            (indexInOrLength wId1 model.columns)
+            (indexInOrLength wId2 model.columns)
+        , case (would1.uses, would2.uses) of
+            (Nothing, Nothing) -> EQ
+            (Nothing, Just _) -> LT
+            (Just _, Nothing) -> GT
+            (Just u1, Just u2) -> compare u2 u1
+        , compare would1.name would2.name
+        , compare wId1 wId2
+        ]
     columnChoices =
       Dict.toList model.wouldsById
-      |> List.sortBy (\(wId, would) ->
-        ( ( if List.member wId model.columns then 0 else 1
-          , -would.uses
-          )
-        , ( would.name
-          , wId
-          )
-        )
-      )
+      |> List.sortWith compareWoulds
       |> List.map (Html.li [] << columnChoice)
     createNewColumn =
       let
