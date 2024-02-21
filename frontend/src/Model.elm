@@ -508,7 +508,13 @@ updateOne msg model =
     SetWoulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
     SetColumns cols ->
       ( { model | columns = cols }
-      , Cmd.none
+      , graphQL
+          { query = "mutation M($c:[BigInt!]!){setMyColumns(input:{columns:$c}){unit}}"
+          , operationName = "M"
+          , variables = [("c", Json.Encode.list Json.Encode.string cols)]
+          , decodeResult =
+              Json.Decode.at ["data", "setMyColumns"] (Json.Decode.succeed [])
+          }
       )
     EditProposedWould name -> ({ model | myNewWould = name }, Cmd.none)
     ChangeWoulds change ->

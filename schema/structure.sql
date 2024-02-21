@@ -132,7 +132,9 @@ ALTER TABLE woulds ENABLE ROW LEVEL SECURITY;
 CREATE TABLE public.user_columns
   ( user_id  bigint NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE
   , would_id bigint NOT NULL REFERENCES woulds(would_id) ON DELETE CASCADE
+  , order_pos bigint NOT NULL
   , PRIMARY KEY (user_id, would_id)
+  , UNIQUE (user_id, would_id, order_pos)
   );
 
 CREATE FUNCTION public.get_my_columns() RETURNS bigint[]
@@ -140,8 +142,8 @@ CREATE FUNCTION public.get_my_columns() RETURNS bigint[]
   BEGIN ATOMIC
     SELECT
       COALESCE(
-          array_agg(uc.would_id) FILTER (WHERE uc.would_id IS NOT NULL)
-        , (SELECT array_agg(w.would_id) FROM woulds w WHERE w.is_default)
+          array_agg(uc.would_id ORDER BY uc.order_pos) FILTER (WHERE uc.would_id IS NOT NULL)
+        , (SELECT array_agg(w.would_id ORDER BY w.would_id) FROM woulds w WHERE w.is_default)
         )
     FROM user_columns uc
     WHERE uc.user_id = current_user_id();
@@ -150,19 +152,33 @@ REVOKE EXECUTE ON FUNCTION get_my_columns FROM public;
 GRANT  EXECUTE ON FUNCTION get_my_columns TO api;
 
 CREATE FUNCTION public.set_my_columns(columns bigint[]) RETURNS unit
-  LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
     WITH deleted AS (
       DELETE FROM user_columns
       WHERE user_id = current_user_id()
       AND would_id <> ALL(columns)
+    ), with_order_pos AS (
+      SELECT
+        current_user_id() AS user_id
+      , col AS would_id
+      , row_number() OVER () AS order_pos
+      FROM unnest(columns) col
     ), inserted AS (
-      INSERT INTO user_columns (user_id, would_id)
-      SELECT current_user_id(), unnest(columns)
-      EXCEPT
-      SELECT user_id, would_id
-      FROM user_columns
-      ON CONFLICT DO NOTHING
+      INSERT INTO user_columns
+        (   user_id,     would_id,     order_pos )
+      SELECT
+        wop.user_id, wop.would_id, wop.order_pos
+      FROM with_order_pos wop
+      LEFT JOIN user_columns uc USING (user_id, would_id)
+      WHERE uc IS NULL
+    ), updated AS (
+      UPDATE user_columns uc
+      SET order_pos = wop.order_pos
+      FROM with_order_pos wop
+      WHERE uc.user_id = wop.user_id
+      AND uc.would_id = wop.would_id
+      AND uc.order_pos <> wop.order_pos
     )
     SELECT 'unit'::unit;
   END;

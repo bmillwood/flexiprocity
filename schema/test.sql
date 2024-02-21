@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(6);
+SELECT plan(10);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -48,6 +48,42 @@ SELECT is(
   get_my_columns(),
   (SELECT array_agg(would_id) FROM woulds WHERE is_default),
   'default columns'
+);
+
+SELECT lives_ok(
+  $$ SELECT set_my_columns(columns => ARRAY[
+      (SELECT would_id FROM woulds WHERE name = 'Hang out sometime'),
+      (SELECT would_id FROM woulds WHERE name = 'secret third thing')
+    ])
+  $$,
+  'can set columns'
+);
+
+SELECT is(
+  get_my_columns(),
+  ARRAY[
+    (SELECT would_id FROM woulds WHERE name = 'Hang out sometime'),
+    (SELECT would_id FROM woulds WHERE name = 'secret third thing')
+  ],
+  'columns are as set'
+);
+
+SELECT lives_ok(
+  $$ SELECT set_my_columns(columns => ARRAY[
+      (SELECT would_id FROM woulds WHERE name = 'secret third thing'),
+      (SELECT would_id FROM woulds WHERE name = 'Hang out sometime')
+    ])
+  $$,
+  'can set columns in a different order'
+);
+
+SELECT is(
+  get_my_columns(),
+  ARRAY[
+    (SELECT would_id FROM woulds WHERE name = 'secret third thing'),
+    (SELECT would_id FROM woulds WHERE name = 'Hang out sometime')
+  ],
+  'columns are as set'
 );
 
 INSERT INTO woulds (name) VALUES
