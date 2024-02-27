@@ -130,7 +130,14 @@ viewCustomiseColumns model =
         [ Html.label
             [ Attributes.for checkboxId ]
             (List.concat
-              [ [ Html.input
+              [ if isChecked
+                then
+                  [ Html.span
+                      [ Attributes.style "cursor" "grab" ]
+                      [ Html.text "::" ]
+                  ]
+                else []
+              , [ Html.input
                     [ Attributes.type_ "checkbox"
                     , Attributes.id checkboxId
                     , Attributes.checked isChecked
