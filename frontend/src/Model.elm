@@ -55,6 +55,7 @@ type alias WouldId = String
 type alias Profile =
   { userId : UserId
   , facebookId : String
+  , name : Maybe String
   , bio : String
   , audience : Audience
   , friendsSince : Maybe String
@@ -70,15 +71,18 @@ decodeProfile =
       Json.Decode.list Json.Decode.string
       |> Json.Decode.map Set.fromList
   in
-  Json.Decode.map8
-    Profile
-    (Json.Decode.field "userId" Json.Decode.string)
-    (Json.Decode.field "facebookId" Json.Decode.string)
-    (Json.Decode.field "bio" Json.Decode.string)
-    (Json.Decode.field "audience" decodeAudience)
-    (Json.Decode.field "friendsSince" (Json.Decode.nullable Json.Decode.string))
-    (Json.Decode.field "createdAt" Json.Decode.string)
-    (Json.Decode.field "matchedWoulds" decodeWouldIds)
+  Json.Decode.map2
+    identity
+    (Json.Decode.map8
+      Profile
+      (Json.Decode.field "userId" Json.Decode.string)
+      (Json.Decode.field "facebookId" Json.Decode.string)
+      (Json.Decode.field "name" (Json.Decode.nullable Json.Decode.string))
+      (Json.Decode.field "bio" Json.Decode.string)
+      (Json.Decode.field "audience" decodeAudience)
+      (Json.Decode.field "friendsSince" (Json.Decode.nullable Json.Decode.string))
+      (Json.Decode.field "createdAt" Json.Decode.string)
+      (Json.Decode.field "matchedWoulds" decodeWouldIds))
     (Json.Decode.field "youWould" decodeWouldIds)
 
 type Page
@@ -317,7 +321,7 @@ sendFriends model =
 
 profileFragment : String
 profileFragment =
-  "fragment F on UserProfile{userId facebookId bio audience friendsSince createdAt matchedWoulds youWould}"
+  "fragment F on UserProfile{userId facebookId name bio audience friendsSince createdAt matchedWoulds youWould}"
 
 decodeWouldStats : Json.Decode.Decoder (Dict WouldId Would)
 decodeWouldStats =
@@ -455,7 +459,18 @@ updateOne msg model =
       )
     FromJS (Ports.FacebookGotUser user) ->
       ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
-      , Cmd.none
+      , case model.facebookLoggedIn of
+          LoggedIn { userId } ->
+            if userId == user.id
+            then
+              graphQL
+                { query = "mutation M($n:String!){updateMe(input:{name:$n}){clientMutationId}}"
+                , operationName = "M"
+                , variables = [("n", Json.Encode.string user.name)]
+                , decodeResult = Json.Decode.at ["data", "updateMe"] (Json.Decode.succeed [])
+                }
+            else Cmd.none
+          _ -> Cmd.none
       )
     StartFacebookLogin ->
       case model.facebookLoggedIn of
@@ -617,7 +632,9 @@ updateOne msg model =
       , case model.apiLoggedIn of
           LoggedIn { userId } ->
             graphQL
-              { query = "mutation B($b:String!,$u:BigInt!){updateMe(input:{bio:$b}){query{userProfiles(condition:{userId:$u}){nodes{userId facebookId bio audience matchedWoulds youWould}}}}}"
+              { query =
+                  profileFragment
+                  ++ "mutation B($b:String!,$u:BigInt!){updateMe(input:{bio:$b}){query{userProfiles(condition:{userId:$u}){nodes{...F}}}}}"
               , operationName = "B"
               , variables =
                   [ ("b", Json.Encode.string model.myBio)

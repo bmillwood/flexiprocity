@@ -18,6 +18,7 @@ CREATE TYPE public.unit AS ENUM ('unit');
 CREATE TABLE public.users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , facebook_id text UNIQUE NOT NULL
+  , name text
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
   , created_at timestamptz NOT NULL DEFAULT now()
@@ -40,12 +41,13 @@ CREATE FUNCTION public.my_user() RETURNS users
 REVOKE EXECUTE ON FUNCTION my_user FROM public;
 GRANT  EXECUTE ON FUNCTION my_user TO api;
 
-CREATE FUNCTION public.update_me(bio text, visible_to audience) RETURNS users
+CREATE FUNCTION public.update_me(name text, bio text, visible_to audience) RETURNS users
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
     UPDATE users
-    SET bio = COALESCE(update_me.bio, users.bio)
-    , visible_to = COALESCE(update_me.visible_to, users.visible_to)
+    SET name = COALESCE(update_me.name, users.name)
+      , bio = COALESCE(update_me.bio, users.bio)
+      , visible_to = COALESCE(update_me.visible_to, users.visible_to)
     WHERE user_id = current_user_id()
     RETURNING *;
   END;
@@ -254,6 +256,7 @@ CREATE VIEW public.user_profiles AS
   SELECT
     users.user_id
   , users.facebook_id
+  , users.name
   , users.bio
   , CASE
       WHEN users.user_id = current_user_id() THEN 'self'

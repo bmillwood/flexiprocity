@@ -18,7 +18,10 @@ viewUser model user { isMe } =
     facebookUser = Dict.get user.facebookId model.facebookUsers
     name =
       Maybe.map .name facebookUser
-      |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
+      |> Maybe.withDefault (
+        user.name
+        |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
+      )
     picture = facebookUser |> Maybe.map .picture
   in
   Html.div
