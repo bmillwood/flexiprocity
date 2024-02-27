@@ -89,9 +89,9 @@ SELECT is(
 SELECT bag_eq(
   $$ SELECT name, uses FROM would_stats $$,
   $$ VALUES
-    ('Hang out sometime', 0),
-    ('Go on a date or something', 0),
-    ('secret third thing', 0)
+    ('Hang out sometime', NULL),
+    ('Go on a date or something', NULL),
+    ('secret third thing', 1)
   $$,
   'count'
 );
