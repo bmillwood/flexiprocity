@@ -14,6 +14,20 @@ New features that are implemented:
 - Account self-deletion.
 - User-customisable columns.
 
+## Testing
+
+You can run flexiprocity locally if you have a Facebook app ID and secret. I
+assume most people won't do this, but one thing to note if you do is that
+Facebook will only let you do their login flow over HTTPS, which is awkward to
+set up locally. Rather than try to come up with an SSL cert that my browser
+trusted for `localhost`, I used a wildcard SSL cert for a real domain and mapped
+a `local.` subdomain of it to localhost in my local DNS config.
+
+At the time of writing, Facebook has disabled the ability to create dedicated
+test users, so I'm testing flexiprocity with real people. They need a ["Meta
+Developer Account"](https://developers.facebook.com/) before they can be added
+as test users (manually by the app author).
+
 ## things from Facebook ToS to ensure
 
 - There's some restrictions on sharing platform data, but my guess is that
@@ -38,6 +52,9 @@ New features that are implemented:
   you stop using the platform
 
 ## things from the Twitter ToS
+
+(N.B. that I shelved implementing sign in with Twitter, because the API for
+fetching user followers is $100/month.)
 
 - The Sign in with Twitter option must be displayed at least as prominently as
   any other sign-up or sign-in feature on your service. You must also provide
