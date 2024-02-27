@@ -5,8 +5,10 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attributes
 import Html.Events as Events
+import Json.Decode
 import Set exposing (Set)
 
+import ListZipper
 import Model exposing (Model, Msg)
 import SearchWords
 
@@ -78,7 +80,9 @@ viewUser model user { isMe } =
 viewCustomiseColumns : Model -> List (Html Msg)
 viewCustomiseColumns model =
   let
-    columnChoice (wId, would) =
+    indexInOrLength x xs =
+      List.foldr (\this acc -> if x == this then 0 else 1 + acc) 0 xs
+    columnChoice index (wId, would) =
       let
         checkboxId = "column-" ++ wId
         isChecked = List.member wId model.columns
@@ -89,37 +93,65 @@ viewCustomiseColumns model =
               else List.filter (\c -> c /= wId) model.columns
             )
           ]
+        dragAttributes =
+          [ Attributes.draggable "true"
+          , Events.on "dragstart" (
+              Json.Decode.succeed [Model.DragStart (Model.Column wId)]
+            )
+          , Events.preventDefaultOn "dragover" (
+              Json.Decode.succeed ([Model.DragHover (Model.Column wId)], True)
+            )
+          , Events.on "drop" (
+              Json.Decode.succeed [Model.DragDrop (Model.Column wId)]
+            )
+          , Events.on "dragend" (
+              Json.Decode.succeed [Model.DragEnd]
+            )
+          ] ++ case model.drag of
+            Nothing -> []
+            Just { held, over } -> case (held, over) of
+              (_, Nothing) -> []
+              (Model.Column heldId, Just (Model.Column hoverId)) ->
+                if wId == hoverId
+                then
+                  [ Attributes.class
+                    <| case compare index (indexInOrLength heldId model.columns) of
+                      LT -> "insertAbove"
+                      GT -> "insertBelow"
+                      EQ -> "insertUnmoved"
+                  ]
+                else []
       in
-      [ Html.label
-          [ Attributes.for checkboxId ]
-          (List.concat
-            [ [ Html.input
-                  [ Attributes.type_ "checkbox"
-                  , Attributes.id checkboxId
-                  , Attributes.checked isChecked
-                  , Events.onCheck onCheck
-                  ]
-                  []
+      Html.li
+        (if isChecked then dragAttributes else [])
+        [ Html.label
+            [ Attributes.for checkboxId ]
+            (List.concat
+              [ [ Html.input
+                    [ Attributes.type_ "checkbox"
+                    , Attributes.id checkboxId
+                    , Attributes.checked isChecked
+                    , Events.onCheck onCheck
+                    ]
+                    []
+                ]
+              , case would.uses of
+                  Nothing -> []
+                  Just uses ->
+                    [ Html.span
+                        [ Attributes.style "font-size" "50%"
+                        , Attributes.style "opacity" "0.5"
+                        ]
+                        [ Html.text "×"
+                        , Html.text (String.fromInt uses)
+                        , Html.text " "
+                        ]
+                    ]
+              , [ Html.text would.name ]
               ]
-            , case would.uses of
-                Nothing -> []
-                Just uses ->
-                  [ Html.span
-                      [ Attributes.style "font-size" "50%"
-                      , Attributes.style "opacity" "0.5"
-                      ]
-                      [ Html.text "×"
-                      , Html.text (String.fromInt uses)
-                      , Html.text " "
-                      ]
-                  ]
-            , [ Html.text would.name ]
-            ]
-          )
-      ]
+            )
+        ]
     lexOrder o1 o2 = if o1 == EQ then o2 else o1
-    indexInOrLength x xs =
-      List.foldr (\this acc -> if x == this then 0 else 1 + acc) 0 xs
     compareWoulds (wId1, would1) (wId2, would2) =
       List.foldr lexOrder EQ
         [ compare
@@ -136,7 +168,7 @@ viewCustomiseColumns model =
     columnChoices =
       Dict.toList model.wouldsById
       |> List.sortWith compareWoulds
-      |> List.map (Html.li [] << columnChoice)
+      |> List.indexedMap columnChoice
     createNewColumn =
       let
         submit =

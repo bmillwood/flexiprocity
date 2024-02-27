@@ -11,6 +11,7 @@ import Task
 import Url exposing (Url)
 import Url.Parser
 
+import ListZipper
 import Ports
 import SearchWords
 
@@ -97,6 +98,14 @@ type WouldUpdate
   | RenameWould { id : WouldId, name : String }
   | DeleteWould { id : WouldId }
 
+type Draggable = Column String
+type alias DragTarget = Draggable
+
+type alias Drag =
+  { held : Draggable
+  , over : Maybe DragTarget
+  }
+
 type alias Model =
   { errors : List { id: Int, msg : String }
   , nextErrorId : Int
@@ -116,6 +125,7 @@ type alias Model =
   , bioSearch : SearchWords.Model
   , wouldChange : Dict UserId (Dict WouldId Bool)
   , myNewWould : String
+  , drag : Maybe Drag
   }
 
 type OneMsg
@@ -144,6 +154,10 @@ type OneMsg
   | BioSearchMsg SearchWords.OutMsg
   | WouldChange { userId : UserId, wouldId : WouldId, changeTo : Bool }
   | SubmitWouldChanges
+  | DragStart Draggable
+  | DragEnd
+  | DragHover DragTarget
+  | DragDrop DragTarget
 
 type alias Msg = List OneMsg
 
@@ -189,6 +203,7 @@ init () url navKey =
     , bioSearch = SearchWords.init { htmlInputId = "bioSearch" }
     , wouldChange = Dict.empty
     , myNewWould = ""
+    , drag = Nothing
     , navKey = navKey
     , page = parseUrl url
     }
@@ -369,6 +384,22 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
           (if getWoulds then decodeWoulds else Json.Decode.succeed [])
     }
 
+setColumns : List WouldId -> Cmd Msg
+setColumns cols =
+  graphQL
+    { query =
+      String.concat
+        [ "mutation M($c:[BigInt!]!){setMyColumns(input:{columns:$c}){"
+          , "query{wouldStats{nodes{wouldId name uses}}}"
+        , "}}"
+        ]
+    , operationName = "M"
+    , variables = [("c", Json.Encode.list Json.Encode.string cols)]
+    , decodeResult =
+        Json.Decode.at ["data", "setMyColumns", "query", "wouldStats", "nodes"] decodeWouldStats
+        |> Json.Decode.map (\ws -> [SetWoulds ws])
+    }
+
 updateOne : OneMsg -> Model -> (Model, Cmd Msg)
 updateOne msg model =
   case msg of
@@ -506,22 +537,7 @@ updateOne msg model =
           }
       )
     SetWoulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
-    SetColumns cols ->
-      ( { model | columns = cols }
-      , graphQL
-          { query =
-            String.concat
-              [ "mutation M($c:[BigInt!]!){setMyColumns(input:{columns:$c}){"
-                , "query{wouldStats{nodes{wouldId name uses}}}"
-              , "}}"
-              ]
-          , operationName = "M"
-          , variables = [("c", Json.Encode.list Json.Encode.string cols)]
-          , decodeResult =
-              Json.Decode.at ["data", "setMyColumns", "query", "wouldStats", "nodes"] decodeWouldStats
-              |> Json.Decode.map (\ws -> [SetWoulds ws])
-          }
-      )
+    SetColumns cols -> ({ model | columns = cols }, setColumns cols)
     EditProposedWould name -> ({ model | myNewWould = name }, Cmd.none)
     ChangeWoulds change ->
       let
@@ -729,6 +745,42 @@ updateOne msg model =
             |> Cmd.batch
           )
         _ -> (model, Cmd.none)
+    DragStart draggable ->
+      ( { model | drag = Just { held = draggable, over = Nothing } }
+      , Cmd.none
+      )
+    DragEnd ->
+      ( { model | drag = Nothing }
+      , Cmd.none
+      )
+    DragHover target ->
+      ( { model | drag = model.drag |> Maybe.map (\d -> { d | over = Just target }) }
+      , Cmd.none
+      )
+    DragDrop (Column target) ->
+      case model.drag of
+        Nothing -> (model, Cmd.none)
+        Just { held } ->
+          case held of
+            Column heldId ->
+              let
+                newColumns =
+                  if target == heldId
+                  then model.columns
+                  else case ListZipper.findFirst (\_ c -> c == heldId) model.columns of
+                    Nothing -> model.columns
+                    Just (_, { before, after }) ->
+                      let
+                        insertAfter x = if x == target then [x, heldId] else [x]
+                      in
+                      ListZipper.toList
+                        { before = List.concatMap insertAfter before
+                        , after = List.concatMap insertAfter after
+                        }
+              in
+              ( { model | drag = Nothing, columns = newColumns }
+              , setColumns newColumns
+              )
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msgs model =

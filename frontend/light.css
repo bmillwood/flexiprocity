@@ -29,3 +29,12 @@ table#people thead {
 .customiseColumns {
     background-color: hsl(285, 80%, 70%);
 }
+.insertAbove {
+    border-top: 1px solid black;
+}
+.insertBelow {
+    border-bottom: 1px solid black;
+}
+.insertUnmoved {
+    border: 1px solid black;
+}
