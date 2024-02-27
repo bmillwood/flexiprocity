@@ -527,43 +527,42 @@ viewAudienceControls model =
 viewRoot : { customiseColumns : Bool } -> Model -> List (Html Msg)
 viewRoot { customiseColumns } model =
   [ [ viewLogin model ]
-  , case model.apiLoggedIn of
-      Model.LoggedIn { userId } ->
-        viewAudienceControls model
-        ++ case Dict.get userId model.profiles of
-          Just u -> [viewUser model u { isMe = True }]
-          Nothing -> []
-      _ -> []
-  , case model.facebookFriends of
-      Nothing -> []
-      Just friends ->
-        [ Html.p []
-            [ [ if List.isEmpty friends
-                then "None"
-                else String.fromInt (List.length friends)
-              , " of your Facebook friends use reciprocity"
-              , if List.isEmpty friends
-                then " 🙁"
-                else ""
-              ] |> String.concat |> Html.text
-            ]
-        , Html.table []
-            [ Html.tr []
-                [ Html.td [] [Html.text "Search names: "]
-                , Html.td []
-                    [ SearchWords.view model.nameSearch
-                      |> Html.map (List.map Model.NameSearchMsg)
-                    ]
-                ]
-            , Html.tr []
-                [ Html.td [] [Html.text "Search bios: "]
-                , Html.td []
-                    [ SearchWords.view model.bioSearch
-                      |> Html.map (List.map Model.BioSearchMsg)
-                    ]
-                ]
-            ]
-        ] ++ viewPeople { customiseColumns = customiseColumns } model
+  , case (model.apiLoggedIn, model.facebookFriends) of
+      (Model.LoggedIn { userId }, Just friends) ->
+        [ viewAudienceControls model
+        , case Dict.get userId model.profiles of
+            Just u -> [viewUser model u { isMe = True }]
+            Nothing -> []
+        , [ Html.p []
+              [ [ if List.isEmpty friends
+                  then "None"
+                  else String.fromInt (List.length friends)
+                , " of your Facebook friends use reciprocity"
+                , if List.isEmpty friends
+                  then " 🙁"
+                  else ""
+                ] |> String.concat |> Html.text
+              ]
+          , Html.table []
+              [ Html.tr []
+                  [ Html.td [] [Html.text "Search names: "]
+                  , Html.td []
+                      [ SearchWords.view model.nameSearch
+                        |> Html.map (List.map Model.NameSearchMsg)
+                      ]
+                  ]
+              , Html.tr []
+                  [ Html.td [] [Html.text "Search bios: "]
+                  , Html.td []
+                      [ SearchWords.view model.bioSearch
+                        |> Html.map (List.map Model.BioSearchMsg)
+                      ]
+                  ]
+              ]
+          ]
+        , viewPeople { customiseColumns = customiseColumns } model
+        ] |> List.concat
+      (_, _) -> []
   ] |> List.concat
 
 viewPrivacy : Model -> List (Html Msg)
