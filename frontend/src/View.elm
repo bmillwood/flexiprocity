@@ -564,7 +564,7 @@ viewRoot { customiseColumns } model =
         ] |> List.concat
       (_, _) ->
         [ Html.p [] [ Html.text "reciprocity offers you a list of other users and some tickboxes for each user." ]
-        , Html.p [] [ Html.text "We only tell them  ou ticked them if they tick you too." ]
+        , Html.p [] [ Html.text "We only tell them you ticked them if they tick you too." ]
         ]
   ] |> List.concat
 
