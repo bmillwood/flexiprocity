@@ -415,7 +415,18 @@ viewPeople { customiseColumns } model =
             |> List.filter filterProfile
             |> sortProfiles
         in
-        Html.tbody [] (List.map viewProfile profiles)
+        Html.tbody [] (
+          if List.isEmpty profiles
+          then
+            [ Html.td
+                [ Attributes.colspan (List.length colsById + 1)
+                , Attributes.style "padding" "1em"
+                , Attributes.style "font-style" "italic"
+                ]
+                [ Html.text "(No users visible)" ]
+            ]
+          else List.map viewProfile profiles
+        )
       ]
   ] ++ if customiseColumns then viewCustomiseColumns model else []
 
