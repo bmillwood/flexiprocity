@@ -248,11 +248,9 @@ viewPeople { customiseColumns } model =
           , Attributes.style "top" "0"
           ]
           [ let
-              wouldCol (_, wName) =
-                Html.th
-                  [ Attributes.style "width" "10%" ]
-                  [ Html.text wName ]
-              cols =
+              colWidth =
+                String.fromInt (min 10 (round (50 / toFloat (List.length colsById)))) ++ "%"
+              peopleHeaderCol =
                 Html.th
                   [ Attributes.style "text-align" "left"
                   , Attributes.style "padding-left" "1em"
@@ -281,7 +279,22 @@ viewPeople { customiseColumns } model =
                           ]
                       ]
                   ]
-                :: List.map wouldCol colsById
+              wouldHeaderCol (_, wName) =
+                Html.th
+                  [ Attributes.style "width" colWidth ]
+                  [ Html.text wName ]
+              cols =
+                peopleHeaderCol ::
+                if List.isEmpty colsById
+                then
+                  [ Html.td
+                      [ Attributes.style "text-align" "center"
+                      , Attributes.style "font-style" "italic"
+                      , Attributes.style "width" "10%"
+                      ]
+                      [ Html.text "choose some columns" ]
+                  ]
+                else List.map wouldHeaderCol colsById
             in
             Html.tr [] cols
           , Html.tr
