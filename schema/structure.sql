@@ -20,7 +20,7 @@ CREATE TABLE public.users
   , facebook_id text UNIQUE NOT NULL
   , name text
   , bio text NOT NULL DEFAULT ''
-  , visible_to audience NOT NULL DEFAULT 'self'
+  , visible_to audience NOT NULL DEFAULT 'friends'
   , created_at timestamptz NOT NULL DEFAULT now()
   );
 
