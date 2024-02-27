@@ -180,7 +180,7 @@ viewCustomiseColumns model =
           [ Events.onSubmit submit ]
           [ Html.input
               [ Attributes.type_ "text"
-              , Attributes.placeholder "create new"
+              , Attributes.placeholder "create new (max 3/day)"
               , Attributes.value model.myNewWould
               , Events.onInput (List.singleton << Model.EditProposedWould)
               ]
