@@ -27,15 +27,31 @@ facebookApi { path, params, internal } =
     ]
   |> sendToJS
 
-
-facebookFriends : { userId : String } -> Cmd msg
-facebookFriends { userId } =
+moreFacebookFriends : { userId : String, paging : Maybe { after : String, prev : List Json.Decode.Value } } -> Cmd msg
+moreFacebookFriends { userId, paging } =
   facebookApi
     { path = "/" ++ userId ++ "/friends"
     , -- If I add more fields here, remember to check the privacy policy
-      params = [("fields", Json.Encode.string "id,name,short_name,picture,link")]
-    , internal = Json.Encode.object [("id", Json.Encode.string "friends")]
+      params =
+        [("fields", Json.Encode.string "id,name,short_name,picture,link")]
+        ++ case paging of
+          Just { after } -> [("after", Json.Encode.string after)]
+          Nothing -> []
+    , internal =
+        Json.Encode.object
+          [ ("id", Json.Encode.string "friends")
+          , ("userId", Json.Encode.string userId)
+          , ( "prevPages"
+            , Json.Encode.list identity
+              <| case paging of
+                Just { prev } -> prev
+                Nothing -> []
+            )
+          ]
     }
+
+facebookFriends : { userId : String } -> Cmd msg
+facebookFriends { userId } = moreFacebookFriends { userId = userId, paging = Nothing }
 
 facebookUser : { personId : String } -> Cmd msg
 facebookUser { personId } =
@@ -76,7 +92,8 @@ type Update
   = FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
-  | FacebookFriends { data : List FacebookUser, hasPagination : Bool }
+  | FacebookFriends (List FacebookUser)
+  | InProgress (Cmd ())
 
 type alias FromJS = Result Error Update
 
@@ -135,21 +152,35 @@ fromJS =
               [ case id of
                   "friends" ->
                     let
-                      friends = Json.Decode.field "data" (Json.Decode.list decodeUser)
-                      isJust x =
-                        case x of
-                          Just () -> True
-                          Nothing -> False
-                      paging =
-                        Json.Decode.at ["paging", "next"] (Json.Decode.succeed ())
-                        |> Json.Decode.maybe
-                        |> Json.Decode.map isJust
-                      ofFields d hp =
-                        Ok (FacebookFriends { data = d, hasPagination = hp })
-                      parseResponse =
-                        Json.Decode.map2 ofFields friends paging
+                      decodePagesWith decoder =
+                        Json.Decode.at ["request", "internal", "prevPages"] (Json.Decode.list decoder)
+                      decodeFriendsWith decoder =
+                        Json.Decode.at ["response", "data"] (Json.Decode.list decoder)
+                      decodePaging =
+                        Json.Decode.map2
+                          (\hasNext after -> Maybe.map (\() -> after) hasNext)
+                          (Json.Decode.maybe (Json.Decode.field "next" (Json.Decode.succeed ())))
+                          (Json.Decode.at ["cursors", "after"] Json.Decode.string)
+                      resolve userId prevPages thisPage paging =
+                        case paging of
+                          Nothing ->
+                            Json.Decode.map2
+                              (\prevFriends friends -> Ok (FacebookFriends (friends ++ prevFriends)))
+                              (decodePagesWith decodeUser)
+                              (decodeFriendsWith decodeUser)
+                          Just after ->
+                            moreFacebookFriends
+                              { userId = userId
+                              , paging = Just { after = after, prev = thisPage ++ prevPages }
+                              }
+                            |> Json.Decode.succeed << Ok << InProgress
                     in
-                    Json.Decode.field "response" parseResponse
+                    Json.Decode.map4 resolve
+                      (Json.Decode.at ["request", "internal", "userId"] Json.Decode.string)
+                      (decodePagesWith Json.Decode.value)
+                      (decodeFriendsWith Json.Decode.value)
+                      (Json.Decode.at ["response", "paging"] decodePaging)
+                    |> Json.Decode.andThen identity
                   "user" ->
                     Json.Decode.field "response" decodeUser
                     |> Json.Decode.map (Ok << FacebookGotUser)

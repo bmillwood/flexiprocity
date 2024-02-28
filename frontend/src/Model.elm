@@ -437,26 +437,13 @@ updateOne msg model =
       )
     FromJS Ports.FacebookLoginFailed ->
       ({ model | facebookLoggedIn = NotLoggedIn }, Cmd.none)
-    FromJS (Ports.FacebookFriends { data, hasPagination }) ->
+    FromJS (Ports.FacebookFriends data) ->
       let
         addUser user acc = Dict.insert user.id user acc
         newUsers = List.foldr addUser model.facebookUsers data
         newModel = { model | facebookFriends = Just data, facebookUsers = newUsers }
-        complainAboutPagination =
-          if hasPagination
-          then
-            [ Ports.sentry { message = "API response is paginated" }
-            , Task.perform (List.singleton << AddError)
-              <| Task.succeed """
-                Friend list was not fully read, some are likely missing. Sorry
-                about this. Developer is likely already aware, but feel free to
-                notify them yourself if this issue is longstanding."""
-            ]
-          else []
       in
-      ( newModel
-      , Cmd.batch (sendFriends newModel :: complainAboutPagination)
-      )
+      (newModel, sendFriends newModel)
     FromJS (Ports.FacebookGotUser user) ->
       ( { model | facebookUsers = Dict.insert user.id user model.facebookUsers }
       , case model.facebookLoggedIn of
@@ -472,6 +459,7 @@ updateOne msg model =
             else Cmd.none
           _ -> Cmd.none
       )
+    FromJS (Ports.InProgress continue) -> (model, Cmd.map (\() -> []) continue)
     StartFacebookLogin ->
       case model.facebookLoggedIn of
         LoggingIn -> (model, Cmd.none)
