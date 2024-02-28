@@ -17,29 +17,38 @@ facebookLogout =
   Json.Encode.object [ ("kind", Json.Encode.string "facebook-logout") ]
   |> sendToJS
 
-facebookApi : { path : String, id : String } -> Cmd msg
-facebookApi { path, id } =
+facebookApi : { path : String, params : List (String, Json.Encode.Value), internal : Json.Encode.Value } -> Cmd msg
+facebookApi { path, params, internal } =
   Json.Encode.object
     [ ("kind", Json.Encode.string "facebook-api")
     , ("path", Json.Encode.string path)
-    , ("id", Json.Encode.string id)
+    , ("params", Json.Encode.object params)
+    , ("internal", internal)
     ]
   |> sendToJS
 
+
 facebookFriends : { userId : String } -> Cmd msg
 facebookFriends { userId } =
-  -- If I add more fields here, remember to check the privacy policy
   facebookApi
-    { path = "/" ++ userId ++ "/friends?fields=id,name,short_name,picture,link"
-    , id = "friends"
+    { path = "/" ++ userId ++ "/friends"
+    , -- If I add more fields here, remember to check the privacy policy
+      params = [("fields", Json.Encode.string "id,name,short_name,picture,link")]
+    , internal = Json.Encode.object [("id", Json.Encode.string "friends")]
     }
 
 facebookUser : { personId : String } -> Cmd msg
 facebookUser { personId } =
-  -- If I add more fields here, remember to check the privacy policy
+  -- for testing
   if String.startsWith "_" personId
   then Cmd.none
-  else facebookApi { path = "/" ++ personId ++ "/?fields=id,name,short_name,picture,link", id = "user" }
+  else
+    facebookApi
+      { path = "/" ++ personId
+      , -- If I add more fields here, remember to check the privacy policy
+        params = [("fields", Json.Encode.string "id,name,short_name,picture,link")]
+      , internal = Json.Encode.object [("id", Json.Encode.string "user")]
+      }
 
 sentry : { message : String } -> Cmd msg
 sentry { message } =
@@ -120,7 +129,7 @@ fromJS =
             else Json.Decode.succeed (Ok FacebookLoginFailed)
           ) |> Json.Decode.field "response"
         "facebook-api" ->
-          Json.Decode.field "id" Json.Decode.string
+          Json.Decode.at ["request", "internal", "id"] Json.Decode.string
           |> Json.Decode.andThen (\id ->
             Json.Decode.oneOf
               [ case id of

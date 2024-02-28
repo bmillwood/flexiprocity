@@ -51,12 +51,12 @@ app.ports.sendToJS.subscribe(function(request) {
         FB.api(
             request.path,
             'GET',
-            {},
+            request.params,
             function(response) {
-                console.log('api response', request.id, response);
+                console.log('api', { request, response });
                 app.ports.receiveFromJS.send({
                     kind: 'facebook-api',
-                    id: request.id,
+                    request,
                     response
                 });
             }
