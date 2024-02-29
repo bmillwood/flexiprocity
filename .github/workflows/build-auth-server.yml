@@ -25,6 +25,7 @@ jobs:
         ghc-version: ['9.4']
     defaults:
       run:
+        shell: bash -euo pipefail
         working-directory: auth-server
 
     steps:
@@ -38,6 +39,9 @@ jobs:
           # Defaults, added for clarity:
           cabal-version: 'latest'
           cabal-update: true
+
+      - name: Check cabal file
+        run: cabal check
 
       - name: Configure the build
         run: |
@@ -74,9 +78,3 @@ jobs:
 
       - name: Run tests
         run: cabal test all
-
-      - name: Check cabal file
-        run: cabal check
-
-      - name: Build documentation
-        run: cabal haddock all
