@@ -15,21 +15,47 @@ New features that are implemented:
 - Account self-deletion.
 - User-customisable columns.
 
-## Testing
+## Contributing
 
-You can run flexiprocity locally if you have a Facebook app ID and secret. I
-assume most people won't do this, but one thing to note if you do is that
-Facebook will only let you do their login flow over HTTPS, which is awkward to
-set up locally. Rather than try to come up with an SSL cert that my browser
-trusted for `localhost`, I used a wildcard SSL cert for a real domain and mapped
-a `local.` subdomain of it to localhost in my local DNS config.
+### Testing on the live site
 
-At the time of writing, Facebook has disabled the ability to create dedicated
-test users, so I'm testing flexiprocity with real people. They need a ["Meta
-Developer Account"](https://developers.facebook.com/) before they can be added
-as test users (manually by the app author).
+Until I attach flexiprocity to a "verified business account", users need to:
 
-## things from Facebook ToS to ensure
+- have a ["Meta Developer Account"][1],
+- be manually added to the app configuration by me,
+- confirm this addition in their [developer requests][2] page.
+
+[1]: https://developers.facebook.com/
+[2]: https://developers.facebook.com/settings/developer/requests/
+
+Please feel free to message, e-mail or open a GitHub issue with any feedback you
+have.
+
+One thing I'd particularly appreciate is proposed aesthetic improvements. You
+can of course do these as PRs, but if you don't know how to or don't want to,
+showing me HTML+CSS mockups would be great, and just describing what you want in
+words or pictures is good too.
+
+### Testing locally
+
+You'll need a Facebook app ID and secret, and you can't use mine. I assume most
+people won't bother with this, but let me know if you want instructions.
+
+One thing I will remark upon, because it could be useful in other contexts:
+Facebook will refuse to run the login process unless your site is using HTTPS.
+I guess you could try to set up an SSL cert that is trusted by your browser for
+the localhost domain, but it seemed easier to me to just set up an alias in my
+laptop's network configuration for `local.rpm.cc` to `localhost` and put a
+wildcard cert for `*.rpm.cc` in my configuration. Even though you can't prove
+your ownership of the domain with a local-only hosted site, once you have the
+cert you can use it with any host that resolves to the domain.
+
+## Terms of Service compliance notes
+
+These are the points from the terms of services that I signed up for that seemed
+worth recording.
+
+### Facebook
 
 - There's some restrictions on sharing platform data, but my guess is that
   sharing checkbox data (as may be necessary for a migration from one
@@ -46,13 +72,10 @@ as test users (manually by the app author).
   Service Provider(s) then you will reimburse us for all of our reasonable costs
   and expenses associated with conducting the Audit and any related follow-up
   Audits."
+- Their licenses for your content seem kind of intense, and survive even when
+  you stop using the platform.
 
-### irrelevant ToS commentary
-
-- their licenses for your content seem kind of intense, and survive even when
-  you stop using the platform
-
-## things from the Twitter ToS
+### Twitter
 
 (N.B. that I shelved implementing sign in with Twitter, because the API for
 fetching user followers is $100/month.)
