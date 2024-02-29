@@ -26,7 +26,7 @@ jobs:
         ghc-version: ['9.4']
     defaults:
       run:
-        shell: bash -euo pipefail
+        shell: bash -euo pipefail {0}
         working-directory: auth-server
 
     steps:
