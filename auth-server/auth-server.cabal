@@ -35,7 +35,7 @@ library
       Facebook
       MakeJwt
     build-depends:
-      aeson,
+      aeson >= 2.1 && < 2.3,
       base >= 4.16.4.0 && < 4.18,
       bytestring >=0.11.4.0 && < 0.13,
       containers >=0.6.5.1 && < 0.8,
