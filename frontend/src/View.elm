@@ -51,7 +51,9 @@ viewUser model user { isMe } =
                 Nothing -> Html.text name
             ]
         , Html.div
-            [ Attributes.style "margin" "0.1em 0.5em" ]
+            [ Attributes.style "margin" "0.1em 0.5em"
+            , Attributes.style "font-size" "90%"
+            ]
             (
             if isMe
             then
