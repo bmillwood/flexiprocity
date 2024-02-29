@@ -2,6 +2,7 @@ name: Build auth-server
 on:
   push:
     paths:
+      - .github/workflows/build-auth-server.yml
       - auth-server/**
 
 # Below copies significantly from
