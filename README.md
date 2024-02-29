@@ -3,9 +3,10 @@
 [reciprocity.io](https://reciprocity.io) is a website where you can indicate
 interest in people that they only find out about if it's reciprocated.
 
-flexiprocity is inspired by reciprocity, with a different feature set and
-entirely fresh implementation. The site calls itself reciprocity still, but you
-can refer to this particular version of it as flexiprocity.
+[flexiprocity](https://reciprocity.rpm.cc) is inspired by reciprocity, with a
+different feature set and entirely fresh implementation. The site calls itself
+reciprocity still, but you can refer to this particular version of it as
+flexiprocity.
 
 New features that are implemented:
 
