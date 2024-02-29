@@ -49,7 +49,7 @@ update model msg =
     Compose input ->
       case List.reverse (String.words input) of
         [] -> ({ model | composing = "" }, Cmd.none)
-        [x] -> ({ model | composing = input }, Cmd.none)
+        [_] -> ({ model | composing = input }, Cmd.none)
         newComposing :: newTerms ->
           let
             isOld t = List.member t model.terms

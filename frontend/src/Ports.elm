@@ -1,6 +1,5 @@
 port module Ports exposing (..)
 
-import Dict
 import Json.Decode
 import Json.Encode
 

@@ -8,7 +8,6 @@ import Html.Events as Events
 import Json.Decode
 import Set exposing (Set)
 
-import ListZipper
 import Model exposing (Model, Msg)
 import PrivacyPolicy
 import SearchWords

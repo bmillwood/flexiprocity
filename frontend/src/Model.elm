@@ -7,7 +7,6 @@ import Http
 import Json.Decode
 import Json.Encode
 import Set exposing (Set)
-import Task
 import Url exposing (Url)
 import Url.Parser
 
