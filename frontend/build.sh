@@ -5,5 +5,6 @@ while sleep 1
 do
   inotifywait --quiet -e modify -e delete elm.json src &
   elm make --output=elm.js src/Main.elm
+  ./version-info.sh > version.js
   wait %inotifywait
 done

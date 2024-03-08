@@ -113,6 +113,8 @@ type alias Model =
   { errors : List { id: Int, msg : String }
   , nextErrorId : Int
   , navKey : Nav.Key
+  , latestPrivacyPolicy : Maybe String
+  , myPrivacyPolicy : Maybe String
   , page : Page
   , facebookLoggedIn : LoginStatus { userId : FacebookId, accessToken : String }
   , apiLoggedIn : LoginStatus { userId : UserId }
@@ -143,6 +145,8 @@ type OneMsg
   | ApiLoginResult (LoginStatus { userId : UserId })
   | SetDeleteConfirm { id : String, setTo : Bool }
   | DeleteAccount
+  | MyPrivacyPolicyVersion String
+  | AgreeToPrivacyPolicy { version : String }
   | SetWoulds (Dict WouldId Would)
   | SetColumns (List WouldId)
   | EditProposedWould String
@@ -188,10 +192,14 @@ onUrlRequest urlReq =
 onUrlChange : Url -> Msg
 onUrlChange url = [SetPage (parseUrl url)]
 
-init : () -> Url -> Nav.Key -> (Model, Cmd Msg)
-init () url navKey =
+init : { latestPrivacyPolicy : Maybe String } -> Url -> Nav.Key -> (Model, Cmd Msg)
+init { latestPrivacyPolicy } url navKey =
   ( { errors = []
     , nextErrorId = 0
+    , navKey = navKey
+    , latestPrivacyPolicy = latestPrivacyPolicy
+    , myPrivacyPolicy = Nothing
+    , page = parseUrl url
     , facebookLoggedIn = Unknown
     , apiLoggedIn = Unknown
     , facebookUsers = Dict.empty
@@ -207,8 +215,6 @@ init () url navKey =
     , wouldChange = Dict.empty
     , myNewWould = ""
     , drag = Nothing
-    , navKey = navKey
-    , page = parseUrl url
     }
   , checkApiLogin
   )
@@ -252,18 +258,36 @@ graphQL { query, operationName, variables, decodeResult } =
 checkApiLogin : Cmd Msg
 checkApiLogin =
   let
-    decodeResult =
+    decodeUserId =
       Json.Decode.at
         ["data", "getOrCreateUserId", "userId"]
         (Json.Decode.nullable Json.Decode.string)
-      |> Json.Decode.map (\u ->
-        case u of
-          Nothing -> [ApiLoginResult NotLoggedIn]
-          Just userId -> [ApiLoginResult (LoggedIn { userId = userId })]
-      )
+      |> Json.Decode.map (Maybe.map (\u -> { userId = u }))
+    decodeMyPrivacyPolicy =
+      Json.Decode.at
+        ["data", "getOrCreateUserId", "query", "myUser", "privacyPolicyVersion"]
+        (Json.Decode.nullable Json.Decode.string)
+      |> Json.Decode.map (Maybe.map MyPrivacyPolicyVersion)
+    decodeResult =
+      Json.Decode.map2
+        (\nu nppv ->
+          [ Just << ApiLoginResult <| case nu of
+              Nothing -> NotLoggedIn
+              Just u -> LoggedIn u
+          , nppv
+          ] |> List.filterMap identity
+        )
+        decodeUserId
+        decodeMyPrivacyPolicy
   in
   graphQL
-    { query = "mutation L{getOrCreateUserId(input: {}) {userId}}"
+    { query =
+        [ "mutation L{"
+        , "getOrCreateUserId(input:{}){"
+        , "userId query{myUser{privacyPolicyVersion}}"
+        , "}"
+        , "}"
+        ] |> String.concat
     , operationName = "L"
     , variables = []
     , decodeResult = decodeResult
@@ -536,6 +560,19 @@ updateOne msg model =
           , operationName = "D"
           , variables = []
           , decodeResult = Json.Decode.succeed []
+          }
+      )
+    MyPrivacyPolicyVersion v ->
+      ({ model | myPrivacyPolicy = Just v }, Cmd.none)
+    AgreeToPrivacyPolicy { version } ->
+      ( model
+      , graphQL
+          { query = "mutation P($v:String!){updateMe(input:{privacyPolicyVersion:$v}){user{privacyPolicyVersion}}}"
+          , operationName = "P"
+          , variables = [("v", Json.Encode.string version)]
+          , decodeResult =
+              Json.Decode.at ["data", "updateMe", "user", "privacyPolicyVersion"] Json.Decode.string
+              |> Json.Decode.map (List.singleton << MyPrivacyPolicyVersion)
           }
       )
     SetWoulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)

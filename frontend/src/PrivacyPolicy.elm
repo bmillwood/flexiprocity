@@ -64,7 +64,7 @@ viewPrivacyPolicy =
         obligations of this policy."""
     ]
   , Html.p [] [
-      Html.text """If this policy is changed for any reaosn, you will continue
+      Html.text """If this policy is changed for any reason, you will continue
         to be subject to the terms of the old policy until you explicitly agree
         to the new one."""
     ]

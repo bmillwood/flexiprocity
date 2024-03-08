@@ -14,7 +14,9 @@ window.fbAsyncInit = function() {
     });
 };
 const app = Elm.Main.init({
-    // flags: {}
+    flags: {
+        latestPrivacyPolicy
+    }
 });
 const fbScript = document.createElement("script");
 fbScript.async = true;
