@@ -616,24 +616,25 @@ viewPrivacy : Model -> List (Html Msg)
 viewPrivacy model =
   let
     updatePrivacy =
-      case model.latestPrivacyPolicy of
-        Nothing -> []
-        Just latestVersion ->
+      case (model.apiLoggedIn, model.latestPrivacyPolicy) of
+        (Model.LoggedIn _, Just latestVersion) ->
           let
-            agreeButton =
-              Html.p
+            needsButton =
+              case model.myPrivacyPolicy of
+                Nothing -> True
+                Just myVersion -> latestVersion /= myVersion
+          in
+          if needsButton
+          then
+            [ Html.p
                 []
                 [ Html.button
                     [ Events.onClick [Model.AgreeToPrivacyPolicy { version = latestVersion }] ]
                     [ Html.text "Agree" ]
                 ]
-          in
-          case model.myPrivacyPolicy of
-            Nothing -> [agreeButton]
-            Just myVersion ->
-              if latestVersion == myVersion
-              then []
-              else [agreeButton]
+            ]
+          else []
+        _ -> []
   in
   updatePrivacy ++ PrivacyPolicy.viewPrivacyPolicy
 
