@@ -619,21 +619,40 @@ viewPrivacy model =
       case (model.apiLoggedIn, model.latestPrivacyPolicy) of
         (Model.LoggedIn _, Just latestVersion) ->
           let
+            agreeButton text =
+              Html.p
+                []
+                [ Html.button
+                    [ Events.onClick [Model.AgreeToPrivacyPolicy { version = latestVersion }] ]
+                    [ Html.text text ]
+                ]
             needsButton =
               case model.myPrivacyPolicy of
                 Nothing -> True
                 Just myVersion -> latestVersion /= myVersion
           in
-          if needsButton
-          then
-            [ Html.p
-                []
-                [ Html.button
-                    [ Events.onClick [Model.AgreeToPrivacyPolicy { version = latestVersion }] ]
-                    [ Html.text "Agree" ]
+          case model.myPrivacyPolicy of
+            Nothing ->
+              [ Html.p [] [ Html.text "You have not agreed to the privacy policy. Please read it and agree:" ]
+              , agreeButton "Agree"
+              ]
+            Just myVersion ->
+              if latestVersion == myVersion
+              then []
+              else
+                [ Html.p []
+                    [ Html.text "You have agreed to an older privacy policy (latest is "
+                    , Html.text latestVersion
+                    , Html.text ", you have "
+                    , Html.text myVersion
+                    , Html.text "). I haven't yet worked out how to conveniently show you the changes, but maybe you will find the "
+                    , Html.a
+                        [ Attributes.href "https://github.com/bmillwood/flexiprocity/commits/main/frontend/src/PrivacyPolicy.elm" ]
+                        [ Html.text "changes to the relevant source file" ]
+                    , Html.text " helpful."
+                    ]
+                , agreeButton "Agree to the new policy"
                 ]
-            ]
-          else []
         _ -> []
   in
   updatePrivacy ++ PrivacyPolicy.viewPrivacyPolicy
