@@ -265,9 +265,16 @@ checkApiLogin =
       |> Json.Decode.map (Maybe.map (\u -> { userId = u }))
     decodeMyPrivacyPolicy =
       Json.Decode.at
-        ["data", "getOrCreateUserId", "query", "myUser", "privacyPolicyVersion"]
-        (Json.Decode.nullable Json.Decode.string)
-      |> Json.Decode.map (Maybe.map MyPrivacyPolicyVersion)
+        ["data", "getOrCreateUserId", "query", "myUser"]
+        (Json.Decode.nullable (
+          Json.Decode.field "privacyPolicyVersion"
+            (Json.Decode.nullable Json.Decode.string)
+        ))
+      |> Json.Decode.map (\m ->
+        case m of
+          Just (Just v) -> Just (MyPrivacyPolicyVersion v)
+          _ -> Nothing
+      )
     decodeResult =
       Json.Decode.map2
         (\nu nppv ->
