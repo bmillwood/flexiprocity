@@ -15,10 +15,14 @@ CREATE TYPE public.audience AS ENUM
 -- Postgraphile doesn't support procedures
 CREATE TYPE public.unit AS ENUM ('unit');
 
+CREATE TABLE public.privacy_policies
+  ( version text PRIMARY KEY
+  );
+
 CREATE TABLE public.users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , facebook_id text UNIQUE NOT NULL
-  , privacy_policy_version text
+  , privacy_policy_version text REFERENCES privacy_policies(version)
   , name text
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'friends'
