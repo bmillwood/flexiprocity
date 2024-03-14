@@ -38,7 +38,7 @@ app.ports.sendToJS.subscribe(function(request) {
                 kind: 'facebook-login-status',
                 response
             });
-        }, {scope: 'public_profile,user_friends'});
+        }, {scope: 'public_profile,user_friends,user_link'});
         break;
     case 'facebook-logout':
         FB.logout(function(response) {
