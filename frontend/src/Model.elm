@@ -128,7 +128,7 @@ type alias Model =
   , showMe : Audience
   , nameSearch : SearchWords.Model
   , bioSearch : SearchWords.Model
-  , wouldChange : Dict UserId (Dict WouldId Bool)
+  , youWouldChange : Dict UserId (Dict WouldId Bool)
   , myNewWould : String
   , drag : Maybe Drag
   }
@@ -159,8 +159,8 @@ type OneMsg
   | ShowMe Audience
   | NameSearchMsg SearchWords.OutMsg
   | BioSearchMsg SearchWords.OutMsg
-  | WouldChange { userId : UserId, wouldId : WouldId, changeTo : Bool }
-  | SubmitWouldChanges
+  | ProposeYouWould { userId : UserId, wouldId : WouldId, changeTo : Bool }
+  | SubmitYouWould
   | DragStart Draggable
   | DragEnd
   | DragHover DragTarget
@@ -212,7 +212,7 @@ init { latestPrivacyPolicy } url navKey =
     , showMe = Friends
     , nameSearch = SearchWords.init { htmlInputId = "nameSearch" }
     , bioSearch = SearchWords.init { htmlInputId = "bioSearch" }
-    , wouldChange = Dict.empty
+    , youWouldChange = Dict.empty
     , myNewWould = ""
     , drag = Nothing
     }
@@ -514,7 +514,7 @@ updateOne msg model =
           , facebookFriends = Nothing
           , myBio = ""
           , myVisibility = Nothing
-          , wouldChange = Dict.empty
+          , youWouldChange = Dict.empty
           }
         apiLogout =
           case model.apiLoggedIn of
@@ -666,7 +666,7 @@ updateOne msg model =
       in
       ( { model
         | profiles = Dict.insert user.userId user model.profiles
-        , wouldChange = Dict.update user.userId redundantChange model.wouldChange
+        , youWouldChange = Dict.update user.userId redundantChange model.youWouldChange
         , myBio = if isMe user.userId then user.bio else model.myBio
         }
       , Cmd.none
@@ -741,7 +741,7 @@ updateOne msg model =
       ( { model | bioSearch = newBioSearch }
       , Cmd.map (List.map BioSearchMsg) cmd
       )
-    WouldChange { userId, wouldId, changeTo } ->
+    ProposeYouWould { userId, wouldId, changeTo } ->
       let
         isAlready =
           case Dict.get userId model.profiles of
@@ -757,14 +757,14 @@ updateOne msg model =
           |> doChange
           |> justIfNonEmpty
       in
-      ( { model | wouldChange = Dict.update userId change model.wouldChange }
+      ( { model | youWouldChange = Dict.update userId change model.youWouldChange }
       , Cmd.none
       )
-    SubmitWouldChanges ->
+    SubmitYouWould ->
       case model.apiLoggedIn of
         LoggedIn { userId } ->
           ( model
-          , Dict.toList model.wouldChange
+          , Dict.toList model.youWouldChange
             |> List.map (\(uid, woulds) ->
                 Dict.toList woulds
                 |> List.map (\(wId, changeTo) ->

@@ -313,8 +313,8 @@ viewPeople { customiseColumns } model =
               , Html.th
                   [ Attributes.colspan (List.length colsById) ]
                   [ Html.button
-                      [ Events.onClick [Model.SubmitWouldChanges]
-                      , Attributes.disabled (Dict.isEmpty model.wouldChange)
+                      [ Events.onClick [Model.SubmitYouWould]
+                      , Attributes.disabled (Dict.isEmpty model.youWouldChange)
                       ]
                       [ Html.text "Submit" ]
                   ]
@@ -336,7 +336,7 @@ viewPeople { customiseColumns } model =
                   isMatched = Set.member wName matchedNames
                   isYouWould = Set.member wName youWouldNames
                   isModified =
-                    Dict.get profile.userId model.wouldChange
+                    Dict.get profile.userId model.youWouldChange
                     |> Maybe.map (Dict.member wId)
                     |> Maybe.withDefault False
                   styles =
@@ -352,7 +352,7 @@ viewPeople { customiseColumns } model =
                       else []
                     ] |> List.concat
                   onCheck newChecked =
-                    [ Model.WouldChange
+                    [ Model.ProposeYouWould
                         { userId = profile.userId
                         , wouldId = wId
                         , changeTo = newChecked
@@ -360,7 +360,7 @@ viewPeople { customiseColumns } model =
                     ]
                   isChecked =
                     case
-                      Dict.get profile.userId model.wouldChange
+                      Dict.get profile.userId model.youWouldChange
                       |> Maybe.withDefault Dict.empty
                       |> Dict.get wId
                     of
