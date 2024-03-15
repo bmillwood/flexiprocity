@@ -13,17 +13,64 @@ type alias Model =
   , htmlInputId : String
   }
 
-matches : Model -> String -> Bool
-matches { terms, composing } input =
+span : (a -> Bool) -> List a -> (List a, List a)
+span p xs =
+  case xs of
+    [] -> ([], [])
+    y :: ys ->
+      if p y
+      then
+        case span p ys of
+          (before, after) -> (y :: before, after)
+      else ([], xs)
+
+smartCase : (String -> String -> a) -> String -> String -> a
+smartCase f search input =
+  f
+    (String.trim search)
+    (if String.toLower search == search
+      then String.toLower input
+      else input
+    )
+
+highlightMatches : Model -> String -> List (Html msg)
+highlightMatches { terms, composing } input =
   let
-    contains search =
-      String.contains (String.trim search)
-        (if search == String.toLower search
-          then String.toLower input
-          else input
-        )
+    toHtml from level changes =
+      let
+        percentage = String.fromInt (min 100 (level * 20)) ++ "%"
+        atLevel start end =
+          let
+            text = Html.text (String.slice start end input)
+          in
+          if level <= 0
+          then text
+          else
+            Html.span
+              [ Attributes.style
+                  "background-color"
+                  ("hsla(60, 100%, 50%, " ++ percentage ++ ")")
+              ]
+              [ text ]
+      in
+      case changes of
+        [] -> [atLevel from (String.length input)]
+        (at, by) :: rest ->
+          atLevel from at
+          :: toHtml at (level + by) rest
   in
-  List.all contains (composing :: terms)
+  List.concatMap
+    (\term ->
+      smartCase String.indices term input
+      |> List.concatMap (\i -> [(i, 1), (i + String.length term, -1)])
+    )
+    (composing :: terms)
+  |> List.sort
+  |> toHtml 0 0
+
+hasMatch : Model -> String -> Bool
+hasMatch { terms, composing } input =
+  List.all (\t -> smartCase String.contains t input) (composing :: terms)
 
 type InMsg
   = Delete String

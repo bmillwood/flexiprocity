@@ -40,15 +40,23 @@ viewUser model user { isMe } =
             []
     , Html.div
         []
-        [ Html.div
-            [ Attributes.style "font-weight" "bold" ]
-            [ case facebookUser |> Maybe.andThen .link of
+        [ let
+            linkName nameHtml =
+              case facebookUser |> Maybe.andThen .link of
+                Nothing -> nameHtml
                 Just link ->
-                  Html.a
-                    [ Attributes.href link ]
-                    [ Html.text name ]
-                Nothing -> Html.text name
-            ]
+                  [ Html.a
+                      [ Attributes.href link ]
+                      nameHtml
+                  ]
+            highlightedName =
+              if isMe
+              then [ Html.text name ]
+              else SearchWords.highlightMatches model.nameSearch name
+          in
+          Html.div
+            [ Attributes.style "font-weight" "bold" ]
+            (linkName highlightedName)
         , Html.div
             [ Attributes.style "margin" "0.1em 0.5em"
             , Attributes.style "font-size" "90%"
@@ -77,7 +85,7 @@ viewUser model user { isMe } =
                   ]
               ]
             else
-              [ Html.text user.bio ]
+              SearchWords.highlightMatches model.bioSearch user.bio
           )
         ]
     ]
@@ -418,9 +426,9 @@ viewPeople { customiseColumns } model =
           sortProfiles = List.sortWith profileCompare
           filterName profile =
             Dict.get profile.facebookId model.facebookUsers
-            |> Maybe.map (SearchWords.matches model.nameSearch << .name)
+            |> Maybe.map (SearchWords.hasMatch model.nameSearch << .name)
             |> Maybe.withDefault False
-          filterBio profile = SearchWords.matches model.bioSearch profile.bio
+          filterBio profile = SearchWords.hasMatch model.bioSearch profile.bio
           filterAudience profile =
             case model.showMe of
               Model.Everyone ->
