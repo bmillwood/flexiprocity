@@ -39,4 +39,4 @@ tmux new-session \; \
     select-pane -t 0
 EOF
 chmod +x "$d"/start.sh
-tar -C "$tmpdir" -czf flexiprocity.tar.gz flexiprocity
+tar -C "$tmpdir" -czf ops/flexiprocity.tar.gz flexiprocity
