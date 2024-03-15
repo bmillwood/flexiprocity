@@ -335,8 +335,15 @@ tryApiLogin model =
 
 sendFriends : Model -> Cmd Msg
 sendFriends model =
-  case (model.myVisibility, model.apiLoggedIn, model.facebookFriends) of
-    (Just Friends, LoggedIn _, Just friends) ->
+  case
+    ( ( model.myPrivacyPolicy
+      , model.myVisibility
+      )
+    , ( model.apiLoggedIn
+      , model.facebookFriends
+      )
+    ) of
+    ((Just _, Just Friends), (LoggedIn _, Just friends)) ->
       graphQL
         { query = "mutation F($f:[String]!){setFacebookFriends(input:{friendFbids:$f}){unit}}"
         , operationName = "F"
@@ -570,7 +577,14 @@ updateOne msg model =
           }
       )
     MyPrivacyPolicyVersion v ->
-      ({ model | myPrivacyPolicy = Just v }, Cmd.none)
+      let
+        newModel = { model | myPrivacyPolicy = Just v }
+      in
+      ( newModel
+      , case model.myPrivacyPolicy of
+          Just _ -> Cmd.none
+          Nothing -> sendFriends newModel
+      )
     AgreeToPrivacyPolicy { version } ->
       ( model
       , graphQL
