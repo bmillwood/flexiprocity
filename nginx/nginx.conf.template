@@ -31,7 +31,7 @@ http {
     server {
         listen 57959 ssl;
         listen [::]:57959 ssl;
-        server_name flexiprocity.rpm.cc;
+        server_name flexiprocity.rpm.cc reciprocity.rpm.cc;
         ssl_certificate ../secrets/ssl/fullchain.pem;
         ssl_certificate_key ../secrets/ssl/privkey.pem;
         location /auth/ {
