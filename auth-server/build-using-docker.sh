@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-set -o errexit -o nounset -o pipefail
-if [ -z "$(docker container ls --all --quiet --filter name='^auth-server-build$')" ]
+set -o errexit -o nounset -o pipefail -x
+dockername=auth-server-build
+if [ -z "$(docker container ls --all --quiet --filter name="^$dockername"'$')" ]
 then
     mkdir -p ubuntu
-    docker run --name auth-server-build --mount type=bind,src=$PWD,dst=/mnt haskell:9.4 bash -c 'cd /mnt; cabal update; cabal install --only-dependencies'
+    docker run --detach --name "$dockername" --mount type=bind,src=$PWD,dst=/mnt haskell:9.4 bash -ec 'while true; do sleep 1e9; done'
+    docker exec "$dockername" bash -c 'cd /mnt; cabal update; cabal install --only-dependencies'
 fi
-if [ -z "$(docker container ls --quiet --filter name='^auth-server-build$')" ]
+if [ -z "$(docker container ls --quiet --filter name="^$dockername"'$')" ]
 then
-    docker start auth-server-build
+    docker start "$dockername"
 fi
-docker exec auth-server-build bash -c 'cd /mnt; cabal install --install-method=copy --installdir=/mnt/ubuntu'
+docker exec "$dockername" bash -c 'cd /mnt; cabal install --install-method=copy --installdir=/mnt/ubuntu'
