@@ -136,7 +136,7 @@ CREATE TABLE public.woulds
   );
 INSERT INTO woulds (name, is_default)
 VALUES ('Hang out sometime', true), ('Go on a date or something', true);
-GRANT SELECT, INSERT, UPDATE(name) ON woulds TO api;
+GRANT SELECT, INSERT, UPDATE(name), DELETE ON woulds TO api;
 
 CREATE POLICY read_all ON woulds FOR SELECT TO api USING (true);
 CREATE POLICY write_mine ON woulds FOR ALL TO api
@@ -231,21 +231,25 @@ CREATE VIEW public.would_stats AS
   GROUP BY w.would_id;
 GRANT SELECT ON would_stats TO api;
 
-CREATE FUNCTION public.restrict_custom_woulds() RETURNS TRIGGER
+CREATE OR REPLACE FUNCTION public.restrict_custom_woulds() RETURNS TRIGGER
   LANGUAGE plpgsql AS $$DECLARE
     this_user_id bigint;
     num_recent bigint;
   BEGIN
     this_user_id := current_user_id();
-    IF TG_OP = 'UPDATE' THEN
+    IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
       IF EXISTS (
           SELECT FROM user_woulds uw
           WHERE would_id = NEW.would_id
           AND user_id <> this_user_id
         ) THEN
-        RAISE EXCEPTION 'Cannot change the name of a column in use';
+        RAISE EXCEPTION 'Cannot rename or delete a column in use';
       END IF;
-      RETURN NULL;
+      IF TG_OP = 'UPDATE' THEN
+        RETURN NEW;
+      ELSE
+        RETURN OLD;
+      END IF;
     ELSIF TG_OP = 'INSERT' THEN
       NEW.added_by_id := this_user_id;
       SELECT count(*)
@@ -260,7 +264,7 @@ CREATE FUNCTION public.restrict_custom_woulds() RETURNS TRIGGER
     END IF;
   END$$;
 
-CREATE TRIGGER restrict_custom_woulds BEFORE INSERT OR UPDATE ON woulds
+CREATE OR REPLACE TRIGGER restrict_custom_woulds BEFORE INSERT OR UPDATE OR DELETE ON woulds
   FOR EACH ROW
   EXECUTE FUNCTION restrict_custom_woulds();
 

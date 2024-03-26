@@ -95,7 +95,7 @@ type Page
 accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
 
-type alias Would = { name : String, uses : Maybe Int }
+type alias Would = { name : String, addedById : Maybe UserId, uses : Maybe Int }
 type WouldUpdate
   = CreateWould { name : String }
   | RenameWould { id : WouldId, name : String }
@@ -371,10 +371,11 @@ decodeWouldStats =
           Just i -> Json.Decode.succeed i
       )
   in
-  Json.Decode.map3
-    (\i n u -> (i, { name = n, uses = u }))
+  Json.Decode.map4
+    (\i n a u -> (i, { name = n, addedById = a, uses = u }))
     (Json.Decode.field "wouldId" Json.Decode.string)
     (Json.Decode.field "name" Json.Decode.string)
+    (Json.Decode.field "addedById" (Json.Decode.nullable Json.Decode.string))
     (Json.Decode.field "uses" (Json.Decode.nullable intAsString))
   |> Json.Decode.list
   |> Json.Decode.map Dict.fromList
@@ -410,7 +411,7 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
             in
             "them:userProfiles" ++ condition ++ "{nodes{...F}}"
           , if getMyVisibility then "myUser{visibleTo}" else ""
-          , if getWoulds then "wouldStats{nodes{wouldId name uses}}getMyColumns" else ""
+          , if getWoulds then "wouldStats{nodes{wouldId name addedById uses}}getMyColumns" else ""
         , "}"
         ] |> String.concat
     , operationName = "Q"
@@ -431,7 +432,7 @@ setColumns cols =
     { query =
       String.concat
         [ "mutation M($c:[BigInt!]!){setMyColumns(input:{columns:$c}){"
-          , "query{wouldStats{nodes{wouldId name uses}}}"
+          , "query{wouldStats{nodes{wouldId name addedById uses}}}"
         , "}}"
         ]
     , operationName = "M"
@@ -607,7 +608,7 @@ updateOne msg model =
             , ("createWould", "(input:{would:{name:$n}})")
             )
           RenameWould { id, name } ->
-            ( ( "($i:String!,$n:String!)"
+            ( ( "($i:BigInt!,$n:String!)"
               , [ ("i", Json.Encode.string id)
                 , ("n", Json.Encode.string name)
                 ]
@@ -615,7 +616,7 @@ updateOne msg model =
             , ("updateWould", "(input:{wouldId:$i,patch:{name:$n}})")
             )
           DeleteWould { id } ->
-            ( ("($i:String!)", [("i", Json.Encode.string id)])
+            ( ("($i:BigInt!)", [("i", Json.Encode.string id)])
             , ("deleteWould", "(input:{wouldId:$i})")
             )
       in
@@ -625,7 +626,7 @@ updateOne msg model =
               String.concat
                 [ "mutation C" ++ params ++ "{"
                   , function ++ args ++ "{"
-                    , "query{wouldStats{nodes{wouldId name uses}}}"
+                    , "query{wouldStats{nodes{wouldId name addedById uses}}}"
                     , "would{wouldId}"
                   , "}"
                 , "}"

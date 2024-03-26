@@ -90,8 +90,8 @@ viewUser model user { isMe } =
         ]
     ]
 
-viewCustomiseColumns : Model -> List (Html Msg)
-viewCustomiseColumns model =
+viewCustomiseColumns : Model -> { myUserId : Model.UserId } -> List (Html Msg)
+viewCustomiseColumns model { myUserId } =
   let
     indexInOrLength x xs =
       List.foldr (\this acc -> if x == this then 0 else 1 + acc) 0 xs
@@ -168,6 +168,25 @@ viewCustomiseColumns model =
                         ]
                     ]
               , [ Html.text would.name ]
+              , let
+                  canDelete =
+                    would.addedById == Just myUserId
+                    && case would.uses of
+                      -- usually this means "default" which also means "no
+                      -- addedById", so this case should be unreachable
+                      Nothing -> False
+                      -- this is not the real condition but it's close
+                      Just n -> n <= (if isChecked then 1 else 0)
+                in
+                if canDelete
+                then
+                  [ Html.button
+                      [ Attributes.style "font-size" "50%"
+                      , Events.onClick [Model.ChangeWoulds (Model.DeleteWould { id = wId })]
+                      ]
+                      [ Html.text "❌" ]
+                  ]
+                else []
               ]
             )
         ]
@@ -220,8 +239,8 @@ viewCustomiseColumns model =
       ]
   ]
 
-viewPeople : { customiseColumns : Bool } -> Model -> List (Html Msg)
-viewPeople { customiseColumns } model =
+viewPeople : { customiseColumns : Bool, myUserId : Model.UserId } -> Model -> List (Html Msg)
+viewPeople { customiseColumns, myUserId } model =
   [ let
       showClass cl =
         Html.span
@@ -458,7 +477,7 @@ viewPeople { customiseColumns } model =
           else List.map viewProfile profiles
         )
       ]
-  ] ++ if customiseColumns then viewCustomiseColumns model else []
+  ] ++ if customiseColumns then viewCustomiseColumns model { myUserId = myUserId } else []
 
 viewLogin : Model -> Html Msg
 viewLogin model =
@@ -595,7 +614,7 @@ viewRoot { customiseColumns } model =
                     ]
                 ]
             ]
-          , viewPeople { customiseColumns = customiseColumns } model
+          , viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
           ] |> List.concat
         (_, _) ->
           whatIsReciprocity
