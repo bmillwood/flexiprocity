@@ -241,7 +241,37 @@ viewCustomiseColumns model { myUserId } =
 
 viewPeople : { customiseColumns : Bool, myUserId : Model.UserId } -> Model -> List (Html Msg)
 viewPeople { customiseColumns, myUserId } model =
-  [ let
+  [ Html.p []
+      [ case model.facebookFriends of
+          Nothing ->
+            Html.text "Retrieving your Facebook friends..."
+          Just friends ->
+            [ if List.isEmpty friends
+              then "None"
+              else String.fromInt (List.length friends)
+            , " of your Facebook friends use reciprocity"
+            , if List.isEmpty friends
+              then " 🙁"
+              else ""
+            ] |> String.concat |> Html.text
+      ]
+  , Html.table []
+      [ Html.tr []
+          [ Html.td [] [Html.text "Search names: "]
+          , Html.td []
+              [ SearchWords.view model.nameSearch
+                |> Html.map (List.map Model.NameSearchMsg)
+              ]
+          ]
+      , Html.tr []
+          [ Html.td [] [Html.text "Search bios: "]
+          , Html.td []
+              [ SearchWords.view model.bioSearch
+                |> Html.map (List.map Model.BioSearchMsg)
+              ]
+          ]
+      ]
+  , let
       showClass cl =
         Html.span
           [ Attributes.class cl
@@ -585,38 +615,13 @@ viewRoot { customiseColumns } model =
       , case Dict.get userId model.profiles of
           Just u -> [viewUser model u { isMe = True }]
           Nothing -> []
-      , [ Html.p []
-            [ case model.facebookFriends of
-                Nothing ->
-                  Html.text "Retrieving your Facebook friends..."
-                Just friends ->
-                  [ if List.isEmpty friends
-                    then "None"
-                    else String.fromInt (List.length friends)
-                  , " of your Facebook friends use reciprocity"
-                  , if List.isEmpty friends
-                    then " 🙁"
-                    else ""
-                  ] |> String.concat |> Html.text
-            ]
-        , Html.table []
-            [ Html.tr []
-                [ Html.td [] [Html.text "Search names: "]
-                , Html.td []
-                    [ SearchWords.view model.nameSearch
-                      |> Html.map (List.map Model.NameSearchMsg)
-                    ]
-                ]
-            , Html.tr []
-                [ Html.td [] [Html.text "Search bios: "]
-                , Html.td []
-                    [ SearchWords.view model.bioSearch
-                      |> Html.map (List.map Model.BioSearchMsg)
-                    ]
-                ]
-            ]
-        ]
-      , viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
+      , case (model.facebookLoggedIn, model.facebookFriends) of
+          (Model.LoggedIn _, Just _) ->
+            viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
+          (Model.LoggedIn _, Nothing) ->
+            [ Html.text "Retrieving your Facebook friends..." ]
+          (_, _) ->
+            [ Html.text "(You need to log in with Facebook to see people)" ]
       ] |> List.concat
     privacyPrompt =
       Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
