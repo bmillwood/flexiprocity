@@ -580,15 +580,17 @@ viewRoot { customiseColumns } model =
       [ Html.p [] [ Html.text "reciprocity offers you a list of other users and some tickboxes for each user." ]
       , Html.p [] [ Html.text "We only tell them you ticked them if they tick you too." ]
       ]
-    normalPage =
-      case (model.apiLoggedIn, model.facebookFriends) of
-        (Model.LoggedIn { userId }, Just friends) ->
-          [ viewAudienceControls model
-          , case Dict.get userId model.profiles of
-              Just u -> [viewUser model u { isMe = True }]
-              Nothing -> []
-          , [ Html.p []
-                [ [ if List.isEmpty friends
+    normalPage { userId } =
+      [ viewAudienceControls model
+      , case Dict.get userId model.profiles of
+          Just u -> [viewUser model u { isMe = True }]
+          Nothing -> []
+      , [ Html.p []
+            [ case model.facebookFriends of
+                Nothing ->
+                  Html.text "Retrieving your Facebook friends..."
+                Just friends ->
+                  [ if List.isEmpty friends
                     then "None"
                     else String.fromInt (List.length friends)
                   , " of your Facebook friends use reciprocity"
@@ -596,47 +598,48 @@ viewRoot { customiseColumns } model =
                     then " 🙁"
                     else ""
                   ] |> String.concat |> Html.text
-                ]
-            , Html.table []
-                [ Html.tr []
-                    [ Html.td [] [Html.text "Search names: "]
-                    , Html.td []
-                        [ SearchWords.view model.nameSearch
-                          |> Html.map (List.map Model.NameSearchMsg)
-                        ]
+            ]
+        , Html.table []
+            [ Html.tr []
+                [ Html.td [] [Html.text "Search names: "]
+                , Html.td []
+                    [ SearchWords.view model.nameSearch
+                      |> Html.map (List.map Model.NameSearchMsg)
                     ]
-                , Html.tr []
-                    [ Html.td [] [Html.text "Search bios: "]
-                    , Html.td []
-                        [ SearchWords.view model.bioSearch
-                          |> Html.map (List.map Model.BioSearchMsg)
-                        ]
+                ]
+            , Html.tr []
+                [ Html.td [] [Html.text "Search bios: "]
+                , Html.td []
+                    [ SearchWords.view model.bioSearch
+                      |> Html.map (List.map Model.BioSearchMsg)
                     ]
                 ]
             ]
-          , viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
-          ] |> List.concat
-        (_, _) ->
-          whatIsReciprocity
+        ]
+      , viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
+      ] |> List.concat
     privacyPrompt =
       Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
   in
   [ [ viewLogin model ]
-  , case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
-      (Nothing, _) -> normalPage
-      (Just _, Nothing) ->
-        [ whatIsReciprocity
-        , [ Html.p [] [Html.text "I think you're new here, so you'll need to agree to the privacy policy."]
-          , privacyPrompt
-          ]
-        ] |> List.concat
-      (Just latestVersion, Just myVersion) ->
-        if latestVersion == myVersion
-        then normalPage
-        else
-          [ Html.p [] [Html.text "Looks like the privacy policy has been updated since you agreed to it."]
-          , privacyPrompt
-          ]
+  , case model.apiLoggedIn of
+      Model.LoggedIn { userId } ->
+        case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
+          (Nothing, _) -> normalPage { userId = userId }
+          (Just _, Nothing) ->
+            [ whatIsReciprocity
+            , [ Html.p [] [Html.text "I think you're new here, so you'll need to agree to the privacy policy."]
+              , privacyPrompt
+              ]
+            ] |> List.concat
+          (Just latestVersion, Just myVersion) ->
+            if latestVersion == myVersion
+            then normalPage { userId = userId }
+            else
+              [ Html.p [] [Html.text "Looks like the privacy policy has been updated since you agreed to it."]
+              , privacyPrompt
+              ]
+      _ -> whatIsReciprocity
   ] |> List.concat
 
 viewPrivacy : Model -> List (Html Msg)
