@@ -13,6 +13,10 @@ type alias Model =
   , htmlInputId : String
   }
 
+-- an inactive search matches anything
+isActive : Model -> Bool
+isActive { terms, composing } = List.all String.isEmpty (composing :: terms)
+
 span : (a -> Bool) -> List a -> (List a, List a)
 span p xs =
   case xs of

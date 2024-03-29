@@ -12,16 +12,19 @@ import Model exposing (Model, Msg)
 import PrivacyPolicy
 import SearchWords
 
+profileName : Model -> Model.Profile -> Maybe String
+profileName model profile =
+  case Dict.get profile.facebookId model.facebookUsers of
+    Nothing -> profile.name
+    Just { name } -> Just name
+
 viewUser : Model -> Model.Profile -> { isMe : Bool } -> Html Msg
 viewUser model user { isMe } =
   let
     facebookUser = Dict.get user.facebookId model.facebookUsers
     name =
-      Maybe.map .name facebookUser
-      |> Maybe.withDefault (
-        user.name
-        |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
-      )
+      profileName model user
+      |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
     picture = facebookUser |> Maybe.map .picture
   in
   Html.div
@@ -242,18 +245,20 @@ viewCustomiseColumns model { myUserId } =
 viewPeople : { customiseColumns : Bool, myUserId : Model.UserId } -> Model -> List (Html Msg)
 viewPeople { customiseColumns, myUserId } model =
   [ Html.p []
-      [ case model.facebookFriends of
-          Nothing ->
+      [ case (model.facebookLoggedIn, model.facebookFriends) of
+          (_, Just friends) ->
+            if List.isEmpty friends
+            then Html.text "None of your Facebook friends use reciprocity 🙁"
+            else
+              [ String.fromInt (List.length friends)
+              , " of your Facebook friends use reciprocity"
+              ] |> String.concat |> Html.text
+          (Model.LoggedIn _, Nothing) ->
             Html.text "Retrieving your Facebook friends..."
-          Just friends ->
-            [ if List.isEmpty friends
-              then "None"
-              else String.fromInt (List.length friends)
-            , " of your Facebook friends use reciprocity"
-            , if List.isEmpty friends
-              then " 🙁"
-              else ""
-            ] |> String.concat |> Html.text
+          _ ->
+            Html.span
+              [ Attributes.class "error" ]
+              [ Html.text "Log in with Facebook to see pictures, profile links etc." ]
       ]
   , Html.table []
       [ Html.tr []
@@ -445,9 +450,6 @@ viewPeople { customiseColumns, myUserId } model =
             Html.tr [] cols
           profileCompare p1 p2 =
             let
-              nameOf p =
-                Dict.get p.facebookId model.facebookUsers
-                |> Maybe.map .name
               nullsLast m1 m2 =
                 case (m1, m2) of
                   (Nothing, Nothing) -> EQ
@@ -470,14 +472,15 @@ viewPeople { customiseColumns, myUserId } model =
                 (Maybe.withDefault "" p2.friendsSince)
                 (Maybe.withDefault "" p1.friendsSince)
             , compare p2.createdAt p1.createdAt
-            , nullsLast (nameOf p1) (nameOf p2)
+            , nullsLast (profileName model p1) (profileName model p2)
             ] |> List.foldr lexicographic EQ
           sortProfiles = List.sortWith profileCompare
           filterName profile =
-            Dict.get profile.facebookId model.facebookUsers
-            |> Maybe.map (SearchWords.hasMatch model.nameSearch << .name)
-            |> Maybe.withDefault False
-          filterBio profile = SearchWords.hasMatch model.bioSearch profile.bio
+            case profileName model profile of
+              Nothing -> not (SearchWords.isActive model.nameSearch)
+              Just n -> SearchWords.hasMatch model.nameSearch n
+          filterBio profile =
+            SearchWords.hasMatch model.bioSearch profile.bio
           filterAudience profile =
             case model.showMe of
               Model.Everyone ->
@@ -615,13 +618,7 @@ viewRoot { customiseColumns } model =
       , case Dict.get userId model.profiles of
           Just u -> [viewUser model u { isMe = True }]
           Nothing -> []
-      , case (model.facebookLoggedIn, model.facebookFriends) of
-          (Model.LoggedIn _, Just _) ->
-            viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
-          (Model.LoggedIn _, Nothing) ->
-            [ Html.text "Retrieving your Facebook friends..." ]
-          (_, _) ->
-            [ Html.text "(You need to log in with Facebook to see people)" ]
+      , viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
       ] |> List.concat
     privacyPrompt =
       Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
@@ -788,7 +785,8 @@ view model =
         ]
       , let
           viewError { id, msg } =
-            Html.li []
+            Html.li
+              [ Attributes.class "error" ]
               [ Html.button
                   [ Events.onClick [Model.DismissError { id = id }]
                   , Attributes.style "margin-right" "0.2em"
