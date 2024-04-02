@@ -9,7 +9,7 @@ do
     mkdir -p var/{log,run}
     source ../secrets/sentry.env
     sed -re "s~SENTRY_URL~$SENTRY_URL~" nginx.conf.template > nginx.conf
-    inotifywait --quiet -e modify nginx.conf &
+    inotifywait --quiet -e modify nginx.conf.template &
     nginx -p "$PWD" -c nginx.conf -e var/log/error.log &
     wait %inotifywait
     kill %nginx
