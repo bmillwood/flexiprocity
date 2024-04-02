@@ -34,6 +34,7 @@ http {
     server {
         listen 57958;
         listen [::]:57958;
+        server_name flexiprocity.rpm.cc local.rpm.cc reciprocity.rpm.cc;
         location / {
             return 308 https://$https_host$request_uri;
         }
@@ -41,7 +42,7 @@ http {
     server {
         listen 57959 ssl;
         listen [::]:57959 ssl;
-        server_name flexiprocity.rpm.cc reciprocity.rpm.cc;
+        server_name flexiprocity.rpm.cc local.rpm.cc reciprocity.rpm.cc;
         ssl_certificate ../secrets/ssl/fullchain.pem;
         ssl_certificate_key ../secrets/ssl/privkey.pem;
         location /auth/ {
