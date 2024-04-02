@@ -21,6 +21,16 @@ http {
         ~^(.*):57958$ "$1:57959";
         default $http_host;
     }
+    # require that the server is accessed with the correct hostname
+    server {
+        listen 57958 default_server;
+        listen [::]:57958 default_server;
+        listen 57959 ssl default_server;
+        listen [::]:57959 ssl default_server;
+        ssl_certificate ../secrets/ssl/fullchain.pem;
+        ssl_certificate_key ../secrets/ssl/privkey.pem;
+        return 444; # nginx-specific special code to just close the connection
+    }
     server {
         listen 57958;
         listen [::]:57958;
