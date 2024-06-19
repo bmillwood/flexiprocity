@@ -38,7 +38,7 @@ library
       MakeJwt
     build-depends:
       aeson >= 2.1 && < 2.3,
-      base >= 4.16.4.0 && < 4.18,
+      base >= 4.16.4.0 && < 4.19,
       bytestring >=0.11.4.0 && < 0.13,
       containers >=0.6.5.1 && < 0.8,
       cryptonite ^>=0.30,
@@ -66,5 +66,5 @@ executable auth-server
     -- other-extensions:
     build-depends:
       auth-server,
-      base >= 4.16.4.0 && < 4.18,
+      base >= 4.16.4.0 && < 4.19,
     hs-source-dirs:   app
