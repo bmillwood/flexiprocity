@@ -25,7 +25,8 @@ fbScript.crossOrigin = "anonymous";
 fbScript.src = "https://connect.facebook.net/en_US/sdk.js";
 fbScript.onerror = function(error) {
     app.ports.receiveFromJS.send({
-        kind: 'facebook-sdk-load-failure',
+        kind: 'sdk-load-failure',
+        which: 'facebook'
     });
 };
 document.body.appendChild(fbScript);

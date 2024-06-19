@@ -863,7 +863,7 @@ subscriptions model =
       case msg of
         Ok fromJS -> [FromJS fromJS]
         Err (Ports.DriverProtocolError s) -> [AddError s]
-        Err Ports.FacebookSDKLoadFailed ->
+        Err (Ports.SDKLoadFailed Ports.Facebook) ->
           [ AddError """Facebook SDK failed to load. This app (for now)
               requires Facebook login in order to function. If your
               browser blocks Facebook tracking, see if you can enable

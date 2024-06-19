@@ -81,9 +81,21 @@ type alias FacebookUser =
   , link : Maybe String
   }
 
+type WhichSDK
+  = Facebook
+
+decodeWhichSDK : Json.Decode.Decoder WhichSDK
+decodeWhichSDK =
+  Json.Decode.string
+  |> Json.Decode.andThen (\whichSDK ->
+    case whichSDK of
+      "facebook" -> Json.Decode.succeed Facebook
+      _ -> Json.Decode.fail ("unknown SDK: " ++ whichSDK)
+  )
+
 type Error
   = DriverProtocolError String
-  | FacebookSDKLoadFailed
+  | SDKLoadFailed WhichSDK
   | FacebookAccessTokenExpired { whileDoing : String }
   | FacebookUnknownError { whileDoing : String, error : Json.Decode.Value }
 
@@ -133,8 +145,9 @@ fromJS =
       |> Json.Decode.map Err
     decodePayload kind =
       case kind of
-        "facebook-sdk-load-failure" ->
-          Json.Decode.succeed (Err FacebookSDKLoadFailed)
+        "sdk-load-failure" ->
+          Json.Decode.field "which" decodeWhichSDK
+          |> Json.Decode.map (Err << SDKLoadFailed)
         "facebook-login-status" ->
           Json.Decode.field "status" Json.Decode.string
           |> Json.Decode.andThen (\status ->
