@@ -35,18 +35,23 @@ library
     other-modules:
       Api
       Facebook
+      Google
       MakeJwt
     build-depends:
       aeson >= 2.1 && < 2.3,
       base >= 4.16.4.0 && < 4.19,
       bytestring >=0.11.4.0 && < 0.13,
       containers >=0.6.5.1 && < 0.8,
+      cookie ^>=0.5,
       cryptonite ^>=0.30,
       http-api-data >=0.4 && <0.7,
+      http-client ^>= 0.7,
+      http-client-tls ^>= 0.3,
       http-types ^>=0.12,
       jwt ^>=0.11.0,
       memory ^>=0.18.0,
       mtl >=2.2 && <2.4,
+      oidc-client ^>= 0.8,
       random ^>=1.2,
       req ^>=3.13.0,
       servant >=0.19.1 && <0.21,

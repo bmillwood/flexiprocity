@@ -6,7 +6,9 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Map as Map
+import Data.Map (Map)
 import qualified Data.Text as Text
+import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 
 import Servant ((:<|>) ((:<|>)))
@@ -17,12 +19,11 @@ import qualified Network.Wai.Middleware.Cors as Cors
 
 import qualified Api
 import qualified Facebook
+import qualified Google
 import qualified MakeJwt
 
-login :: Map.Map Text.Text Aeson.Value -> Servant.Handler (Api.SetCookie Servant.NoContent)
-login claimsMap = do
-  jwt <- liftIO $ MakeJwt.makeJwt claimsMap
-  pure $ Servant.addHeader (cookie jwt) Servant.NoContent
+jwtCookie :: Map Text Aeson.Value -> IO Text
+jwtCookie claimsMap = cookie <$> MakeJwt.makeJwt claimsMap
   where
     cookie jwt =
       Text.intercalate "; "
@@ -37,11 +38,38 @@ login claimsMap = do
 facebookLogin :: Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogin userToken = do
   fbUserId <- liftIO $ Facebook.getUserId userToken
-  login $ Map.singleton "facebookUserId" (Aeson.toJSON fbUserId)
+  cookie <- liftIO $ jwtCookie (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
+  pure $ Servant.addHeader cookie Servant.NoContent
 
 facebookLogout :: Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogout =
   pure $ Servant.addHeader "jwt=; Path=/; Max-Age=0" Servant.NoContent
+
+googleStart :: Google.Env -> Servant.Handler Api.CookieRedirect
+googleStart env = do
+  (sessId, url) <- liftIO $ Google.startUrl env
+  pure
+    $ Servant.addHeader (Google.sessionIdCookie sessId)
+    $ Servant.addHeader url
+    $ Servant.NoContent
+
+googleComplete :: Google.Env -> Maybe Google.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
+googleComplete _ _ (Just errMsg) _ = do
+  liftIO . putStrLn $ "googleComplete error: " <> show errMsg
+  Except.throwError Servant.err403
+googleComplete _ Nothing _ _ = do
+  liftIO . putStrLn $ "googleComplete error: no sessId"
+  Except.throwError Servant.err403
+googleComplete _ _ _ Nothing = do
+  liftIO . putStrLn $ "googleComplete error: no code"
+  Except.throwError Servant.err403
+googleComplete env (Just sessId) Nothing (Just code) = do
+  email <- liftIO $ Google.codeToEmail env sessId (Text.encodeUtf8 code)
+  cookie <- liftIO $ jwtCookie (Map.singleton "googleEmail" (Aeson.toJSON email))
+  pure
+    $ Servant.addHeader cookie
+    $ Servant.addHeader "/"
+    $ Servant.NoContent
 
 facebookDecodeSignedReq :: Facebook.SignedRequest -> Servant.Handler Aeson.Value
 facebookDecodeSignedReq signedReq = do
@@ -53,13 +81,17 @@ facebookDecodeSignedReq signedReq = do
   where
     bsFromString = BSL.fromStrict . Text.encodeUtf8 . Text.pack
 
-loginServer :: Servant.Server Api.Api
-loginServer =
-  (facebookLogin :<|> facebookLogout)
-  :<|> facebookDecodeSignedReq
+server :: Google.Env -> Servant.Server Api.Api
+server google = loginServer :<|> facebookDecodeSignedReq
+  where
+    loginServer =
+      (facebookLogin :<|> facebookLogout)
+      :<|> (googleStart google :<|> googleComplete google)
 
-app :: Wai.Application
-app = Servant.serve (Proxy @Api.Api) loginServer
+app :: Google.Env -> Wai.Application
+app google = Servant.serve (Proxy @Api.Api) (server google)
 
 main :: IO ()
-main = Warp.run 5001 (Cors.simpleCors app)
+main = do
+  google <- Google.init
+  Warp.run 5001 (Cors.simpleCors (app google))

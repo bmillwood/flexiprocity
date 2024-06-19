@@ -6,6 +6,7 @@ import Data.Text (Text)
 import Servant.API
 
 import qualified Facebook
+import qualified Google
 
 type SetCookie a = Headers '[Header "Set-Cookie" Text] a
 
@@ -15,10 +16,24 @@ type LoginFacebook =
     :> Verb 'POST 204 '[JSON] (SetCookie NoContent)
   :<|> Verb 'DELETE 204 '[JSON] (SetCookie NoContent)
 
+type CookieRedirect = Headers '[Header "Set-Cookie" Text, Header "Location" Text] NoContent
+
+type LoginGoogle =
+  "start"
+    :> Verb 'GET 303 '[PlainText] CookieRedirect
+  :<|> "complete"
+    :> Header "Cookie" Google.SessionId
+    :> QueryParam "error" Text
+    :> QueryParam "code" Text
+    :> Verb 'GET 303 '[JSON] CookieRedirect
+
 type FacebookDecodeSignedRequest =
   ReqBody '[JSON] Facebook.SignedRequest
   :> Get '[JSON] Aeson.Value
 
-type Api
-  = ("login" :> "facebook" :> LoginFacebook)
-  :<|> ("facebook" :> "decode-signed-request" :> FacebookDecodeSignedRequest)
+type Api =
+  "login" :> (
+    "facebook" :> LoginFacebook
+    :<|> "google" :> LoginGoogle
+  )
+  :<|> "facebook" :> "decode-signed-request" :> FacebookDecodeSignedRequest

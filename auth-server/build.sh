@@ -13,6 +13,7 @@ do
   then
     set +x
     source ../secrets/secrets.env
+    export HOST_ORIGIN=local.rpm.cc:57959
     set -x
     cabal run auth-server &
     cabal test
