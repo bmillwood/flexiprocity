@@ -16,6 +16,7 @@ import qualified Servant
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
+import qualified Web.Cookie as Cookie
 
 import qualified Api
 import qualified Facebook
@@ -26,14 +27,15 @@ jwtCookie :: Map Text Aeson.Value -> IO Text
 jwtCookie claimsMap = cookie <$> MakeJwt.makeJwt claimsMap
   where
     cookie jwt =
-      Text.intercalate "; "
-      $ [ "jwt=" <> jwt
-        , "Path=/"
-        , "HttpOnly"
-        , "SameSite=Lax"
-        , "Secure"
-        , "Max-Age=86400"
-        ]
+      Text.decodeUtf8 $ Cookie.renderSetCookieBS Cookie.defaultSetCookie
+        { Cookie.setCookieName = "jwt"
+        , Cookie.setCookieValue = Text.encodeUtf8 jwt
+        , Cookie.setCookiePath = Just "/"
+        , Cookie.setCookieMaxAge = Just 86400
+        , Cookie.setCookieHttpOnly = True
+        , Cookie.setCookieSecure = True
+        , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
+        }
 
 facebookLogin :: Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogin userToken = do

@@ -36,17 +36,13 @@ instance Aeson.FromJSON ClientSecret where
 
 newtype SessionId = SessionId Text deriving (Eq, Ord)
 
-sessionIdKey :: Text
+sessionIdKey :: BS.ByteString
 sessionIdKey = "sessionId"
 
 instance Servant.FromHttpApiData SessionId where
   parseUrlPiece piece = Left ("parseUrlPiece " <> Text.pack (show piece))
   parseHeader header =
-    case
-      lookup
-        (Text.encodeUtf8 sessionIdKey)
-        (Cookie.parseCookies header)
-    of
+    case lookup sessionIdKey (Cookie.parseCookies header) of
       Nothing -> Left "no session"
       Just c -> Right (SessionId (Text.decodeUtf8 c))
   parseQueryParam qp = Left ("parseQueryParam " <> Text.pack (show qp))
@@ -119,7 +115,15 @@ startUrl Env{ oidc, sessions } = do
   pure (sessId, url)
 
 sessionIdCookie :: SessionId -> Text
-sessionIdCookie (SessionId sessId) = sessionIdKey <> "=" <> sessId <> "; Path=/; Max-Age=300"
+sessionIdCookie (SessionId sessId) =
+  Text.decodeUtf8 $ Cookie.renderSetCookieBS Cookie.defaultSetCookie
+    { Cookie.setCookieName = sessionIdKey
+    , Cookie.setCookieValue = Text.encodeUtf8 sessId
+    , Cookie.setCookiePath = Just "/"
+    , Cookie.setCookieMaxAge = Just 300
+    , Cookie.setCookieHttpOnly = True
+    , Cookie.setCookieSecure = True
+    }
 
 data Claims = Claims
   { email :: Text
