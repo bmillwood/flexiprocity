@@ -5,6 +5,7 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
@@ -18,9 +19,9 @@ import qualified Api
 import qualified Facebook
 import qualified MakeJwt
 
-facebookLogin :: Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
-facebookLogin userToken = do
-  jwt <- liftIO $ MakeJwt.makeJwt =<< Facebook.getUserId userToken
+login :: Map.Map Text.Text Aeson.Value -> Servant.Handler (Api.SetCookie Servant.NoContent)
+login claimsMap = do
+  jwt <- liftIO $ MakeJwt.makeJwt claimsMap
   pure $ Servant.addHeader (cookie jwt) Servant.NoContent
   where
     cookie jwt =
@@ -32,6 +33,11 @@ facebookLogin userToken = do
         , "Secure"
         , "Max-Age=86400"
         ]
+
+facebookLogin :: Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
+facebookLogin userToken = do
+  fbUserId <- liftIO $ Facebook.getUserId userToken
+  login $ Map.singleton "facebookUserId" (Aeson.toJSON fbUserId)
 
 facebookLogout :: Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogout =

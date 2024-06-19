@@ -8,10 +8,8 @@ import qualified Data.Time.Clock.POSIX as TimePosix
 
 import qualified Web.JWT as JWT
 
-import qualified Facebook
-
-makeJwt :: Facebook.UserId 'Facebook.FromFacebook -> IO Text
-makeJwt fbUserId = do
+makeJwt :: Map.Map Text Aeson.Value -> IO Text
+makeJwt claimsMap = do
   now <- TimePosix.getPOSIXTime
   Just privateKey <- JWT.readRsaSecret <$> BS.readFile "../secrets/jwt/private-key.pem"
   let
@@ -22,6 +20,6 @@ makeJwt fbUserId = do
         , JWT.exp = JWT.numericDate (now + TimePosix.posixDayLength)
         , JWT.aud = Left <$> JWT.stringOrURI "postgraphile"
         , JWT.unregisteredClaims =
-            JWT.ClaimsMap (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
+            JWT.ClaimsMap claimsMap
         }
   pure $ JWT.encodeSigned encodeSigner mempty claims
