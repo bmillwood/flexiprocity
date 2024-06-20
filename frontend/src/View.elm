@@ -9,22 +9,26 @@ import Json.Decode
 import Set exposing (Set)
 
 import Model exposing (Model, Msg)
+import Ports
 import PrivacyPolicy
 import SearchWords
 
+profileFbUser : Model -> Model.Profile -> Maybe Ports.FacebookUser
+profileFbUser model profile = profile.facebookId |> Maybe.andThen (\i -> Dict.get i model.facebookUsers)
+
 profileName : Model -> Model.Profile -> Maybe String
 profileName model profile =
-  case Dict.get profile.facebookId model.facebookUsers of
+  case profileFbUser model profile of
     Nothing -> profile.name
     Just { name } -> Just name
 
 viewUser : Model -> Model.Profile -> { isMe : Bool } -> Html Msg
 viewUser model user { isMe } =
   let
-    facebookUser = Dict.get user.facebookId model.facebookUsers
+    facebookUser = profileFbUser model user
     name =
       profileName model user
-      |> Maybe.withDefault ("[fbid " ++ user.facebookId ++ "]")
+      |> Maybe.withDefault ("[id " ++ user.userId ++ "]")
     picture = facebookUser |> Maybe.map .picture
   in
   Html.div
@@ -512,14 +516,24 @@ viewPeople { customiseColumns, myUserId } model =
       ]
   ] ++ if customiseColumns then viewCustomiseColumns model { myUserId = myUserId } else []
 
-viewLogin : Model -> Html Msg
-viewLogin model =
+logoutButton : { loggingOut : Bool } -> Html Msg
+logoutButton { loggingOut } =
+  Html.button
+    [ Attributes.class "auth"
+    , Attributes.class "logout"
+    , Attributes.disabled loggingOut
+    , Events.onClick [Model.StartLogout]
+    ]
+    [ Html.text (if loggingOut then "Logging out..." else "Logout") ]
+
+viewFacebookLogin : Model -> List (Html Msg)
+viewFacebookLogin model =
   let
     button disabled text =
       Html.button
         [ Events.onClick [Model.StartFacebookLogin]
         , Attributes.disabled disabled
-        , Attributes.class "facebook-button"
+        , Attributes.class "auth"
         , Attributes.class "facebook-login"
         ]
         [ Html.text text ]
@@ -529,8 +543,7 @@ viewLogin model =
         Just user ->
           [ Html.text ("Logged in as " ++ user.shortName ++ " ") ]
   in
-  Html.p []
-  <| case model.facebookLoggedIn of
+  case model.facebookLoggedIn of
     Model.Unknown ->
       [ button True "Checking Facebook login status" ]
     Model.NotLoggedIn ->
@@ -539,25 +552,51 @@ viewLogin model =
       [ button True "Logging in..." ]
     Model.LoggedIn { userId } ->
       [ Html.span
-          [ Attributes.class "facebook-button"
+          [ Attributes.class "auth"
           , Attributes.class "facebook-logged-in"
           ]
           (viewLoggedIn userId)
-      , Html.button
-          [ Attributes.class "facebook-button"
-          , Attributes.class "logout"
-          , Events.onClick [Model.StartLogout]
-          ]
-          [ Html.text "Logout" ]
+      , logoutButton { loggingOut = False }
       ]
     Model.LoggingOut ->
-      [ Html.button
-          [ Attributes.class "facebook-button"
-          , Attributes.class "logout"
-          , Attributes.disabled True
+      [ logoutButton { loggingOut = True } ]
+
+viewGoogleLogin : Model -> List (Html Msg)
+viewGoogleLogin model =
+  let
+    button disabled text =
+      Html.button
+        [ Events.onClick [Model.UrlReq { internal = False, url = "/auth/login/google/start" }]
+        , Attributes.class "auth"
+        , Attributes.disabled disabled
+        ]
+        [ Html.text text ]
+  in
+  case model.apiLoggedIn of
+    Model.LoggedIn { googleEmail } ->
+      case googleEmail of
+        Nothing -> []
+        Just email ->
+          [ button True ("Logged in as " ++ email)
+          , logoutButton { loggingOut = False }
           ]
-          [ Html.text "Logging out..." ]
-      ]
+    Model.NotLoggedIn ->
+      [ button False "Log in with Google" ]
+    Model.LoggingIn -> [ button True "Logging in..." ]
+    Model.LoggingOut -> [ logoutButton { loggingOut = True } ]
+    Model.Unknown -> [ button True "Checking login status..." ]
+
+viewLogin : Model -> List (Html Msg)
+viewLogin model =
+  if not model.facebookEnabled && not model.googleEnabled
+  then [ Html.p [] [ Html.text "No login methods available :(" ] ]
+  else
+    let
+      pIfEnabled cond l = if cond then [ Html.p [] l ] else []
+    in
+    [ pIfEnabled model.facebookEnabled (viewFacebookLogin model)
+    , pIfEnabled model.googleEnabled (viewGoogleLogin model)
+    ] |> List.concat
 
 viewAudienceControls : Model -> List (Html Msg)
 viewAudienceControls model =
@@ -623,7 +662,7 @@ viewRoot { customiseColumns } model =
     privacyPrompt =
       Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
   in
-  [ [ viewLogin model ]
+  [ viewLogin model
   , case model.apiLoggedIn of
       Model.LoggedIn { userId } ->
         case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
@@ -750,26 +789,27 @@ viewAccount model { deleteConfirmations } =
       ]
   in
   [ viewLogin model
-  , Html.h2 [] [ Html.text "Delete your account" ]
-  , Html.p [] [
-      Html.text """
-        You can permanently and irrevocably delete your account on this page.
-        Before you do so, you need to confirm acknowledgement of the following:
-        """
-    , Html.ul [] (List.map item confirmations)
-    , Html.button
-        [ Attributes.class "facebook-button"
-        , Attributes.class "logout"
-        , Attributes.disabled (deleteConfirmations /= allConfirmationIds)
-        , Events.onClick
-            [ Model.DeleteAccount
-            , Model.StartLogout
-            , Model.UrlReq { internal = True, url = "/" }
-            ]
-        ]
-        [ Html.text "Delete my account" ]
+  , [ Html.h2 [] [ Html.text "Delete your account" ]
+    , Html.p [] [
+        Html.text """
+          You can permanently and irrevocably delete your account on this page.
+          Before you do so, you need to confirm acknowledgement of the following:
+          """
+      , Html.ul [] (List.map item confirmations)
+      , Html.button
+          [ Attributes.class "facebook-button"
+          , Attributes.class "logout"
+          , Attributes.disabled (deleteConfirmations /= allConfirmationIds)
+          , Events.onClick
+              [ Model.DeleteAccount
+              , Model.StartLogout
+              , Model.UrlReq { internal = True, url = "/" }
+              ]
+          ]
+          [ Html.text "Delete my account" ]
+      ]
     ]
-  ]
+  ] |> List.concat
 
 view : Model -> Browser.Document Msg
 view model =

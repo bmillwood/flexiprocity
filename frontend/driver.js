@@ -1,35 +1,40 @@
-window.fbAsyncInit = function() {
-    FB.init({
-        appId            : '195604956830336',
-        autoLogAppEvents : true,
-        xfbml            : false,
-        version          : 'v17.0'
-    });
-    FB.getLoginStatus(function(response) {
-        console.log('status', response);
-        app.ports.receiveFromJS.send({
-            kind: 'facebook-login-status',
-            response
+const facebookEnabled = true;
+if(facebookEnabled) {
+    window.fbAsyncInit = function() {
+        FB.init({
+            appId            : '195604956830336',
+            autoLogAppEvents : true,
+            xfbml            : false,
+            version          : 'v17.0'
         });
-    });
-};
+        FB.getLoginStatus(function(response) {
+            console.log('status', response);
+            app.ports.receiveFromJS.send({
+                kind: 'facebook-login-status',
+                response
+            });
+        });
+    };
+    const fbScript = document.createElement("script");
+    fbScript.async = true;
+    fbScript.defer = true;
+    fbScript.crossOrigin = "anonymous";
+    fbScript.src = "https://connect.facebook.net/en_US/sdk.js";
+    fbScript.onerror = function(error) {
+        app.ports.receiveFromJS.send({
+            kind: 'sdk-load-failure',
+            which: 'facebook'
+        });
+    };
+    document.body.appendChild(fbScript);
+}
 const app = Elm.Main.init({
     flags: {
-        latestPrivacyPolicy
+        latestPrivacyPolicy,
+        facebookEnabled,
+        googleEnabled: false
     }
 });
-const fbScript = document.createElement("script");
-fbScript.async = true;
-fbScript.defer = true;
-fbScript.crossOrigin = "anonymous";
-fbScript.src = "https://connect.facebook.net/en_US/sdk.js";
-fbScript.onerror = function(error) {
-    app.ports.receiveFromJS.send({
-        kind: 'sdk-load-failure',
-        which: 'facebook'
-    });
-};
-document.body.appendChild(fbScript);
 app.ports.sendToJS.subscribe(function(request) {
     switch(request.kind) {
     case 'facebook-login':

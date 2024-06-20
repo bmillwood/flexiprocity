@@ -53,7 +53,7 @@ type alias WouldId = String
 
 type alias Profile =
   { userId : UserId
-  , facebookId : String
+  , facebookId : Maybe String
   , name : Maybe String
   , bio : String
   , audience : Audience
@@ -75,7 +75,7 @@ decodeProfile =
     (Json.Decode.map8
       Profile
       (Json.Decode.field "userId" Json.Decode.string)
-      (Json.Decode.field "facebookId" Json.Decode.string)
+      (Json.Decode.field "facebookId" (Json.Decode.nullable Json.Decode.string))
       (Json.Decode.field "name" (Json.Decode.nullable Json.Decode.string))
       (Json.Decode.field "bio" Json.Decode.string)
       (Json.Decode.field "audience" decodeAudience)
@@ -109,6 +109,8 @@ type alias Drag =
   , over : Maybe DragTarget
   }
 
+type alias ApiLoginStatus = LoginStatus { googleEmail : Maybe String, userId : UserId }
+
 type alias Model =
   { errors : List { id: Int, msg : String }
   , nextErrorId : Int
@@ -116,11 +118,13 @@ type alias Model =
   , latestPrivacyPolicy : Maybe String
   , myPrivacyPolicy : Maybe String
   , page : Page
+  , apiLoggedIn : ApiLoginStatus
+  , facebookEnabled : Bool
   , facebookLoggedIn : LoginStatus { userId : FacebookId, accessToken : String }
-  , apiLoggedIn : LoginStatus { userId : UserId }
   , facebookUsers : Dict FacebookId Ports.FacebookUser
-  , profiles : Dict UserId Profile
   , facebookFriends : Maybe (List Ports.FacebookUser)
+  , googleEnabled : Bool
+  , profiles : Dict UserId Profile
   , wouldsById : Dict WouldId Would
   , columns : List WouldId
   , myBio : String
@@ -142,7 +146,7 @@ type OneMsg
   | StartFacebookLogin
   | StartLogout
   | CheckApiLogin
-  | ApiLoginResult (LoginStatus { userId : UserId })
+  | ApiLoginResult ApiLoginStatus
   | SetDeleteConfirm { id : String, setTo : Bool }
   | DeleteAccount
   | MyPrivacyPolicyVersion String
@@ -192,19 +196,23 @@ onUrlRequest urlReq =
 onUrlChange : Url -> Msg
 onUrlChange url = [SetPage (parseUrl url)]
 
-init : { latestPrivacyPolicy : Maybe String } -> Url -> Nav.Key -> (Model, Cmd Msg)
-init { latestPrivacyPolicy } url navKey =
+init
+  : { latestPrivacyPolicy : Maybe String, facebookEnabled : Bool, googleEnabled : Bool }
+  -> Url -> Nav.Key -> (Model, Cmd Msg)
+init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
   ( { errors = []
     , nextErrorId = 0
     , navKey = navKey
     , latestPrivacyPolicy = latestPrivacyPolicy
     , myPrivacyPolicy = Nothing
     , page = parseUrl url
-    , facebookLoggedIn = Unknown
     , apiLoggedIn = Unknown
+    , facebookEnabled = facebookEnabled
+    , facebookLoggedIn = Unknown
     , facebookUsers = Dict.empty
-    , profiles = Dict.empty
     , facebookFriends = Nothing
+    , googleEnabled = googleEnabled
+    , profiles = Dict.empty
     , wouldsById = Dict.empty
     , columns = []
     , myBio = ""
@@ -262,7 +270,10 @@ checkApiLogin =
       Json.Decode.at
         ["data", "getOrCreateUserId", "userId"]
         (Json.Decode.nullable Json.Decode.string)
-      |> Json.Decode.map (Maybe.map (\u -> { userId = u }))
+    decodeGoogleEmail =
+      Json.Decode.at
+        ["data", "getOrCreateUserId", "query", "getGoogleEmail"]
+        (Json.Decode.nullable Json.Decode.string)
     decodeMyPrivacyPolicy =
       Json.Decode.at
         ["data", "getOrCreateUserId", "query", "myUser"]
@@ -276,22 +287,27 @@ checkApiLogin =
           _ -> Nothing
       )
     decodeResult =
-      Json.Decode.map2
-        (\nu nppv ->
+      Json.Decode.map3
+        (\nu nge nppv ->
           [ Just << ApiLoginResult <| case nu of
               Nothing -> NotLoggedIn
-              Just u -> LoggedIn u
+              Just u ->
+                LoggedIn
+                  { userId = u
+                  , googleEmail = nge
+                  }
           , nppv
           ] |> List.filterMap identity
         )
         decodeUserId
+        decodeGoogleEmail
         decodeMyPrivacyPolicy
   in
   graphQL
     { query =
         [ "mutation L{"
         , "getOrCreateUserId(input:{}){"
-        , "userId query{myUser{privacyPolicyVersion}}"
+        , "userId query{getGoogleEmail myUser{privacyPolicyVersion}}"
         , "}"
         , "}"
         ] |> String.concat
