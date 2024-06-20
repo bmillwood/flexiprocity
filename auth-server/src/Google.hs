@@ -99,6 +99,12 @@ getSessionStore ref sessId =
         if state == clientState
           then Just nonce
           else Nothing
+    -- AIUI this is only done when authentication succeeds. If people partially
+    -- complete authentication and then abandon it, the session will be in the
+    -- map forever. I expect this to be rare enough I can just ignore it for
+    -- now, but we'll eventually need to address it somehow. (Perhaps by using
+    -- some "real" session storage mechanism, rather than "thing I hacked
+    -- together quickly to get this working".)
     sessionStoreDelete = IORef.atomicModifyIORef ref $ \sessMap -> (Map.delete sessId sessMap, ())
   in
   OIDC.SessionStore
