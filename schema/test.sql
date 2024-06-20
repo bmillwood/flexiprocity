@@ -19,8 +19,10 @@ VALUES ('Hang out sometime', true), ('Go on a date or something', true);
 
 SELECT set_config('jwt.claims.facebookUserId', 'thisUser', true);
 
-SELECT lives_ok(
-  $$ SELECT get_or_create_user_id() $$,
+SELECT isnt_empty(
+  $$ SELECT u FROM (SELECT get_or_create_user_id() AS u) r
+     WHERE u IS NOT NULL
+  $$,
   'get_or_create_user_id() works'
 );
 

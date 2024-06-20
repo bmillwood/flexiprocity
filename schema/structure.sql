@@ -6,6 +6,12 @@ CREATE FUNCTION public.get_facebook_id() RETURNS text
     SELECT current_setting('jwt.claims.facebookUserId', true);
   END;
 
+CREATE FUNCTION public.get_google_email() RETURNS text
+  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    SELECT current_setting('jwt.claims.googleEmail', true);
+  END;
+
 CREATE TYPE public.audience AS ENUM
   ( 'self'
   , 'friends'
@@ -21,7 +27,9 @@ CREATE TABLE public.privacy_policies
 
 CREATE TABLE public.users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
-  , facebook_id text UNIQUE NOT NULL
+  , facebook_id text UNIQUE
+  , google_email text UNIQUE
+  , CHECK ((facebook_id IS NOT NULL) <> (google_email IS NOT NULL))
   , privacy_policy_version text REFERENCES privacy_policies(version)
   , name text
   , bio text NOT NULL DEFAULT ''
@@ -33,7 +41,8 @@ CREATE FUNCTION public.current_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     SELECT user_id FROM users
-    WHERE facebook_id = get_facebook_id();
+    WHERE facebook_id = get_facebook_id()
+      OR google_email = get_google_email();
   END;
 REVOKE EXECUTE ON FUNCTION current_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION current_user_id TO api;
@@ -78,23 +87,19 @@ REVOKE EXECUTE ON FUNCTION update_me FROM public;
 GRANT  EXECUTE ON FUNCTION update_me TO api;
 
 CREATE FUNCTION public.get_or_create_user_id() RETURNS bigint
-  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
-  BEGIN ATOMIC
-    WITH jwt AS (
-      SELECT get_facebook_id() AS facebook_id
-    )
-    , created AS (
-      INSERT INTO users (facebook_id)
-      SELECT facebook_id FROM jwt WHERE jwt.facebook_id IS NOT NULL
-      EXCEPT
-      SELECT facebook_id FROM users
-      RETURNING user_id
-    )
-    SELECT user_id FROM users
-    JOIN jwt USING (facebook_id)
-    UNION ALL
-    SELECT user_id FROM created;
-  END;
+  LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
+  AS $$DECLARE
+    ret_user_id bigint;
+  BEGIN
+    SELECT current_user_id() INTO ret_user_id;
+    IF ret_user_id IS NOT NULL THEN
+      RETURN ret_user_id;
+    END IF;
+    INSERT INTO users (facebook_id, google_email)
+    SELECT get_facebook_id() AS facebook_id, get_google_email() AS google_email
+    RETURNING user_id INTO STRICT ret_user_id;
+    RETURN ret_user_id;
+  END$$;
 REVOKE EXECUTE ON FUNCTION get_or_create_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION get_or_create_user_id TO api;
 
