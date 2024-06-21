@@ -246,25 +246,32 @@ viewCustomiseColumns model { myUserId } =
       ]
   ]
 
-viewPeople : { customiseColumns : Bool, myUserId : Model.UserId } -> Model -> List (Html Msg)
-viewPeople { customiseColumns, myUserId } model =
-  [ Html.p []
-      [ case (model.facebookLoggedIn, model.facebookFriends) of
-          (_, Just friends) ->
-            if List.isEmpty friends
+viewFacebookStatus : Model -> List (Html Msg)
+viewFacebookStatus model =
+  List.map (Html.p [] << List.singleton) (
+      case (model.facebookEnabled, model.facebookLoggedIn, model.facebookFriends) of
+        (True, _, Just friends) ->
+          [ if List.isEmpty friends
             then Html.text "None of your Facebook friends use reciprocity 🙁"
             else
               [ String.fromInt (List.length friends)
               , " of your Facebook friends use reciprocity"
               ] |> String.concat |> Html.text
-          (Model.LoggedIn _, Nothing) ->
-            Html.text "Retrieving your Facebook friends..."
-          _ ->
-            Html.span
+          ]
+        (True, Model.LoggedIn _, Nothing) ->
+          [ Html.text "Retrieving your Facebook friends..." ]
+        (True, _, _) ->
+          [ Html.span
               [ Attributes.class "error" ]
               [ Html.text "Log in with Facebook to see pictures, profile links etc." ]
-      ]
-  , Html.table []
+          ]
+        (False, _, _) ->
+          []
+  )
+
+viewSearches : Model -> List (Html Msg)
+viewSearches model =
+  [ Html.table []
       [ Html.tr []
           [ Html.td [] [Html.text "Search names: "]
           , Html.td []
@@ -280,7 +287,11 @@ viewPeople { customiseColumns, myUserId } model =
               ]
           ]
       ]
-  , let
+  ]
+
+viewPeople : { customiseColumns : Bool } -> Model -> List (Html Msg)
+viewPeople { customiseColumns } model =
+  [ let
       showClass cl =
         Html.span
           [ Attributes.class cl
@@ -514,7 +525,7 @@ viewPeople { customiseColumns, myUserId } model =
           else List.map viewProfile profiles
         )
       ]
-  ] ++ if customiseColumns then viewCustomiseColumns model { myUserId = myUserId } else []
+  ]
 
 logoutButton : { loggingOut : Bool } -> Html Msg
 logoutButton { loggingOut } =
@@ -616,19 +627,22 @@ viewAudienceControls model =
   in
   [ let
       radio who label =
-        audienceRadio
-          { name = "visibility"
-          , currentWho = model.myVisibility
-          , onCheck = [Model.MyVisibility who, Model.SubmitVisibility]
-          , who = who
-          , label = label
-          }
+        case (model.facebookEnabled, who) of
+          (False, Model.Friends) -> []
+          _ ->
+            audienceRadio
+              { name = "visibility"
+              , currentWho = model.myVisibility
+              , onCheck = [Model.MyVisibility who, Model.SubmitVisibility]
+              , who = who
+              , label = label
+              }
     in
     [ [ Html.text "Show my profile to people I've ticked and:" ]
     , radio Model.Self "Nobody else"
     , radio Model.Friends "Friends"
     , radio Model.Everyone "Everyone"
-    ] |> List.concat |> Html.p []
+    ]
   , let
       radio who label =
         audienceRadio
@@ -639,11 +653,17 @@ viewAudienceControls model =
           , label = label
           }
     in
-    [ [ Html.text "I want to see:" ]
-    , radio Model.Friends "My friends"
-    , radio Model.Everyone "Everyone"
-    ] |> List.concat |> Html.p []
+    if model.facebookEnabled
+    then
+      [ [ Html.text "I want to see:" ]
+      , radio Model.Friends "My friends"
+      , radio Model.Everyone "Everyone"
+      ]
+    else
+      []
   ]
+  |> List.filter (not << List.isEmpty)
+  |> List.map (Html.p [] << List.concat)
 
 viewRoot : { customiseColumns : Bool } -> Model -> List (Html Msg)
 viewRoot { customiseColumns } model =
@@ -657,7 +677,10 @@ viewRoot { customiseColumns } model =
       , case Dict.get userId model.profiles of
           Just u -> [viewUser model u { isMe = True }]
           Nothing -> []
-      , viewPeople { customiseColumns = customiseColumns, myUserId = userId } model
+      , viewFacebookStatus model
+      , viewSearches model
+      , viewPeople { customiseColumns = customiseColumns } model
+      , if customiseColumns then viewCustomiseColumns model { myUserId = userId } else []
       ] |> List.concat
     privacyPrompt =
       Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
