@@ -89,6 +89,7 @@ viewUser model user { isMe } =
                       [ Attributes.type_ "text"
                       , Attributes.placeholder "short bio"
                       , Attributes.value model.myBio
+                      , Attributes.style "width" "30em"
                       , Events.onInput (List.singleton << Model.EditBio)
                       ]
                       []
