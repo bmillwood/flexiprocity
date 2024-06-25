@@ -694,8 +694,15 @@ viewRoot { customiseColumns } model =
       , viewPeople { customiseColumns = customiseColumns } model
       , if customiseColumns then viewCustomiseColumns model { myUserId = userId } else []
       ] |> List.concat
-    privacyPrompt =
-      Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
+    privacyPrompt reason =
+      [ Html.div
+          [ Attributes.style "padding-left" "1em"
+          , Attributes.class "error"
+          ]
+          [ Html.p [] [Html.text reason]
+          , Html.p [] [Html.text "Use the nav bar to head to the privacy page and take a look."]
+          ]
+      ]
   in
   [ viewLogin model
   , case model.apiLoggedIn of
@@ -703,18 +710,14 @@ viewRoot { customiseColumns } model =
         case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
           (Nothing, _) -> normalPage { userId = userId }
           (Just _, Nothing) ->
-            [ whatIsReciprocity
-            , [ Html.p [] [Html.text "I think you're new here, so you'll need to agree to the privacy policy."]
-              , privacyPrompt
-              ]
+            [ privacyPrompt "I think you're new here, so you'll need to agree to the privacy policy."
+            , whatIsReciprocity
             ] |> List.concat
           (Just latestVersion, Just myVersion) ->
             if latestVersion == myVersion
             then normalPage { userId = userId }
             else
-              [ Html.p [] [Html.text "Looks like the privacy policy has been updated since you agreed to it."]
-              , privacyPrompt
-              ]
+              privacyPrompt "Looks like the privacy policy has been updated since you agreed to it."
       _ -> whatIsReciprocity
   ] |> List.concat
 
