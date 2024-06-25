@@ -93,6 +93,7 @@ type Page
   | Account { deleteConfirmations : Set String }
   | Privacy
   | Security
+  | WhyNotFacebook
 
 accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
@@ -184,6 +185,7 @@ parseUrl url =
         , Url.Parser.map accountPage (Url.Parser.s "account")
         , Url.Parser.map Privacy (Url.Parser.s "privacy")
         , Url.Parser.map Security (Url.Parser.s "security")
+        , Url.Parser.map WhyNotFacebook (Url.Parser.s "why-not-facebook")
         ]
   in
   Url.Parser.parse parser url

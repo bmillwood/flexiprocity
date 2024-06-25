@@ -849,6 +849,37 @@ viewAccount model { deleteConfirmations } =
     ]
   ] |> List.concat
 
+viewWhyNotFacebook : Model -> List (Html Msg)
+viewWhyNotFacebook _ =
+  [ Html.h2 []
+      [ Html.text "What happened to Facebook integration?" ]
+  , Html.p []
+      [ Html.text """Original reciprocity integrated with Facebook to
+            (optionally) show you just your friends. Indeed, this was arguably
+            the core functionality of the app."""
+      ]
+  , Html.p []
+      [ Html.text """I have written code to do the same thing here, but Facebook
+            API access for real apps is only available to "verified business
+            accounts". Initially I assumed I could just set up a company
+            registration and verify it, but having looked into it more, they
+            don't only verify that your company exists but also that you have
+            been on Facebook for a while, you post on your page, you have
+            engagement from Facebook users, that sort of thing. As such I can't
+            run reciprocity with Facebook integration unless someone with a
+            verified Facebook business account is willing to attach it to their
+            page."""
+      ]
+  , Html.p []
+      [ Html.text """Since I'd already written the code at this point, I just
+            added another login method so that people could at least experiment
+            with the design as it is now, and hopefully someone with the
+            necessary Facebook relationship could see it and help me out. """
+      , Html.text "Send an e-mail to contact@[this domain] if you can help?"
+      ]
+  ]
+
+
 view : Model -> Browser.Document Msg
 view model =
   let
@@ -900,6 +931,8 @@ view model =
         , Html.text " | "
         , linkIf (model.page /= Model.Security) "/security" "security"
         , Html.text " | "
+        , linkIf (model.page /= Model.WhyNotFacebook) "/why-not-facebook" "facebook?"
+        , Html.text " | "
         , Html.a
             [ Attributes.href "https://github.com/bmillwood/flexiprocity" ]
             [ Html.text "code" ]
@@ -914,6 +947,7 @@ view model =
         Model.Account _ -> "Account - reciprocity"
         Model.Privacy -> "Privacy - reciprocity"
         Model.Security -> "Security - reciprocity"
+        Model.WhyNotFacebook -> "Facebook? - reciprocity"
   , body =
       header
       ++ navBar
@@ -924,4 +958,5 @@ view model =
         Model.Account account -> viewAccount model account
         Model.Privacy -> viewPrivacy model
         Model.Security -> viewSecurity model
+        Model.WhyNotFacebook -> viewWhyNotFacebook model
   }
