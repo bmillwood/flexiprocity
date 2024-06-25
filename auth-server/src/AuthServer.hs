@@ -66,8 +66,8 @@ googleComplete _ _ _ Nothing = do
   liftIO . putStrLn $ "googleComplete error: no code"
   Except.throwError Servant.err403
 googleComplete env (Just sessId) Nothing (Just code) = do
-  email <- liftIO $ Google.codeToEmail env sessId (Text.encodeUtf8 code)
-  cookie <- liftIO $ jwtCookie (Map.singleton "googleEmail" (Aeson.toJSON email))
+  claims <- liftIO $ Google.codeToClaims env sessId (Text.encodeUtf8 code)
+  cookie <- liftIO $ jwtCookie (Map.singleton "google" (Aeson.toJSON claims))
   pure
     $ Servant.addHeader cookie
     $ Servant.addHeader "/"

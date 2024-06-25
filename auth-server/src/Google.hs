@@ -117,7 +117,7 @@ getSessionStore ref sessId =
 startUrl :: Env -> IO (SessionId, Text)
 startUrl Env{ oidc, sessions } = do
   sessId <- SessionId . Text.pack <$> randomString
-  url <- Text.pack . show <$> OIDC.prepareAuthenticationRequestUrl (getSessionStore sessions sessId) oidc [OIDC.openId, OIDC.email] []
+  url <- Text.pack . show <$> OIDC.prepareAuthenticationRequestUrl (getSessionStore sessions sessId) oidc [OIDC.openId, OIDC.profile, OIDC.email] []
   pure (sessId, url)
 
 sessionIdCookie :: SessionId -> Text
@@ -133,11 +133,15 @@ sessionIdCookie (SessionId sessId) =
 
 data Claims = Claims
   { email :: Text
-  } deriving (Generic, Aeson.FromJSON)
+  , name :: Text
+  , picture :: Text
+  , email_verified :: Bool
+  -- other keys: at_hash, au, azp, exp, family_name, given_name, iat, iss, nonce, sub
+  } deriving (Generic, Aeson.FromJSON, Aeson.ToJSON, Show)
 
-codeToEmail :: Env -> SessionId -> BS.ByteString -> IO Text
-codeToEmail Env{ oidc, sessions, httpManager } sessId code = do
+codeToClaims :: Env -> SessionId -> BS.ByteString -> IO Claims
+codeToClaims Env{ oidc, sessions, httpManager } sessId code = do
   Just Session{ state, nonce = _ } <- Map.lookup sessId <$> IORef.readIORef sessions
-  OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims = Claims { email } } }
+  OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
     <- OIDC.getValidTokens (getSessionStore sessions sessId) oidc httpManager state code
-  pure email
+  pure otherClaims

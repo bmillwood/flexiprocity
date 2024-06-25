@@ -1,4 +1,4 @@
-const facebookEnabled = true;
+const facebookEnabled = false;
 if(facebookEnabled) {
     window.fbAsyncInit = function() {
         FB.init({
@@ -32,7 +32,7 @@ const app = Elm.Main.init({
     flags: {
         latestPrivacyPolicy,
         facebookEnabled,
-        googleEnabled: false
+        googleEnabled: true
     }
 });
 app.ports.sendToJS.subscribe(function(request) {

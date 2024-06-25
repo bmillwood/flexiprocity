@@ -29,22 +29,34 @@ viewUser model user { isMe } =
     name =
       profileName model user
       |> Maybe.withDefault ("[id " ++ user.userId ++ "]")
-    picture = facebookUser |> Maybe.map .picture
+    pictureUrl =
+      case (user.picture, facebookUser |> Maybe.map .picture) of
+        (Just url, _) -> Just url
+        (_, Just { url }) -> Just url
+        (Nothing, Nothing) -> Nothing
+    picture =
+      case pictureUrl of
+        Just url ->
+          Html.img
+            [ Attributes.style "margin" "0.2em 0.4em"
+            , Attributes.height 50
+            , Attributes.width 50
+            , Attributes.src url
+            ]
+            []
+        Nothing ->
+          Html.div
+            [ Attributes.style "height" "50px"
+            , Attributes.style "width" "50px"
+            , Attributes.style "opacity" "0.5"
+            ]
+            [ Html.text "no pic" ]
   in
   Html.div
     [ Attributes.style "display" "flex"
     , Attributes.class "user"
     ]
-    [ case picture of
-        Nothing -> Html.div [ Attributes.height 50, Attributes.width 50 ] []
-        Just p ->
-          Html.img
-            [ Attributes.src p.url
-            , Attributes.height p.height
-            , Attributes.width p.width
-            , Attributes.style "margin" "0.2em 0.4em"
-            ]
-            []
+    [ picture
     , Html.div
         []
         [ let

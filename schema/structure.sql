@@ -6,10 +6,16 @@ CREATE FUNCTION public.get_facebook_id() RETURNS text
     SELECT current_setting('jwt.claims.facebookUserId', true);
   END;
 
+CREATE FUNCTION public.get_google_field(fieldname text) RETURNS text
+  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    SELECT current_setting('jwt.claims.google', true)::jsonb->>fieldname;
+  END;
+
 CREATE FUNCTION public.get_google_email() RETURNS text
   LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
-    SELECT current_setting('jwt.claims.googleEmail', true);
+    SELECT get_google_field('email');
   END;
 
 CREATE TYPE public.audience AS ENUM
@@ -32,6 +38,7 @@ CREATE TABLE public.users
   , CHECK ((facebook_id IS NOT NULL) <> (google_email IS NOT NULL))
   , privacy_policy_version text REFERENCES privacy_policies(version)
   , name text
+  , picture text
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'friends'
   , created_at timestamptz NOT NULL DEFAULT now()
@@ -64,8 +71,9 @@ CREATE FUNCTION public.update_me
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
     UPDATE users
-    SET name = COALESCE(update_me.name, users.name)
+    SET name = COALESCE(update_me.name, get_google_field('name'), users.name)
       , bio = COALESCE(update_me.bio, users.bio)
+      , picture = COALESCE(get_google_field('picture'), users.picture)
       , visible_to = COALESCE(update_me.visible_to, users.visible_to)
       , privacy_policy_version =
           COALESCE(update_me.privacy_policy_version, users.privacy_policy_version)
@@ -97,7 +105,10 @@ CREATE FUNCTION public.get_or_create_user_id() RETURNS bigint
     END IF;
     INSERT INTO users (facebook_id, google_email)
     SELECT facebook_id, google_email
-    FROM (SELECT get_facebook_id() AS facebook_id, get_google_email() AS google_email) tmp
+    FROM (SELECT
+        get_facebook_id() AS facebook_id
+      , get_google_email() AS google_email
+    ) tmp
     WHERE facebook_id IS NOT NULL OR google_email IS NOT NULL;
     RETURN current_user_id();
   END$$;
@@ -280,6 +291,7 @@ CREATE VIEW public.user_profiles AS
   , users.facebook_id
   , users.name
   , users.bio
+  , users.picture
   , CASE
       WHEN users.user_id = current_user_id() THEN 'self'
       WHEN users.user_id IN (

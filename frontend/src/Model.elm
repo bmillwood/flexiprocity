@@ -56,6 +56,7 @@ type alias Profile =
   , facebookId : Maybe String
   , name : Maybe String
   , bio : String
+  , picture : Maybe String
   , audience : Audience
   , friendsSince : Maybe String
   , createdAt : String
@@ -70,7 +71,7 @@ decodeProfile =
       Json.Decode.list Json.Decode.string
       |> Json.Decode.map Set.fromList
   in
-  Json.Decode.map2
+  Json.Decode.map3
     identity
     (Json.Decode.map8
       Profile
@@ -78,10 +79,11 @@ decodeProfile =
       (Json.Decode.field "facebookId" (Json.Decode.nullable Json.Decode.string))
       (Json.Decode.field "name" (Json.Decode.nullable Json.Decode.string))
       (Json.Decode.field "bio" Json.Decode.string)
+      (Json.Decode.field "picture" (Json.Decode.nullable Json.Decode.string))
       (Json.Decode.field "audience" decodeAudience)
       (Json.Decode.field "friendsSince" (Json.Decode.nullable Json.Decode.string))
-      (Json.Decode.field "createdAt" Json.Decode.string)
-      (Json.Decode.field "matchedWoulds" decodeWouldIds))
+      (Json.Decode.field "createdAt" Json.Decode.string))
+    (Json.Decode.field "matchedWoulds" decodeWouldIds)
     (Json.Decode.field "youWould" decodeWouldIds)
 
 type Page
@@ -374,7 +376,7 @@ sendFriends model =
 
 profileFragment : String
 profileFragment =
-  "fragment F on UserProfile{userId facebookId name bio audience friendsSince createdAt matchedWoulds youWould}"
+  "fragment F on UserProfile{userId facebookId name bio picture audience friendsSince createdAt matchedWoulds youWould}"
 
 decodeWouldStats : Json.Decode.Decoder (Dict WouldId Would)
 decodeWouldStats =
@@ -881,10 +883,9 @@ subscriptions model =
         Ok fromJS -> [FromJS fromJS]
         Err (Ports.DriverProtocolError s) -> [AddError s]
         Err (Ports.SDKLoadFailed Ports.Facebook) ->
-          [ AddError """Facebook SDK failed to load. This app (for now)
-              requires Facebook login in order to function. If your
-              browser blocks Facebook tracking, see if you can enable
-              it for this page specifically."""
+          [ AddError """Facebook SDK failed to load. If you want to use Facebook
+              features but your browser blocks Facebook tracking, see if you can
+              enable it for this page specifically."""
           ]
         Err (Ports.FacebookAccessTokenExpired { whileDoing }) ->
           let
