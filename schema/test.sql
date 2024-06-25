@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(12);
+SELECT plan(13);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -16,6 +16,12 @@ RESET client_min_messages;
 -- test the defaulting mechanism
 INSERT INTO woulds (name, is_default)
 VALUES ('Hang out sometime', true), ('Go on a date or something', true);
+
+SELECT is(
+  get_or_create_user_id(),
+  NULL,
+  'get_or_create_user_id() with no credentials'
+);
 
 SELECT set_config('jwt.claims.facebookUserId', 'thisUser', true);
 

@@ -126,7 +126,7 @@ sessionIdCookie (SessionId sessId) =
     { Cookie.setCookieName = sessionIdKey
     , Cookie.setCookieValue = Text.encodeUtf8 sessId
     , Cookie.setCookiePath = Just "/"
-    , Cookie.setCookieMaxAge = Just 300
+    , Cookie.setCookieMaxAge = Just 3600
     , Cookie.setCookieHttpOnly = True
     , Cookie.setCookieSecure = True
     }

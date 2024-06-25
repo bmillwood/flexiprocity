@@ -97,4 +97,5 @@ app google = Servant.serve (Proxy @Api.Api) (server google)
 main :: IO ()
 main = do
   google <- Google.init
+  putStrLn "Initialization finished"
   Warp.run 5001 (Cors.simpleCors (app google))

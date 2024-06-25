@@ -96,9 +96,10 @@ CREATE FUNCTION public.get_or_create_user_id() RETURNS bigint
       RETURN ret_user_id;
     END IF;
     INSERT INTO users (facebook_id, google_email)
-    SELECT get_facebook_id() AS facebook_id, get_google_email() AS google_email
-    RETURNING user_id INTO STRICT ret_user_id;
-    RETURN ret_user_id;
+    SELECT facebook_id, google_email
+    FROM (SELECT get_facebook_id() AS facebook_id, get_google_email() AS google_email) tmp
+    WHERE facebook_id IS NOT NULL OR google_email IS NOT NULL;
+    RETURN current_user_id();
   END$$;
 REVOKE EXECUTE ON FUNCTION get_or_create_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION get_or_create_user_id TO api;
