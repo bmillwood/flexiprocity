@@ -5,6 +5,8 @@ tmpdir=$(mktemp -d)
 trap 'rm -rfv "$tmpdir"' EXIT
 d="$tmpdir"/flexiprocity
 mkdir -p "$d"
+git log --format=oneline -n1 > "$d"/version.txt
+date --iso-8601=seconds >> "$d"/version.txt
 mkdir -p "$d"/auth-server
 cp auth-server/ubuntu/auth-server "$d"/auth-server/auth-server
 mkdir -p "$d"/frontend
