@@ -14,7 +14,6 @@ type LoginFacebook =
     ReqBody '[JSON] Facebook.UserToken
     -- https://github.com/haskell-servant/servant/issues/1267
     :> Verb 'POST 204 '[JSON] (SetCookie NoContent)
-  :<|> Verb 'DELETE 204 '[JSON] (SetCookie NoContent)
 
 type CookieRedirect = Headers '[Header "Set-Cookie" Text, Header "Location" Text] NoContent
 
@@ -33,7 +32,8 @@ type FacebookDecodeSignedRequest =
 
 type Api =
   "login" :> (
-    "facebook" :> LoginFacebook
+    Verb 'DELETE 204 '[JSON] (SetCookie NoContent)
+    :<|> "facebook" :> LoginFacebook
     :<|> "google" :> LoginGoogle
   )
   :<|> "facebook" :> "decode-signed-request" :> FacebookDecodeSignedRequest

@@ -543,7 +543,7 @@ updateOne msg model =
               Http.request
                 { method = "DELETE"
                 , headers = []
-                , url = "/auth/login/facebook"
+                , url = "/auth/login"
                 , body = Http.emptyBody
                 , expect =
                     Http.expectWhatever
@@ -552,8 +552,9 @@ updateOne msg model =
                 , tracker = Nothing
                 }
         facebookLogout =
-          case model.facebookLoggedIn of
-            LoggingOut -> Cmd.none
+          case (model.facebookEnabled, model.facebookLoggedIn) of
+            (False, _) -> Cmd.none
+            (_, LoggingOut) -> Cmd.none
             _ -> Ports.facebookLogout
       in
       (newModel, Cmd.batch [apiLogout, facebookLogout])

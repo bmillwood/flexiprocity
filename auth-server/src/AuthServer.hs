@@ -43,8 +43,8 @@ facebookLogin userToken = do
   cookie <- liftIO $ jwtCookie (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
   pure $ Servant.addHeader cookie Servant.NoContent
 
-facebookLogout :: Servant.Handler (Api.SetCookie Servant.NoContent)
-facebookLogout =
+logout :: Servant.Handler (Api.SetCookie Servant.NoContent)
+logout =
   pure $ Servant.addHeader "jwt=; Path=/; Max-Age=0" Servant.NoContent
 
 googleStart :: Google.Env -> Servant.Handler Api.CookieRedirect
@@ -87,7 +87,8 @@ server :: Google.Env -> Servant.Server Api.Api
 server google = loginServer :<|> facebookDecodeSignedReq
   where
     loginServer =
-      (facebookLogin :<|> facebookLogout)
+      logout
+      :<|> facebookLogin
       :<|> (googleStart google :<|> googleComplete google)
 
 app :: Google.Env -> Wai.Application
