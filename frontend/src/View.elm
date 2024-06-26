@@ -511,12 +511,11 @@ viewPeople { customiseColumns } model =
             SearchWords.hasMatch model.bioSearch profile.bio
           filterAudience profile =
             case model.showMe of
-              Model.Everyone ->
+              Just Model.Everyone ->
                 profile.audience /= Model.Self
-              Model.Friends ->
+              Just Model.Friends ->
                 profile.audience == Model.Friends
-              Model.Self ->
-                -- not exposed, but there's a logical thing to do here
+              _ ->
                 False
           filterProfile profile =
             filterName profile && filterBio profile && filterAudience profile
@@ -646,7 +645,7 @@ viewAudienceControls model =
             audienceRadio
               { name = "visibility"
               , currentWho = model.myVisibility
-              , onCheck = [Model.MyVisibility who, Model.SubmitVisibility]
+              , onCheck = [Model.SubmitVisibility who]
               , who = who
               , label = label
               }
@@ -660,8 +659,8 @@ viewAudienceControls model =
       radio who label =
         audienceRadio
           { name = "search"
-          , currentWho = Just model.showMe
-          , onCheck = [Model.ShowMe who]
+          , currentWho = model.showMe
+          , onCheck = [Model.SubmitShowMe who]
           , who = who
           , label = label
           }

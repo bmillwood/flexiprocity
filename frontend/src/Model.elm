@@ -132,7 +132,7 @@ type alias Model =
   , columns : List WouldId
   , myBio : String
   , myVisibility : Maybe Audience
-  , showMe : Audience
+  , showMe : Maybe Audience
   , nameSearch : SearchWords.Model
   , bioSearch : SearchWords.Model
   , youWouldChange : Dict UserId (Dict WouldId Bool)
@@ -162,8 +162,9 @@ type OneMsg
   | EditBio String
   | SubmitBio
   | MyVisibility Audience
-  | SubmitVisibility
+  | SubmitVisibility Audience
   | ShowMe Audience
+  | SubmitShowMe Audience
   | NameSearchMsg SearchWords.OutMsg
   | BioSearchMsg SearchWords.OutMsg
   | ProposeYouWould { userId : UserId, wouldId : WouldId, changeTo : Bool }
@@ -221,7 +222,7 @@ init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
     , columns = []
     , myBio = ""
     , myVisibility = Nothing
-    , showMe = Friends
+    , showMe = Nothing
     , nameSearch = SearchWords.init { htmlInputId = "nameSearch" }
     , bioSearch = SearchWords.init { htmlInputId = "bioSearch" }
     , youWouldChange = Dict.empty
@@ -401,16 +402,23 @@ decodeWouldStats =
   |> Json.Decode.map Dict.fromList
 
 getProfiles
-  :  { getMyVisibility : Bool, getWoulds : Bool, userId: UserId }
+  :  { getMyAudiences : Bool, getWoulds : Bool, userId: UserId }
   -> Model -> Cmd Msg
-getProfiles { getMyVisibility, getWoulds, userId } model =
+getProfiles { getMyAudiences, getWoulds, userId } model =
   let
     decodeProfiles =
       Json.Decode.list decodeProfile
       |> Json.Decode.map (List.map GotProfile)
-    decodeVisible =
-      Json.Decode.at ["data", "myUser", "visibleTo"] decodeAudience
-      |> Json.Decode.map (List.singleton << MyVisibility)
+    decodeAudiences =
+      Json.Decode.at ["data", "myUser"] (
+        Json.Decode.map2 (\msg1 msg2 -> [msg1, msg2])
+          (Json.Decode.field "visibleTo" (
+            Json.Decode.map MyVisibility decodeAudience
+          ))
+          (Json.Decode.field "showMe" (
+            Json.Decode.map ShowMe decodeAudience
+          ))
+      )
     decodeWoulds =
       Json.Decode.map2 (\ws cs -> [SetWoulds ws, SetColumns cs])
         (Json.Decode.at ["data", "wouldStats", "nodes"] decodeWouldStats)
@@ -423,14 +431,14 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
           , "me:userProfiles(condition:{userId:$u}){nodes{...F}}"
           , let
               condition = case model.showMe of
-                Self ->
-                  -- doesn't really make sense, but we don't use this anyway
+                Just Friends -> "(condition:{audience:FRIENDS})"
+                Just Everyone -> ""
+                _ ->
+                  -- doesn't really make sense, but shouldn't matter too much
                   "(condition:{userId:$u})"
-                Friends -> "(condition:{audience:FRIENDS})"
-                Everyone -> ""
             in
             "them:userProfiles" ++ condition ++ "{nodes{...F}}"
-          , if getMyVisibility then "myUser{visibleTo}" else ""
+          , if getMyAudiences then "myUser{showMe visibleTo}" else ""
           , if getWoulds then "wouldStats{nodes{wouldId name addedById uses}}getMyColumns" else ""
         , "}"
         ] |> String.concat
@@ -442,7 +450,7 @@ getProfiles { getMyVisibility, getWoulds, userId } model =
           (\me p v w -> List.concat [me, p, v, w])
           (Json.Decode.at ["data", "me", "nodes"] decodeProfiles)
           (Json.Decode.at ["data", "them", "nodes"] decodeProfiles)
-          (if getMyVisibility then decodeVisible else Json.Decode.succeed [])
+          (if getMyAudiences then decodeAudiences else Json.Decode.succeed [])
           (if getWoulds then decodeWoulds else Json.Decode.succeed [])
     }
 
@@ -569,7 +577,7 @@ updateOne msg model =
         (newModel, cmd) = tryApiLogin { model | apiLoggedIn = newState }
         initialQuery userId =
           getProfiles
-            { getMyVisibility = True, getWoulds = True, userId = userId }
+            { getMyAudiences = True, getWoulds = True, userId = userId }
             model
       in
       case newState of
@@ -723,31 +731,39 @@ updateOne msg model =
           Just Friends -> Cmd.none -- no need to resend
           _ -> sendFriends newModel
       )
-    SubmitVisibility ->
-      case model.myVisibility |> Maybe.map encodeAudience of
-        Nothing -> (model, Cmd.none)
-        Just v ->
-          ( model
-          , graphQL
-              { query = "mutation V($a:Audience!){updateMe(input:{visibleTo:$a}){user{visibleTo}}}"
-              , operationName = "V"
-              , variables = [("a", v)]
-              , decodeResult =
-                  Json.Decode.at ["data", "updateMe", "user", "visibleTo"] decodeAudience
-                  |> Json.Decode.map (List.singleton << MyVisibility)
-              }
-          )
+    SubmitVisibility who ->
+      ( model
+      , graphQL
+          { query = "mutation V($a:Audience!){updateMe(input:{visibleTo:$a}){user{visibleTo}}}"
+          , operationName = "V"
+          , variables = [("a", encodeAudience who)]
+          , decodeResult =
+              Json.Decode.at ["data", "updateMe", "user", "visibleTo"] decodeAudience
+              |> Json.Decode.map (List.singleton << MyVisibility)
+          }
+      )
     ShowMe who ->
       let
-        newModel = { model | showMe = who }
+        newModel = { model | showMe = Just who }
       in
       ( newModel
       , case model.apiLoggedIn of
           LoggedIn { userId } ->
             getProfiles
-              { getMyVisibility = False, getWoulds = False, userId = userId }
+              { getMyAudiences = False, getWoulds = False, userId = userId }
               newModel
           _ -> Cmd.none
+      )
+    SubmitShowMe who ->
+      ( model
+      , graphQL
+          { query = "mutation V($a:Audience!){updateMe(input:{showMe:$a}){user{showMe}}}"
+          , operationName = "V"
+          , variables = [("a", encodeAudience who)]
+          , decodeResult =
+              Json.Decode.at ["data", "updateMe", "user", "showMe"] decodeAudience
+              |> Json.Decode.map (List.singleton << ShowMe)
+          }
       )
     NameSearchMsg nsMsg ->
       let

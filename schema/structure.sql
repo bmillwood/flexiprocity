@@ -40,9 +40,13 @@ CREATE TABLE public.users
   , name text
   , picture text
   , bio text NOT NULL DEFAULT ''
-  , visible_to audience NOT NULL DEFAULT 'friends'
+  , visible_to audience NOT NULL DEFAULT 'self'
+  , show_me audience NOT NULL DEFAULT 'everyone'
   , created_at timestamptz NOT NULL DEFAULT now()
   );
+
+COMMENT ON COLUMN public.users.show_me
+  IS 'stored in the database but applied on the client';
 
 CREATE FUNCTION public.current_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
@@ -66,6 +70,7 @@ CREATE FUNCTION public.update_me
   ( name text
   , bio text
   , visible_to audience
+  , show_me audience
   , privacy_policy_version text
   ) RETURNS users
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
@@ -75,6 +80,7 @@ CREATE FUNCTION public.update_me
       , bio = COALESCE(update_me.bio, users.bio)
       , picture = COALESCE(get_google_field('picture'), users.picture)
       , visible_to = COALESCE(update_me.visible_to, users.visible_to)
+      , show_me = COALESCE(update_me.show_me, users.show_me)
       , privacy_policy_version =
           COALESCE(update_me.privacy_policy_version, users.privacy_policy_version)
     WHERE user_id = current_user_id()
