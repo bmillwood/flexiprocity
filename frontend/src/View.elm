@@ -46,7 +46,8 @@ viewUser model user { isMe } =
             []
         Nothing ->
           Html.div
-            [ Attributes.style "height" "50px"
+            [ Attributes.style "margin" "0.2em 0.4em"
+            , Attributes.style "height" "50px"
             , Attributes.style "width" "50px"
             , Attributes.style "opacity" "0.5"
             ]
