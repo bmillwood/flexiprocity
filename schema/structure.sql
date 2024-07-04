@@ -300,14 +300,10 @@ CREATE VIEW public.user_profiles AS
   , users.picture
   , CASE
       WHEN users.user_id = current_user_id() THEN 'self'
-      WHEN users.user_id IN (
-        SELECT friend_id
-        FROM facebook_friends f
-        WHERE f.user_id = current_user_id()
-      ) THEN 'friends'
+      WHEN uf IS DISTINCT FROM NULL THEN 'friends'
       ELSE 'everyone'
     END::audience AS audience
-  , fwu.since AS friends_since
+  , greatest(uf.since, fwu.since) AS friends_since
   , users.created_at AS created_at
   , COALESCE(
       array_agg(uw.would_id) FILTER (WHERE uw.would_id IS NOT NULL)
@@ -319,8 +315,11 @@ CREATE VIEW public.user_profiles AS
     ) AS matched_woulds
   FROM users
   LEFT JOIN facebook_friends fwu
-    ON users.user_id = fwu.user_id
+    ON fwu.user_id = users.user_id
    AND fwu.friend_id = current_user_id()
+  LEFT JOIN facebook_friends uf
+    ON uf.user_id = current_user_id()
+   AND uf.friend_id = users.user_id
   LEFT JOIN user_woulds uw
     ON uw.user_id = current_user_id()
    AND uw.with_id = users.user_id
@@ -337,5 +336,5 @@ CREATE VIEW public.user_profiles AS
           WHERE w.user_id = users.user_id
             AND w.with_id = current_user_id()
         )
-  GROUP BY users.user_id, fwu.since;
+  GROUP BY users.user_id, fwu.since, uf.*, uf.since;
 GRANT SELECT ON user_profiles TO api;
