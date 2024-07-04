@@ -398,7 +398,7 @@ viewPeople { customiseColumns } model =
                   [ Attributes.colspan (List.length colsById) ]
                   [ Html.button
                       [ Events.onClick [Model.SubmitYouWould]
-                      , Attributes.disabled (Dict.isEmpty model.youWouldChange)
+                      , Attributes.disabled (Dict.isEmpty model.youWouldChange || not (Dict.isEmpty model.pendingYouWould))
                       ]
                       [ Html.text "Submit" ]
                   ]
@@ -437,7 +437,7 @@ viewPeople { customiseColumns } model =
                     ] |> List.concat
                   onCheck newChecked =
                     [ Model.ProposeYouWould
-                        { userId = profile.userId
+                        { withId = profile.userId
                         , wouldId = wId
                         , changeTo = newChecked
                         }

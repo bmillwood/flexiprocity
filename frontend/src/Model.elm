@@ -136,6 +136,7 @@ type alias Model =
   , nameSearch : SearchWords.Model
   , bioSearch : SearchWords.Model
   , youWouldChange : Dict UserId (Dict WouldId Bool)
+  , pendingYouWould : Dict UserId (Dict WouldId Bool)
   , myNewWould : String
   , drag : Maybe Drag
   }
@@ -167,8 +168,9 @@ type OneMsg
   | SubmitShowMe Audience
   | NameSearchMsg SearchWords.OutMsg
   | BioSearchMsg SearchWords.OutMsg
-  | ProposeYouWould { userId : UserId, wouldId : WouldId, changeTo : Bool }
+  | ProposeYouWould { withId : UserId, wouldId : WouldId, changeTo : Bool }
   | SubmitYouWould
+  | ResolveYouWould { withId : UserId, wouldId : WouldId }
   | DragStart Draggable
   | DragEnd
   | DragHover DragTarget
@@ -226,6 +228,7 @@ init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
     , nameSearch = SearchWords.init { htmlInputId = "nameSearch" }
     , bioSearch = SearchWords.init { htmlInputId = "bioSearch" }
     , youWouldChange = Dict.empty
+    , pendingYouWould = Dict.empty
     , myNewWould = ""
     , drag = Nothing
     }
@@ -544,6 +547,7 @@ updateOne msg model =
           , myBio = ""
           , myVisibility = Nothing
           , youWouldChange = Dict.empty
+          , pendingYouWould = Dict.empty
           }
         apiLogout =
           case model.apiLoggedIn of
@@ -779,10 +783,10 @@ updateOne msg model =
       ( { model | bioSearch = newBioSearch }
       , Cmd.map (List.map BioSearchMsg) cmd
       )
-    ProposeYouWould { userId, wouldId, changeTo } ->
+    ProposeYouWould { withId, wouldId, changeTo } ->
       let
         isAlready =
-          case Dict.get userId model.profiles of
+          case Dict.get withId model.profiles of
             Nothing -> False
             Just p -> Set.member wouldId p.youWouldIds == changeTo
         doChange =
@@ -795,21 +799,20 @@ updateOne msg model =
           |> doChange
           |> justIfNonEmpty
       in
-      ( { model | youWouldChange = Dict.update userId change model.youWouldChange }
+      ( { model | youWouldChange = Dict.update withId change model.youWouldChange }
       , Cmd.none
       )
     SubmitYouWould ->
       case model.apiLoggedIn of
         LoggedIn { userId } ->
-          ( model
+          ( { model | pendingYouWould = model.youWouldChange }
           , Dict.toList model.youWouldChange
             |> List.map (\(uid, woulds) ->
                 Dict.toList woulds
                 |> List.map (\(wId, changeTo) ->
                     graphQL
                       { query =
-                          [ profileFragment
-                          , "mutation C($u:BigInt!,$wo:BigInt!,$wi:BigInt!){"
+                          [ "mutation C($u:BigInt!,$wo:BigInt!,$wi:BigInt!){"
                           , if changeTo
                             then "createUserWould(input:{userWould:"
                             else "deleteUserWould(input:"
@@ -817,9 +820,7 @@ updateOne msg model =
                           , if changeTo
                             then "})"
                             else ")"
-                          , "{query{userProfiles(condition:{userId:$wi}){"
-                          , "nodes{...F}"
-                          , "}}}"
+                          , "{userWould{nodeId}}"
                           , "}"
                           ] |> String.concat
                       , operationName = "C"
@@ -832,12 +833,10 @@ updateOne msg model =
                           Json.Decode.at
                             [ "data"
                             , if changeTo then "createUserWould" else "deleteUserWould"
-                            , "query"
-                            , "userProfiles"
-                            , "nodes"
+                            , "userWould"
                             ]
-                            (Json.Decode.list decodeProfile)
-                          |> Json.Decode.map (List.map GotProfile)
+                            (Json.Decode.succeed ())
+                          |> Json.Decode.map (\() -> [ResolveYouWould { withId = uid, wouldId = wId }])
                       }
                   )
               )
@@ -845,6 +844,29 @@ updateOne msg model =
             |> Cmd.batch
           )
         _ -> (model, Cmd.none)
+    ResolveYouWould { withId, wouldId } ->
+      let
+        removeWould md = case md of
+          Nothing -> Nothing
+          Just d ->
+            let
+              new = Dict.remove wouldId d
+            in
+            if Dict.isEmpty new then Nothing else Just new
+        newPending = Dict.update withId removeWould model.pendingYouWould
+        newProposed = Dict.update withId removeWould model.youWouldChange
+      in
+      ( { model | pendingYouWould = newPending, youWouldChange = newProposed }
+      , if Dict.isEmpty newPending
+        then
+          case model.apiLoggedIn of
+            LoggedIn api ->
+              getProfiles
+                { getMyAudiences = False, getWoulds = False, userId = api.userId }
+                model
+            _ -> Cmd.none
+        else Cmd.none
+      )
     DragStart draggable ->
       ( { model | drag = Just { held = draggable, over = Nothing } }
       , Cmd.none
