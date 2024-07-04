@@ -693,6 +693,7 @@ viewAudienceControls model =
               else " people"
             )
           ]
+      , Html.text " (among those visible to you)"
       ]
     ]
   , let
