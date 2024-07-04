@@ -626,36 +626,44 @@ viewLogin model =
 viewAudienceControls : Model -> List (Html Msg)
 viewAudienceControls model =
   let
-    audienceRadio { name, currentWho, onCheck, who, label } =
+    audienceRadio { name, currentWho, onCheck, who, label, flagIfChecked } =
+      let
+        thisId = name ++ "-" ++ Model.audienceToString who
+        isChecked = currentWho == Just who
+        flagStyle =
+          if flagIfChecked && isChecked
+          then [ Attributes.class "flag" ]
+          else []
+      in
       [ Html.input
         [ Attributes.type_ "radio"
         , Attributes.name name
-        , Attributes.id (name ++ "-" ++ Model.audienceToString who)
-        , Attributes.checked (currentWho == Just who)
+        , Attributes.id thisId
+        , Attributes.checked isChecked
         , Events.onCheck (\_ -> onCheck)
         ] []
       , Html.label
-          [ Attributes.for (name ++ "-" ++ Model.audienceToString who) ]
+          (flagStyle ++ [ Attributes.for thisId ])
           [ Html.text label ]
       ]
   in
   [ let
-      radio who label =
-        case (model.facebookEnabled, who) of
-          (False, Model.Friends) -> []
-          _ ->
-            audienceRadio
-              { name = "visibility"
-              , currentWho = model.myVisibility
-              , onCheck = [Model.SubmitVisibility who]
-              , who = who
-              , label = label
-              }
+      radio flagIfChecked who label =
+        audienceRadio
+          { name = "visibility"
+          , currentWho = model.myVisibility
+          , onCheck = [Model.SubmitVisibility who]
+          , who = who
+          , label = label
+          , flagIfChecked = flagIfChecked
+          }
     in
     [ [ Html.text "Show my profile to people I've ticked and:" ]
-    , radio Model.Self "Nobody else"
-    , radio Model.Friends "Friends"
-    , radio Model.Everyone "Everyone"
+    , radio True Model.Self "Nobody else"
+    , if model.facebookEnabled
+      then radio False Model.Friends "Friends"
+      else []
+    , radio False Model.Everyone "Everyone"
     ]
   , let
       radio who label =
@@ -665,6 +673,7 @@ viewAudienceControls model =
           , onCheck = [Model.SubmitShowMe who]
           , who = who
           , label = label
+          , flagIfChecked = False
           }
     in
     if model.facebookEnabled
