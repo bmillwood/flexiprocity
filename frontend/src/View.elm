@@ -12,6 +12,7 @@ import Model exposing (Model, Msg)
 import Ports
 import PrivacyPolicy
 import SearchWords
+import Sort
 
 profileFbUser : Model -> Model.Profile -> Maybe Ports.FacebookUser
 profileFbUser model profile = profile.facebookId |> Maybe.andThen (\i -> Dict.get i model.facebookUsers)
@@ -478,18 +479,6 @@ viewPeople { customiseColumns } model =
             in
             Html.tr [] cols
           profileCompare p1 p2 =
-            let
-              nullsLast m1 m2 =
-                case (m1, m2) of
-                  (Nothing, Nothing) -> EQ
-                  (Nothing, _) -> GT
-                  (_, Nothing) -> LT
-                  (Just v1, Just v2) -> compare v1 v2
-              lexicographic next prev =
-                case prev of
-                  EQ -> next
-                  _ -> prev
-            in
             -- swap p1 and p2 when we want descending sort
             [ compare
                 (Set.size p2.matchedWouldIds)
@@ -501,9 +490,8 @@ viewPeople { customiseColumns } model =
                 (Maybe.withDefault "" p2.friendsSince)
                 (Maybe.withDefault "" p1.friendsSince)
             , compare p2.createdAt p1.createdAt
-            , nullsLast (profileName model p1) (profileName model p2)
-            ] |> List.foldr lexicographic EQ
-          sortProfiles = List.sortWith profileCompare
+            , Sort.nullsLast compare (profileName model p1) (profileName model p2)
+            ] |> Sort.lexicographic
           filterName profile =
             case profileName model profile of
               Nothing -> not (SearchWords.isActive model.nameSearch)
@@ -523,7 +511,7 @@ viewPeople { customiseColumns } model =
           profiles =
             Dict.values model.profiles
             |> List.filter filterProfile
-            |> sortProfiles
+            |> List.sortWith profileCompare
         in
         Html.tbody [] (
           if List.isEmpty profiles
