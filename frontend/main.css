@@ -53,3 +53,7 @@ input[type="text"] {
 .errors > li {
     padding: 0.2em;
 }
+@keyframes fade-in {
+    from {opacity: 0%;}
+    to {opacity: 100%;}
+}

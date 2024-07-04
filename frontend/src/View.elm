@@ -5,6 +5,7 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attributes
 import Html.Events as Events
+import Html.Keyed as Keyed
 import Json.Decode
 import Set exposing (Set)
 
@@ -477,7 +478,17 @@ viewPeople { customiseColumns } model =
                 Html.td [] [viewUser model profile { isMe = False }]
                 :: List.map wouldCol colsById
             in
-            Html.tr [] cols
+            -- The idea of the key is that it retriggers the animation when rows
+            -- are reordered, which helps the user notice that it's happened
+            -- This isn't really what keys are designed for, but... it works
+            -- :shrug:
+            ( profile.userId
+            , Html.tr
+                [ Attributes.style "animation-name" "fade-in"
+                , Attributes.style "animation-duration" "1s"
+                ]
+                cols
+            )
           profileCompare p1 p2 =
             -- swap p1 and p2 when we want descending sort
             [ compare
@@ -513,15 +524,17 @@ viewPeople { customiseColumns } model =
             |> List.filter filterProfile
             |> List.sortWith profileCompare
         in
-        Html.tbody [] (
+        Keyed.node "tbody" [] (
           if List.isEmpty profiles
           then
-            [ Html.td
-                [ Attributes.colspan (List.length colsById + 1)
-                , Attributes.style "padding" "1em"
-                , Attributes.style "font-style" "italic"
-                ]
-                [ Html.text "(No users visible)" ]
+            [ ( "empty"
+              , Html.td
+                  [ Attributes.colspan (List.length colsById + 1)
+                  , Attributes.style "padding" "1em"
+                  , Attributes.style "font-style" "italic"
+                  ]
+                  [ Html.text "(No users visible)" ]
+              )
             ]
           else List.map viewProfile profiles
         )
