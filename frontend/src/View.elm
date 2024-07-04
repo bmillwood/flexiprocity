@@ -652,6 +652,15 @@ viewAudienceControls model =
           , who = who
           , label = label
           }
+    in
+    [ [ Html.text "Show my profile to people I've ticked and:" ]
+    , radio Model.Self "Nobody else"
+    , if model.facebookEnabled
+      then radio Model.Friends "Friends"
+      else []
+    , radio Model.Everyone "Everyone"
+    ]
+  , let
       amVisibleTo profile =
         let
           youWould = not (Set.isEmpty profile.youWouldIds)
@@ -670,25 +679,18 @@ viewAudienceControls model =
         List.filter amVisibleTo (Dict.values model.profiles)
         |> List.length
     in
-    [ [ Html.text "Show my profile to people I've ticked and:" ]
-    , radio Model.Self "Nobody else"
-    , if model.facebookEnabled
-      then radio Model.Friends "Friends"
-      else []
-    , radio Model.Everyone "Everyone"
-    , [ Html.text " "
+    [ [ Html.text "Visible to "
       , Html.span
           (
             if visibleCount <= 0
             then [ Attributes.class "flag" ]
             else []
           )
-          [ Html.text "("
-          , Html.text (String.fromInt visibleCount)
+          [ Html.text (String.fromInt visibleCount)
           , Html.text (
               if visibleCount == 1
-              then " person)"
-              else " people)"
+              then " person"
+              else " people"
             )
           ]
       ]
