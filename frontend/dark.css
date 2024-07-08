@@ -29,6 +29,9 @@ button:disabled {
 table#people thead {
     background-color: hsl(300, 100%, 8%);
 }
+table#people tbody tr:nth-child(even) {
+    background-color: hsl(300, 100%, 11%);
+}
 .modified {
     background-color: hsl(240, 25%, 20%);
 }

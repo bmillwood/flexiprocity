@@ -4,6 +4,9 @@ body {
 table#people thead {
     background-color: hsl(270, 100%, 70%);
 }
+table#people tbody tr:nth-child(even) {
+    background-color: hsl(285, 80%, 78%);
+}
 .modified {
     background-color: hsl(60, 100%, 90%);
 }
