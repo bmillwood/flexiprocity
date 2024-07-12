@@ -17,7 +17,6 @@ import GHC.Generics (Generic)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTPS
 import qualified Servant.API as Servant
-import qualified System.Environment as Env
 import qualified System.Random.Stateful as Random
 import qualified Web.Cookie as Cookie
 import qualified Web.OIDC.Client as OIDC
@@ -50,36 +49,35 @@ instance Servant.FromHttpApiData SessionId where
 data Session = Session
   { state :: BS.ByteString
   , nonce :: BS.ByteString
+  , redirectUri :: BS.ByteString
   }
 
 data Env = Env
-  { oidc :: OIDC.OIDC
-  , sessions :: IORef.IORef (Map.Map SessionId Session)
+  { sessions :: IORef.IORef (Map.Map SessionId Session)
   , httpManager :: HTTP.Manager
   , provider :: OIDC.Provider
-  , redirectUri :: BS.ByteString
   , secret :: ClientSecret
   }
 
 init :: IO Env
 init = do
-  origin <- BSC.pack <$> Env.getEnv "HOST_ORIGIN"
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
   provider <- OIDC.discover "https://accounts.google.com" httpManager
   sessions <- IORef.newIORef Map.empty
-  Right secret@ClientSecret{ clientId, clientSecret }
+  Right secret
     <- Aeson.eitherDecode <$> BSL.readFile "../secrets/google_client_secret.json"
-  let
-    redirectUri = "https://" <> origin <> "/auth/login/google/complete"
-    oidc = OIDC.setCredentials clientId clientSecret redirectUri (OIDC.newOIDC provider)
   pure Env
-    { oidc
-    , sessions
+    { sessions
     , httpManager
     , provider
-    , redirectUri
     , secret
     }
+
+oidcWithRedirectUri :: Env -> BS.ByteString -> OIDC.OIDC
+oidcWithRedirectUri Env{ provider, secret } redirectUri =
+    OIDC.setCredentials clientId clientSecret redirectUri (OIDC.newOIDC provider)
+  where
+    ClientSecret{ clientId, clientSecret } = secret
 
 randomString :: IO String
 randomString = replicateM 80 randomChar
@@ -88,11 +86,11 @@ randomString = replicateM 80 randomChar
     randomChar :: IO Char
     randomChar = BSC.index randomChars <$> Random.uniformRM (0, BS.length randomChars - 1) Random.globalStdGen
 
-getSessionStore :: IORef.IORef (Map.Map SessionId Session) -> SessionId -> OIDC.SessionStore IO
-getSessionStore ref sessId =
+getSessionStore :: IORef.IORef (Map.Map SessionId Session) -> SessionId -> BS.ByteString -> OIDC.SessionStore IO
+getSessionStore ref sessId redirectUri =
   let
     sessionStoreSave state nonce = do
-      IORef.atomicModifyIORef ref $ \sessMap -> (Map.insert sessId Session{ state, nonce } sessMap, ())
+      IORef.atomicModifyIORef ref $ \sessMap -> (Map.insert sessId Session{ state, nonce, redirectUri } sessMap, ())
     sessionStoreGet clientState = do
       found <- Map.lookup sessId <$> IORef.readIORef ref
       pure $ found >>= \Session{ state, nonce } ->
@@ -114,10 +112,15 @@ getSessionStore ref sessId =
     , sessionStoreDelete
     }
 
-startUrl :: Env -> IO (SessionId, Text)
-startUrl Env{ oidc, sessions } = do
+startUrlForOrigin :: Env -> Text -> IO (SessionId, Text)
+startUrlForOrigin env@Env{ sessions } origin = do
   sessId <- SessionId . Text.pack <$> randomString
-  url <- Text.pack . show <$> OIDC.prepareAuthenticationRequestUrl (getSessionStore sessions sessId) oidc [OIDC.openId, OIDC.profile, OIDC.email] []
+  let
+    redirectUri = "https://" <> Text.encodeUtf8 origin <> "/auth/login/google/complete"
+    oidc = oidcWithRedirectUri env redirectUri
+    sessionStore = getSessionStore sessions sessId redirectUri
+    scopes = [OIDC.openId, OIDC.profile, OIDC.email]
+  url <- Text.pack . show <$> OIDC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
   pure (sessId, url)
 
 sessionIdCookie :: SessionId -> Text
@@ -140,8 +143,11 @@ data Claims = Claims
   } deriving (Generic, Aeson.FromJSON, Aeson.ToJSON, Show)
 
 codeToClaims :: Env -> SessionId -> BS.ByteString -> IO Claims
-codeToClaims Env{ oidc, sessions, httpManager } sessId code = do
-  Just Session{ state, nonce = _ } <- Map.lookup sessId <$> IORef.readIORef sessions
+codeToClaims env@Env{ sessions, httpManager } sessId code = do
+  Just Session{ state, nonce = _, redirectUri } <- Map.lookup sessId <$> IORef.readIORef sessions
+  let
+    oidc = oidcWithRedirectUri env redirectUri
+    sessionStore = getSessionStore sessions sessId redirectUri
   OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
-    <- OIDC.getValidTokens (getSessionStore sessions sessId) oidc httpManager state code
+    <- OIDC.getValidTokens sessionStore oidc httpManager state code
   pure otherClaims

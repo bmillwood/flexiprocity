@@ -47,9 +47,11 @@ logout :: Servant.Handler (Api.SetCookie Servant.NoContent)
 logout =
   pure $ Servant.addHeader "jwt=; Path=/; Max-Age=0" Servant.NoContent
 
-googleStart :: Google.Env -> Servant.Handler Api.CookieRedirect
-googleStart env = do
-  (sessId, url) <- liftIO $ Google.startUrl env
+googleStart :: Google.Env -> Maybe Text -> Servant.Handler Api.CookieRedirect
+googleStart _ Nothing =
+  Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
+googleStart env (Just host) = do
+  (sessId, url) <- liftIO $ Google.startUrlForOrigin env host
   pure
     $ Servant.addHeader (Google.sessionIdCookie sessId)
     $ Servant.addHeader url

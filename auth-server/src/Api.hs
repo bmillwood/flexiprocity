@@ -19,6 +19,7 @@ type CookieRedirect = Headers '[Header "Set-Cookie" Text, Header "Location" Text
 
 type LoginGoogle =
   "start"
+    :> Header "X-Forwarded-Host" Text
     :> Verb 'GET 303 '[PlainText] CookieRedirect
   :<|> "complete"
     :> Header "Cookie" Google.SessionId
