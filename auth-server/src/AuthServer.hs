@@ -34,10 +34,10 @@ doInit = Env <$> Google.init <*> MakeJwt.init
 jwtCookie :: MakeJwt.Env -> Map Text Aeson.Value -> IO Text
 jwtCookie jwtEnv claimsMap = cookie <$> MakeJwt.makeJwt jwtEnv claimsMap
   where
-    cookie jwtText =
+    cookie encodedJwt =
       Text.decodeUtf8 $ Cookie.renderSetCookieBS Cookie.defaultSetCookie
         { Cookie.setCookieName = "jwt"
-        , Cookie.setCookieValue = Text.encodeUtf8 jwtText
+        , Cookie.setCookieValue = encodedJwt
         , Cookie.setCookiePath = Just "/"
         , Cookie.setCookieMaxAge = Just 86400
         , Cookie.setCookieHttpOnly = True
