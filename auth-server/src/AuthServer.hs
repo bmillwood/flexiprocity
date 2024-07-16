@@ -23,13 +23,21 @@ import qualified Facebook
 import qualified Google
 import qualified MakeJwt
 
-jwtCookie :: Map Text Aeson.Value -> IO Text
-jwtCookie claimsMap = cookie <$> MakeJwt.makeJwt claimsMap
+data Env = Env
+  { google :: Google.Env
+  , jwt :: MakeJwt.Env
+  }
+
+doInit :: IO Env
+doInit = Env <$> Google.init <*> MakeJwt.init
+
+jwtCookie :: MakeJwt.Env -> Map Text Aeson.Value -> IO Text
+jwtCookie jwtEnv claimsMap = cookie <$> MakeJwt.makeJwt jwtEnv claimsMap
   where
-    cookie jwt =
+    cookie jwtText =
       Text.decodeUtf8 $ Cookie.renderSetCookieBS Cookie.defaultSetCookie
         { Cookie.setCookieName = "jwt"
-        , Cookie.setCookieValue = Text.encodeUtf8 jwt
+        , Cookie.setCookieValue = Text.encodeUtf8 jwtText
         , Cookie.setCookiePath = Just "/"
         , Cookie.setCookieMaxAge = Just 86400
         , Cookie.setCookieHttpOnly = True
@@ -37,10 +45,11 @@ jwtCookie claimsMap = cookie <$> MakeJwt.makeJwt claimsMap
         , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
         }
 
-facebookLogin :: Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
-facebookLogin userToken = do
-  fbUserId <- liftIO $ Facebook.getUserId userToken
-  cookie <- liftIO $ jwtCookie (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
+facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
+facebookLogin jwtEnv userToken = do
+  cookie <- liftIO $ do
+    fbUserId <- Facebook.getUserId userToken
+    jwtCookie jwtEnv (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
   pure $ Servant.addHeader cookie Servant.NoContent
 
 logout :: Servant.Handler (Api.SetCookie Servant.NoContent)
@@ -57,7 +66,7 @@ googleStart env (Just host) = do
     $ Servant.addHeader url
     $ Servant.NoContent
 
-googleComplete :: Google.Env -> Maybe Google.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
+googleComplete :: Env -> Maybe Google.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
 googleComplete _ _ (Just errMsg) _ = do
   liftIO . putStrLn $ "googleComplete error: " <> show errMsg
   Except.throwError Servant.err403
@@ -67,9 +76,9 @@ googleComplete _ Nothing _ _ = do
 googleComplete _ _ _ Nothing = do
   liftIO . putStrLn $ "googleComplete error: no code"
   Except.throwError Servant.err403
-googleComplete env (Just sessId) Nothing (Just code) = do
-  claims <- liftIO $ Google.codeToClaims env sessId (Text.encodeUtf8 code)
-  cookie <- liftIO $ jwtCookie (Map.singleton "google" (Aeson.toJSON claims))
+googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) = do
+  claims <- liftIO $ Google.codeToClaims google sessId (Text.encodeUtf8 code)
+  cookie <- liftIO $ jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
   pure
     $ Servant.addHeader cookie
     $ Servant.addHeader "/"
@@ -85,19 +94,19 @@ facebookDecodeSignedReq signedReq = do
   where
     bsFromString = BSL.fromStrict . Text.encodeUtf8 . Text.pack
 
-server :: Google.Env -> Servant.Server Api.Api
-server google = loginServer :<|> facebookDecodeSignedReq
+server :: Env -> Servant.Server Api.Api
+server env@Env{ google, jwt } = loginServer :<|> facebookDecodeSignedReq
   where
     loginServer =
       logout
-      :<|> facebookLogin
-      :<|> (googleStart google :<|> googleComplete google)
+      :<|> facebookLogin jwt
+      :<|> (googleStart google :<|> googleComplete env)
 
-app :: Google.Env -> Wai.Application
-app google = Servant.serve (Proxy @Api.Api) (server google)
+app :: Env -> Wai.Application
+app env = Servant.serve (Proxy @Api.Api) (server env)
 
 main :: IO ()
 main = do
-  google <- Google.init
+  env <- doInit
   putStrLn "Initialization finished"
-  Warp.run 5001 (Cors.simpleCors (app google))
+  Warp.run 5001 (Cors.simpleCors (app env))
