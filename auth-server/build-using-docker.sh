@@ -12,4 +12,4 @@ if [ -z "$(docker container ls --quiet --filter name="^$dockername"'$')" ]
 then
     docker start "$dockername"
 fi
-docker exec "$dockername" bash -c 'cd /mnt; cabal install --install-method=copy --installdir=/mnt/ubuntu'
+docker exec "$dockername" bash -c 'cd /mnt; cabal install --install-method=copy --installdir=/mnt/ubuntu --overwrite-policy=always'
