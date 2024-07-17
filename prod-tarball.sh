@@ -13,7 +13,7 @@ mkdir -p "$d"/frontend
 pushd frontend > /dev/null
 cp *.{css,html} driver.js "$d"/frontend
 elm make --optimize --output="$d"/elm.premin.js src/Main.elm
-./version-info.sh > "$d"/frontend/version.js
+./output-version-file.sh > "$d"/frontend/version.js
 uglifyjs "$d"/elm.premin.js --compress "pure_funcs=[F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9],pure_getters,keep_fargs=false,unsafe_comps,unsafe" | uglifyjs --mangle --output "$d"/frontend/elm.js
 rm "$d"/elm.premin.js
 popd > /dev/null

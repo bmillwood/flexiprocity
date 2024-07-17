@@ -6,6 +6,6 @@ do
   inotifywait --quiet -e modify -e delete elm.json src tests &
   elm make --output=elm.js src/Main.elm \
     && elm-test \
-    && ./version-info.sh > version.js
+    && ./output-version-file.sh > version.js
   wait %inotifywait
 done
