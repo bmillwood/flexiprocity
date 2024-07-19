@@ -17,6 +17,8 @@ RESET client_min_messages;
 INSERT INTO woulds (name, is_default)
 VALUES ('Hang out sometime', true), ('Go on a date or something', true);
 
+SET ROLE api;
+
 SELECT is(
   get_or_create_user_id(),
   NULL,
@@ -32,6 +34,8 @@ SELECT isnt_empty(
   'get_or_create_user_id() works'
 );
 
+RESET ROLE; -- can't select or update users directly
+
 SELECT bag_eq(
   $$ SELECT current_user_id() $$,
   $$ SELECT user_id FROM users $$,
@@ -39,6 +43,8 @@ SELECT bag_eq(
 );
 
 INSERT INTO users (facebook_id) VALUES ('thatUser');
+
+SET ROLE api;
 
 INSERT INTO woulds (name) VALUES ('secret third thing');
 
