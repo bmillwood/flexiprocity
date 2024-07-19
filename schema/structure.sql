@@ -67,11 +67,11 @@ REVOKE EXECUTE ON FUNCTION my_user FROM public;
 GRANT  EXECUTE ON FUNCTION my_user TO api;
 
 CREATE FUNCTION public.update_me
-  ( name text
-  , bio text
-  , visible_to audience
-  , show_me audience
-  , privacy_policy_version text
+  ( name text = NULL
+  , bio text = NULL
+  , visible_to audience = NULL
+  , show_me audience = NULL
+  , privacy_policy_version text = NULL
   ) RETURNS users
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC

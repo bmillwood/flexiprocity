@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(13);
+SELECT plan(14);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -32,6 +32,11 @@ SELECT isnt_empty(
      WHERE u IS NOT NULL
   $$,
   'get_or_create_user_id() works'
+);
+
+SELECT lives_ok(
+  $$ SELECT update_me(name => 'Alice') $$,
+  'can update name'
 );
 
 RESET ROLE; -- can't select or update users directly
