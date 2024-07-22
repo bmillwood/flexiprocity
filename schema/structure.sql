@@ -42,6 +42,8 @@ CREATE TABLE public.users
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
   , show_me audience NOT NULL DEFAULT 'everyone'
+  , verified_contact_email text
+  , send_email_on_matches bool NOT NULL DEFAULT FALSE
   , created_at timestamptz NOT NULL DEFAULT now()
   );
 
@@ -72,6 +74,7 @@ CREATE FUNCTION public.update_me
   , visible_to audience = NULL
   , show_me audience = NULL
   , privacy_policy_version text = NULL
+  , send_email_on_matches bool = NULL
   ) RETURNS users
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
   BEGIN ATOMIC
@@ -79,10 +82,19 @@ CREATE FUNCTION public.update_me
     SET name = COALESCE(update_me.name, get_google_field('name'), users.name)
       , bio = COALESCE(update_me.bio, users.bio)
       , picture = COALESCE(get_google_field('picture'), users.picture)
+      , verified_contact_email =
+          COALESCE(
+            CASE get_google_field('email_verified')
+              WHEN 'true' THEN get_google_email()
+            END
+          , users.verified_contact_email
+          )
       , visible_to = COALESCE(update_me.visible_to, users.visible_to)
       , show_me = COALESCE(update_me.show_me, users.show_me)
       , privacy_policy_version =
           COALESCE(update_me.privacy_policy_version, users.privacy_policy_version)
+      , send_email_on_matches =
+          COALESCE(update_me.send_email_on_matches, users.send_email_on_matches)
     WHERE user_id = current_user_id()
     RETURNING *;
   END;
@@ -338,3 +350,56 @@ CREATE VIEW public.user_profiles AS
         )
   GROUP BY users.user_id, fwu.since, uf.*, uf.since;
 GRANT SELECT ON user_profiles TO api;
+
+CREATE TABLE public.email_sending
+  ( email_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
+  , created_at timestamptz NOT NULL DEFAULT now()
+  , recipient_addresses text[] NOT NULL CHECK (recipient_addresses <> '{}')
+  , recipient_names text[] NOT NULL CHECK (recipient_names <> '{}')
+  , would_matches text[] NOT NULL CHECK (would_matches <> '{}')
+  , sending_started timestamptz
+  , sending_completed timestamptz
+  , CHECK (sending_started IS NOT NULL OR sending_completed IS NULL)
+  , sending_cancelled timestamptz
+  , errors text[]
+  );
+
+CREATE OR REPLACE FUNCTION public.queue_match_emails() RETURNS TRIGGER
+  LANGUAGE plpgsql SECURITY DEFINER AS $$BEGIN
+    WITH matches AS (
+      SELECT nuw.user_id, array_agg(woulds.name) AS would_names, nuw.with_id
+      FROM new_user_woulds nuw
+      JOIN user_woulds wu ON nuw.would_id = wu.would_id AND nuw.user_id = wu.with_id
+      JOIN woulds ON woulds.would_id = nuw.would_id
+      GROUP BY nuw.user_id, nuw.with_id
+    )
+    INSERT INTO email_sending (recipient_addresses, recipient_names, would_matches)
+    SELECT
+        array_remove(ARRAY[
+            CASE WHEN us.send_email_on_matches THEN us.verified_contact_email END
+          , CASE WHEN them.send_email_on_matches THEN them.verified_contact_email END
+          ], NULL) AS recipient_addresses
+      , ARRAY[us.name, them.name] AS recipient_names
+      , matches.would_names AS would_matches
+    FROM matches
+    JOIN users us ON us.user_id = matches.user_id
+    JOIN users them ON them.user_id = matches.with_id
+    WHERE us.send_email_on_matches OR them.send_email_on_matches
+    ;
+    RETURN NULL;
+  END$$;
+
+CREATE OR REPLACE TRIGGER email_on_matches AFTER INSERT ON user_woulds
+  REFERENCING NEW TABLE AS new_user_woulds
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION queue_match_emails();
+
+CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER
+  LANGUAGE plpgsql SECURITY INVOKER AS $$BEGIN
+    PERFORM pg_notify(TG_ARGV[0], TG_ARGV[1]);
+    RETURN NULL;
+  END$$;
+
+CREATE OR REPLACE TRIGGER notify_email_sending AFTER INSERT ON email_sending
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_notify('email_sending', email_id);

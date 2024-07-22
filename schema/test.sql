@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(14);
+SELECT plan(21);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -25,7 +25,7 @@ SELECT is(
   'get_or_create_user_id() with no credentials'
 );
 
-SELECT set_config('jwt.claims.facebookUserId', 'thisUser', true);
+SELECT set_config('jwt.claims.facebookUserId', 'aliceId', true);
 
 SELECT isnt_empty(
   $$ SELECT u FROM (SELECT get_or_create_user_id() AS u) r
@@ -47,7 +47,7 @@ SELECT bag_eq(
   'current_user_id() returns id of user'
 );
 
-INSERT INTO users (facebook_id) VALUES ('thatUser');
+INSERT INTO users (facebook_id, name, visible_to) VALUES ('bobId', 'Bob', 'everyone');
 
 SET ROLE api;
 
@@ -141,6 +141,87 @@ SELECT lives_ok(
   $$,
   'can insert another would after three days'
 );
+
+RESET ROLE;
+SELECT is_empty(
+  $$ SELECT * FROM email_sending $$,
+  'no e-mails yet'
+);
+SET ROLE api;
+
+SELECT isnt_empty(
+  $$
+    INSERT INTO user_woulds (user_id, would_id, with_id)
+    SELECT current_user_id(), w.would_id, them.user_id
+    FROM woulds w, user_profiles them
+    WHERE w.name = 'Hang out sometime'
+    AND them.facebook_id = 'bobId'
+    RETURNING *
+  $$,
+  'can express interest'
+  );
+
+SELECT throws_ok(
+  $$
+    INSERT INTO user_woulds (user_id, would_id, with_id)
+    SELECT them.user_id, w.would_id, current_user_id()
+    FROM woulds w, user_profiles them
+    WHERE w.name = 'Hang out sometime'
+    AND them.facebook_id = 'bobId'
+    RETURNING *
+  $$,
+  '42501', 'new row violates row-level security policy for table "user_woulds"',
+  'cannot ascribe interest to others'
+);
+
+RESET ROLE;
+UPDATE user_woulds SET user_id = with_id, with_id = user_id;
+SET ROLE api;
+
+SAVEPOINT before_match;
+SELECT isnt_empty(
+  $$
+    INSERT INTO user_woulds (user_id, would_id, with_id)
+    SELECT current_user_id(), w.would_id, them.user_id
+    FROM woulds w, user_profiles them
+    WHERE w.name = 'Hang out sometime'
+    AND them.facebook_id = 'bobId'
+    RETURNING *
+  $$,
+  'can express reciprocated interest'
+);
+
+RESET ROLE;
+SELECT is_empty(
+  $$ SELECT * FROM email_sending $$,
+  'still no e-mails yet'
+);
+ROLLBACK TO before_match;
+RESET ROLE;
+UPDATE users
+SET send_email_on_matches = TRUE
+  , verified_contact_email = lower(name) || '@host.example';
+SET ROLE api;
+
+SELECT isnt_empty(
+  $$
+    INSERT INTO user_woulds (user_id, would_id, with_id)
+    SELECT current_user_id(), w.would_id, them.user_id
+    FROM woulds w, user_profiles them
+    WHERE w.name = 'Hang out sometime'
+    AND them.facebook_id = 'bobId'
+    RETURNING *
+  $$,
+  'can express reciprocated interest'
+);
+
+RESET ROLE;
+SELECT bag_eq(
+  $$ SELECT recipient_addresses, recipient_names, would_matches FROM email_sending $$,
+  $$ VALUES (ARRAY['alice@host.example', 'bob@host.example'], ARRAY['Alice', 'Bob'], ARRAY['Hang out sometime']) $$,
+  'email queued'
+);
+SET ROLE api;
 
 SELECT finish();
 
