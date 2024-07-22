@@ -5,7 +5,7 @@ version:            0.1.0.0
 synopsis:           Server which provides jwts for flexiprocity
 description:
   The auth-server translates authentiction against third-party providers
-  (currently just Facebook) into a JWT cookie that the frontend can verify.
+  into a JWT cookie that the frontend can verify.
 license:            BSD-3-Clause
 license-file:       LICENSE
 author:             Ben Millwood
