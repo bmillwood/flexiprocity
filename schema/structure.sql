@@ -1,4 +1,4 @@
-GRANT CONNECT ON DATABASE flexiprocity TO api;
+GRANT CONNECT ON DATABASE flexiprocity TO api, meddler;
 
 CREATE FUNCTION public.get_facebook_id() RETURNS text
   LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
@@ -363,6 +363,8 @@ CREATE TABLE public.email_sending
   , sending_cancelled timestamptz
   , errors text[]
   );
+GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled)
+  ON email_sending TO meddler;
 
 CREATE OR REPLACE FUNCTION public.queue_match_emails() RETURNS TRIGGER
   LANGUAGE plpgsql SECURITY DEFINER AS $$BEGIN

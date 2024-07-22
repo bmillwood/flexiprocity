@@ -1,9 +1,8 @@
-name: Build auth-server
+name: Build Haskell binaries
 on:
   push:
-    paths:
-      - .github/workflows/build-auth-server.yml
-      - auth-server/**
+    branches:
+      - build
 
 # Below copies significantly from
 # https://github.com/haskell-actions/setup/blob/v2.6.2/README.md
@@ -17,23 +16,22 @@ concurrency:
 
 jobs:
   build:
-    name: GHC ${{ matrix.ghc-version }} on ${{ matrix.os }}
+    name: Build on GHC ${{ matrix.ghc-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        ghc-version: ['9.4']
+        ghc-version: ['9.6']
     defaults:
       run:
         shell: bash -euo pipefail {0}
-        working-directory: auth-server
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up GHC ${{ matrix.ghc-version }}
-        uses: haskell-actions/setup@v2.6.2
+        uses: haskell-actions/setup@v2.7.5
         id: setup
         with:
           ghc-version: ${{ matrix.ghc-version }}
@@ -41,8 +39,13 @@ jobs:
           cabal-version: 'latest'
           cabal-update: true
 
-      - name: Check cabal file
+      - name: Check cabal file for auth-server
         run: cabal check
+        working-directory: auth-server
+
+      - name: Check cabal file for meddler
+        run: cabal check
+        working-directory: meddler
 
       - name: Configure the build
         run: |
@@ -79,3 +82,12 @@ jobs:
 
       - name: Run tests
         run: cabal test all
+
+      - name: Get binaries
+        run: cabal install all --installdir=haskell-bin
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4.3.4
+        with:
+          name: haskell-bin
+          path: haskell-bin

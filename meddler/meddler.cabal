@@ -1,0 +1,53 @@
+cabal-version:      3.4
+
+name:               meddler
+version:            0.1.0.0
+synopsis:           Server which sends emails for flexiprocity
+description:
+  The meddler reads email information from the database and sends them.
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Ben Millwood
+maintainer:         thebenmachine+git@gmail.com
+
+category:           Web
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall
+
+common language
+    default-language: GHC2021
+    default-extensions:
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DisambiguateRecordFields
+      OverloadedStrings
+    -- other-extensions:
+
+library
+    import:           warnings
+    import:           language
+    exposed-modules:  Meddler
+    --other-modules:
+    build-depends:
+      amazonka ^>= 2.0,
+      amazonka-ses ^>= 2.0,
+      async ^>= 2.2,
+      base ^>= 4.18,
+      lens ^>= 5.2,
+      postgresql-simple ^>= 0.7,
+      text ^>= 2.0,
+    hs-source-dirs:   src
+
+executable meddler
+    import:           warnings
+    import:           language
+    main-is:          Main.hs
+    -- other-modules:
+    -- other-extensions:
+    build-depends:
+      meddler,
+      base ^>= 4.18,
+    hs-source-dirs:   app
