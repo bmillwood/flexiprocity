@@ -30,16 +30,21 @@ main :: IO ()
 main = do
   aws <- AWS.newEnv AWS.discover
   conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
+  _ <- SQL.execute_ conn "LISTEN email_sending"
   notified <- newEmptyMVar
-  withAsync (notifyThread conn notified) $ \_ -> do
+  withAsync (notifyThread conn notified) $ \_ -> forever $ do
+    putStrLn "checking for emails to send"
     withEmails conn $ \email -> do
       sendEmail aws email `catch` \(err :: IOException) ->
         pure (Left [Text.pack $ show err])
+    putStrLn "done sending emails, going to sleep"
     takeMVar notified
   where
     notifyThread conn notified = forever $ do
-      SQL.Notification{ notificationChannel } <- SQL.getNotification conn
+      n@SQL.Notification{ notificationChannel } <- SQL.getNotification conn
+      putStrLn $ "notification received: " <> show n
       when (notificationChannel == "email_sending") $ do
+        putStrLn "wake up main thread"
         (_ :: Bool) <- tryPutMVar notified ()
         pure ()
 
@@ -89,7 +94,7 @@ sendEmail aws Email{ recipientAddresses, recipientNames, wouldMatches } = do
     toAddresses =
       if False
       then SQL.fromPGArray recipientAddresses
-      else ["thebenmachine+ses@gmail.com"]
+      else ["success@simulator.amazonses.com"]
     destination =
       SES.newDestination
       & SES.destination_toAddresses .~ Just toAddresses
