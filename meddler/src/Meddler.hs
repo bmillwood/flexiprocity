@@ -195,10 +195,21 @@ sendEmail aws email = do
             ]
           ]
         Unsub{ unsubAddress, unsubToken } ->
+          let
+            unsubUrl =
+              "https://reciprocity.rpm.cc/unsubscribe"
+              <> "?address=" <> unsubAddress
+              <> "&token=" <> UUID.toText unsubToken
+          in
           [ [ ifHtml $ "<!DOCTYPE html>\n<html><head><title>" <> subject <> "</title></head><body>"
             , tag "p" "" "Hello,"
             , ""
             , tag "p" "" $ "We've received a request to stop sending emails to " <> unsubAddress <> "."
+            , ""
+            , tag "p" "" $ Text.unlines
+                [ "Please visit the following URL to complete your unsubscription:" <> ifHtml "<br>"
+                , tag "a" (" href=\"" <> unsubUrl <> "\"") unsubUrl
+                ]
             , ifHtml "</body></html>"
             ]
           ]

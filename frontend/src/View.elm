@@ -807,6 +807,14 @@ viewPrivacy model =
   in
   updatePrivacy ++ PrivacyPolicy.viewPrivacyPolicy
 
+viewUnsubscribe
+  : Model -> { r | success : Bool } -> List (Html Msg)
+viewUnsubscribe model { success } =
+  [ if success
+    then [ Html.p [] [Html.text "Unsubscribe seems to have succeeded."] ]
+    else []
+  ] |> List.concat
+
 viewSecurity : Model -> List (Html Msg)
 viewSecurity _ =
   [ Html.h2 []
@@ -987,6 +995,7 @@ view model =
         Model.Columns -> "reciprocity"
         Model.Account _ -> "Account - reciprocity"
         Model.Privacy -> "Privacy - reciprocity"
+        Model.Unsubscribe _ -> "Unsubscribe - reciprocity"
         Model.Security -> "Security - reciprocity"
         Model.WhyNotFacebook -> "Facebook? - reciprocity"
   , body =
@@ -998,6 +1007,7 @@ view model =
         Model.Columns -> viewRoot { customiseColumns = True } model
         Model.Account account -> viewAccount model account
         Model.Privacy -> viewPrivacy model
+        Model.Unsubscribe unsub -> viewUnsubscribe model unsub
         Model.Security -> viewSecurity model
         Model.WhyNotFacebook -> viewWhyNotFacebook model
   }

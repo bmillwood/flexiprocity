@@ -8,7 +8,8 @@ import Json.Decode
 import Json.Encode
 import Set exposing (Set)
 import Url exposing (Url)
-import Url.Parser
+import Url.Parser exposing ((<?>))
+import Url.Parser.Query
 
 import ListZipper
 import Ports
@@ -92,6 +93,7 @@ type Page
   | Columns
   | Account { deleteConfirmations : Set String }
   | Privacy
+  | Unsubscribe { address : Maybe String, token : Maybe String, success : Bool }
   | Security
   | WhyNotFacebook
 
@@ -155,6 +157,7 @@ type OneMsg
   | DeleteAccount
   | MyPrivacyPolicyVersion String
   | AgreeToPrivacyPolicy { version : String }
+  | UnsubscribeCompleted
   | SetWoulds (Dict WouldId Would)
   | SetColumns (List WouldId)
   | EditProposedWould String
@@ -187,6 +190,11 @@ parseUrl url =
         , Url.Parser.map Columns (Url.Parser.s "columns")
         , Url.Parser.map accountPage (Url.Parser.s "account")
         , Url.Parser.map Privacy (Url.Parser.s "privacy")
+        , Url.Parser.s "unsubscribe"
+            <?> Url.Parser.Query.map2
+                (\a t -> Unsubscribe { address = a, token = t, success = False })
+                (Url.Parser.Query.string "address")
+                (Url.Parser.Query.string "token")
         , Url.Parser.map Security (Url.Parser.s "security")
         , Url.Parser.map WhyNotFacebook (Url.Parser.s "why-not-facebook")
         ]
@@ -207,12 +215,15 @@ init
   : { latestPrivacyPolicy : Maybe String, facebookEnabled : Bool, googleEnabled : Bool }
   -> Url -> Nav.Key -> (Model, Cmd Msg)
 init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
+  let
+    initPage = parseUrl url
+  in
   ( { errors = []
     , nextErrorId = 0
     , navKey = navKey
     , latestPrivacyPolicy = latestPrivacyPolicy
     , myPrivacyPolicy = Nothing
-    , page = parseUrl url
+    , page = initPage
     , apiLoggedIn = Unknown
     , facebookEnabled = facebookEnabled
     , facebookLoggedIn = Unknown
@@ -232,7 +243,28 @@ init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
     , myNewWould = ""
     , drag = Nothing
     }
-  , checkApiLogin
+  , Cmd.batch
+      [ checkApiLogin
+      , case initPage of
+          Unsubscribe { address, token } ->
+            case (address, token) of
+              (Just a, Just t) ->
+                graphQL
+                  { query =
+                      [ "mutation U($a:String!,$t:UUID!){"
+                      , "completeUnsub(input:{emailAddress:$a,unsubToken:$t}){unit}"
+                      , "}"
+                      ] |> String.concat
+                  , operationName = "U"
+                  , variables = [("a", Json.Encode.string a), ("t", Json.Encode.string t)]
+                  , decodeResult =
+                      Json.Decode.at
+                        ["data", "completeUnsub", "unit"]
+                        (Json.Decode.succeed [UnsubscribeCompleted])
+                  }
+              _ -> Cmd.none
+          _ -> Cmd.none
+      ]
   )
 
 handleHttpResult : Result Http.Error Msg -> Msg
@@ -629,6 +661,13 @@ updateOne msg model =
               Json.Decode.at ["data", "updateMe", "user", "privacyPolicyVersion"] Json.Decode.string
               |> Json.Decode.map (List.singleton << MyPrivacyPolicyVersion)
           }
+      )
+    UnsubscribeCompleted ->
+      ( case model.page of
+          Unsubscribe u ->
+            { model | page = Unsubscribe { u | success = True } }
+          _ -> model
+      , Cmd.none
       )
     SetWoulds woulds -> ({ model | wouldsById = woulds }, Cmd.none)
     SetColumns cols -> ({ model | columns = cols }, setColumns cols)
