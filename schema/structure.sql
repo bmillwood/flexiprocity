@@ -404,4 +404,5 @@ CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER
 
 CREATE OR REPLACE TRIGGER notify_match_emails AFTER INSERT ON match_emails
   FOR EACH ROW
-  EXECUTE FUNCTION trigger_notify('match_emails', email_id);
+  -- can't access NEW from the function call, so can't pass a useful payload
+  EXECUTE FUNCTION trigger_notify('match_emails', '');
