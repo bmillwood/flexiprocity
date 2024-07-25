@@ -808,11 +808,34 @@ viewPrivacy model =
   updatePrivacy ++ PrivacyPolicy.viewPrivacyPolicy
 
 viewUnsubscribe
-  : Model -> { r | success : Bool } -> List (Html Msg)
-viewUnsubscribe model { success } =
+  : Model -> { r | requestUnsubAddress : String, success : Bool } -> List (Html Msg)
+viewUnsubscribe model { requestUnsubAddress, success } =
   [ if success
-    then [ Html.p [] [Html.text "Unsubscribe seems to have succeeded."] ]
+    then [ Html.p [] [Html.text "Unsubscribe seems to have succeeded."], Html.hr [] [] ]
     else []
+  , List.map (Html.p [] << List.singleton << Html.text)
+      [ """If you want to stop reciprocity from e-mailing you,
+          you should probably just update your account settings."""
+      , """If you can't do that for whatever reason, fill in this form and
+          you'll be sent an email with instructions to complete the
+          unsubscription."""
+      , """Note you will only be sent an e-mail if reciprocity
+          knows your e-mail address. For privacy reasons, we won't
+          tell you whether we know it or not."""
+      ]
+  , [ Html.input
+        [ Attributes.type_ "text"
+        , Attributes.placeholder "email"
+        , Attributes.value requestUnsubAddress
+        , Events.onInput (List.singleton << Model.UpdateUnsubEmail)
+        ]
+        []
+    , Html.button
+        [ Events.onClick [Model.SendUnsubRequest]
+        , Attributes.disabled (String.isEmpty requestUnsubAddress)
+        ]
+        [ Html.text "Request unsubscription link" ]
+    ]
   ] |> List.concat
 
 viewSecurity : Model -> List (Html Msg)

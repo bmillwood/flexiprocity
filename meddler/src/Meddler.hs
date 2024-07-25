@@ -176,6 +176,9 @@ sendEmail aws email = do
         ifHtml s = if isHtml then s else ""
         tag n onOpen content =
           (ifHtml $ "<" <> n <> onOpen <> ">") <> content <> (ifHtml $ "</" <> n <> ">")
+        reciprocityBaseUrl = "https://reciprocity.rpm.cc"
+        unsubBaseUrl = reciprocityBaseUrl <> "/unsubscribe"
+        linkTo dest = tag "a" (" href=\"" <> dest <> "\"")
       in
       Text.unlines . concat $ case email of
         Match{ recipientNames, wouldMatches } ->
@@ -190,14 +193,21 @@ sendEmail aws email = do
             , ""
             , tag "p" "" $
                 "Love,\n" <> ifHtml "<br>"
-                <> "The " <> tag "a" " href=\"https://reciprocity.rpm.cc\"" "reciprocity" <> " meddler bot"
+                <> "The " <> linkTo reciprocityBaseUrl "reciprocity" <> " meddler bot"
+            , ""
+            , tag "p" " style=\"font-size: 80%\"" $ Text.concat
+                [ linkTo unsubBaseUrl "Stop receiving these emails"
+                , if not isHtml
+                  then ": " <> unsubBaseUrl
+                  else ""
+                ]
             , ifHtml "</body></html>"
             ]
           ]
         Unsub{ unsubAddress, unsubToken } ->
           let
             unsubUrl =
-              "https://reciprocity.rpm.cc/unsubscribe"
+              unsubBaseUrl
               <> "?address=" <> unsubAddress
               <> "&token=" <> UUID.toText unsubToken
           in
@@ -206,9 +216,15 @@ sendEmail aws email = do
             , ""
             , tag "p" "" $ "We've received a request to stop sending emails to " <> unsubAddress <> "."
             , ""
+            , tag "p" "" $ Text.concat
+                [ "The recommended way to achieve this is just by updating your account settings,"
+                , " but just in case that's ever not sufficient (e.g. you can't log in), this"
+                , " e-mail offers another mechanism to permanently ban reciprocity from e-mailing you."
+                ]
+            , ""
             , tag "p" "" $ Text.unlines
-                [ "Please visit the following URL to complete your unsubscription:" <> ifHtml "<br>"
-                , tag "a" (" href=\"" <> unsubUrl <> "\"") unsubUrl
+                [ "Please visit the following URL to complete the process:" <> ifHtml "<br>"
+                , linkTo unsubUrl unsubUrl
                 ]
             , ifHtml "</body></html>"
             ]

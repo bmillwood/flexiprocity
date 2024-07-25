@@ -93,7 +93,12 @@ type Page
   | Columns
   | Account { deleteConfirmations : Set String }
   | Privacy
-  | Unsubscribe { address : Maybe String, token : Maybe String, success : Bool }
+  | Unsubscribe
+      { address : Maybe String
+      , token : Maybe String
+      , success : Bool
+      , requestUnsubAddress : String
+      }
   | Security
   | WhyNotFacebook
 
@@ -157,6 +162,8 @@ type OneMsg
   | DeleteAccount
   | MyPrivacyPolicyVersion String
   | AgreeToPrivacyPolicy { version : String }
+  | UpdateUnsubEmail String
+  | SendUnsubRequest
   | UnsubscribeCompleted
   | SetWoulds (Dict WouldId Would)
   | SetColumns (List WouldId)
@@ -192,7 +199,9 @@ parseUrl url =
         , Url.Parser.map Privacy (Url.Parser.s "privacy")
         , Url.Parser.s "unsubscribe"
             <?> Url.Parser.Query.map2
-                (\a t -> Unsubscribe { address = a, token = t, success = False })
+                (\a t -> Unsubscribe
+                  { address = a, token = t, success = False, requestUnsubAddress = "" }
+                )
                 (Url.Parser.Query.string "address")
                 (Url.Parser.Query.string "token")
         , Url.Parser.map Security (Url.Parser.s "security")
@@ -661,6 +670,27 @@ updateOne msg model =
               Json.Decode.at ["data", "updateMe", "user", "privacyPolicyVersion"] Json.Decode.string
               |> Json.Decode.map (List.singleton << MyPrivacyPolicyVersion)
           }
+      )
+    UpdateUnsubEmail newEmail ->
+      ( case model.page of
+          Unsubscribe u ->
+            { model | page = Unsubscribe { u | requestUnsubAddress = newEmail } }
+          _ -> model
+      , Cmd.none
+      )
+    SendUnsubRequest ->
+      ( model
+      , case model.page of
+          Unsubscribe { requestUnsubAddress } ->
+            graphQL
+              { query = "mutation U($a:String!){requestUnsub(input:{emailAddress:$a}){unit}}"
+              , operationName = "U"
+              , variables = [("a", Json.Encode.string requestUnsubAddress)]
+              , decodeResult =
+                  Json.Decode.at ["data", "requestUnsub", "unit"]
+                    (Json.Decode.succeed [UpdateUnsubEmail ""])
+              }
+          _ -> Cmd.none
       )
     UnsubscribeCompleted ->
       ( case model.page of
