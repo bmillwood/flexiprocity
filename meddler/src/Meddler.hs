@@ -94,32 +94,39 @@ sendEmail aws Email{ recipientAddresses, recipientNames, wouldMatches } = do
     toAddresses =
       if False
       then SQL.fromPGArray recipientAddresses
-      else ["success@simulator.amazonses.com"]
+      else ["thebenmachine+ses@gmail.com"]
     destination =
       SES.newDestination
       & SES.destination_toAddresses .~ Just toAddresses
-    message = SES.newMessage content body
+    message = SES.newMessage (SES.newContent subject) body
+    subject = "reciprocity match between " <> Text.intercalate " and " names
     names = SQL.fromPGArray recipientNames
-    content = SES.newContent
-      $ "reciprocity match between "
-      <> Text.intercalate " and " names
-    bodyText =
-      Text.unlines $ concat
-        [ [ "Hello " <> Text.intercalate " and " names <> ","
-          , ""
-          , "Good news! You have a shared enthusiasm for:"
-          ]
-        , map ("- " <>) (SQL.fromPGArray wouldMatches)
-        , [ ""
-          , "You can use this thread to organise if you want."
-          , ""
-          , "Love,"
-          , "The reciprocity meddler bot"
-          ]
-        ]
     body =
       SES.newBody
-      & SES.body_text .~ Just (SES.newContent bodyText)
+      & SES.body_text .~ Just (SES.newContent (mkBody False))
+      & SES.body_html .~ Just (SES.newContent (mkBody True))
+    mkBody isHtml =
+      let
+        ifHtml s = if isHtml then s else ""
+        tag n onOpen content =
+          (ifHtml $ "<" <> n <> onOpen <> ">") <> content <> (ifHtml $ "</" <> n <> ">")
+      in
+      Text.unlines $ concat
+        [ [ ifHtml $ "<!DOCTYPE html>\n<html><head><title>" <> subject <> "</title></head><body>"
+          , tag "p" "" $ "Hello " <> Text.intercalate " and " names <> ","
+          , ""
+          , ifHtml "<p>" <> "Good news! You have a shared enthusiasm for the following:" <> ifHtml "<ul>"
+          ]
+        , map (tag "li" "") (SQL.fromPGArray wouldMatches)
+        , [ ifHtml "</ul>"
+          , tag "p" "" "You can use this thread to organise if you want."
+          , ""
+          , tag "p" "" $
+               "Love,\n" <> ifHtml "<br>"
+               <> "The " <> tag "a" " href=\"https://reciprocity.rpm.cc\"" "reciprocity" <> " meddler bot"
+          , ifHtml "</body></html>"
+          ]
+        ]
   response <- AWS.runResourceT $ AWS.send aws sendEmailReq
   let status = response ^. SES.sendEmailResponse_httpStatus
   pure $ if status == 200
