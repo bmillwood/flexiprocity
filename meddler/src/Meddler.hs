@@ -14,6 +14,7 @@ import qualified Amazonka as AWS
 import qualified Amazonka.SES as SES
 import qualified Amazonka.SES.SendEmail as SES
 import qualified Amazonka.SES.Types as SES
+import qualified Control.Concurrent.TokenBucket as TokenBucket
 import qualified Database.PostgreSQL.Simple as SQL
 import qualified Database.PostgreSQL.Simple.Notification as SQL
 import qualified Database.PostgreSQL.Simple.Types as SQL
@@ -29,12 +30,20 @@ data Email = Email
 main :: IO ()
 main = do
   aws <- AWS.newEnv AWS.discover
+  rateLimiter <- TokenBucket.newTokenBucket
+  let
+    burstSize = 10
+    secondsPerEmail = 300
+    rateLimit =
+      TokenBucket.tokenBucketWait rateLimiter burstSize (secondsPerEmail * 1_000_000)
   conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
   _ <- SQL.execute_ conn "LISTEN match_emails"
   notified <- newEmptyMVar
   withAsync (notifyThread conn notified) $ \_ -> forever $ do
     putStrLn "checking for emails to send"
     withEmails conn $ \email -> do
+      rateLimit
+      putStrLn "sending an email"
       sendEmail aws email `catch` \(err :: IOException) ->
         pure (Left [Text.pack $ show err])
     putStrLn "done sending emails, going to sleep"

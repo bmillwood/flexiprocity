@@ -39,6 +39,7 @@ library
       lens ^>= 5.2,
       postgresql-simple ^>= 0.7,
       text ^>= 2.0,
+      token-bucket ^>= 0.1,
     hs-source-dirs:   src
 
 executable meddler
