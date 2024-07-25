@@ -61,19 +61,12 @@ viewPrivacyPolicy =
         |> List.map (Html.li [] << List.singleton << Html.text)
         |> Html.ul []
       ]
-  , Html.p []
-      [ Html.text """All email notifications (when implemented) will be opt-in.
-            (I may change the privacy policy to allow them to default on if
-            people want that, but this will only take effect if you agree to the
-            new policy.)"""
-      ]
-  , Html.p []
-      [ Html.text "You can delete all the data held about you on your "
-      , Html.a
-          [ Attributes.href "/account" ]
-          [ Html.text "account" ]
-      , Html.text " page."
-      ]
+  , Html.p [] [
+      Html.text """All email notifications (when implemented) will be opt-in.
+        (I may change the privacy policy to allow them to default on if people
+        want that, but this will only take effect if you agree to the new
+        policy.)"""
+    ]
   , Html.p [] [
       Html.text """In general, the app keeps the data mentioned in this policy
         even when you don't strictly use the functionality that needs it (e.g.
@@ -87,6 +80,37 @@ viewPrivacyPolicy =
         party who handles this data will be subject to all the restrictions and
         obligations of this policy."""
     ]
+  , Html.p [] [
+      Html.text """I may gather anonymised summary statistics of e.g. how many
+        people use the app, or how many people have how many matches, as part of
+        ensuring the app is running correctly, doing maintenance and debugging,
+        developing additional features or removing unused features, and e.g.
+        reassuring AWS support that I'm not going to send too many e-mails. I
+        will never intentionally look at private data relating to a specific
+        user whose identity I know."""
+    ]
+  , Html.p [] [
+      Html.text """If a mistake in my code reveals to me information that I
+        did not intend to see, e.g. if a software component raises an error
+        message that inadvertently contains user data, I will take reasonable
+        efforts to avoid reading the information, to fix the system to avoid
+        revealing the information in future, to contact you to inform you of
+        what I saw, and to update the website and privacy policy to describe
+        what kind of disclosure occurred (at time of writing, none have happened
+        so far). I will try to develop and deploy the service in such a way that
+        this doesn't happen, but this is a hobbyist project and not capable of
+        delivering complete assurance on this. You agree not to submit any data
+        for which this level of best-effort protection or the remedies I
+        outlined are inappropriate, and not to pursue any other remedies from me
+        in such an event."""
+    ]
+  , Html.p []
+      [ Html.text "You can delete all the data held about you on your "
+      , Html.a
+          [ Attributes.href "/account" ]
+          [ Html.text "account" ]
+      , Html.text " page."
+      ]
   , Html.p [] [
       Html.text """If this policy is changed, you will continue to be subject to
         the terms of the old policy until you explicitly agree to the new
