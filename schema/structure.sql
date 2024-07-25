@@ -35,7 +35,8 @@ CREATE TABLE public.contacts
   ( contact_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , email_address text NOT NULL UNIQUE
   , blacklist bool NOT NULL DEFAULT FALSE
-  , unsub_token text
+  , unsub_requested timestamptz
+  , unsub_token uuid
   );
 GRANT SELECT ON contacts TO meddler;
 
@@ -401,8 +402,22 @@ CREATE TABLE public.email_sending
   , unsub_contact_id bigint REFERENCES contacts(contact_id) ON DELETE CASCADE
   , CHECK ((match_id IS NULL) <> (unsub_contact_id IS NULL))
   );
-GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled)
+CREATE UNIQUE INDEX only_one_inflight_unsub
+  ON email_sending (unsub_contact_id)
+  WHERE sending_started IS NULL;
+GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled, errors)
   ON email_sending TO meddler;
+
+CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER
+  LANGUAGE plpgsql SECURITY INVOKER AS $$BEGIN
+    PERFORM pg_notify(TG_ARGV[0], TG_ARGV[1]);
+    RETURN NULL;
+  END$$;
+
+CREATE OR REPLACE TRIGGER notify_emails AFTER INSERT ON email_sending
+  FOR EACH ROW
+  -- can't access NEW from the function call, so can't pass a useful payload
+  EXECUTE FUNCTION trigger_notify('email_sending', '');
 
 CREATE OR REPLACE FUNCTION public.queue_match_emails() RETURNS TRIGGER
   LANGUAGE plpgsql SECURITY DEFINER AS $$BEGIN
@@ -437,13 +452,31 @@ CREATE OR REPLACE TRIGGER email_on_matches AFTER INSERT ON user_woulds
   FOR EACH STATEMENT
   EXECUTE FUNCTION queue_match_emails();
 
-CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER
-  LANGUAGE plpgsql SECURITY INVOKER AS $$BEGIN
-    PERFORM pg_notify(TG_ARGV[0], TG_ARGV[1]);
-    RETURN NULL;
-  END$$;
+CREATE OR REPLACE FUNCTION public.request_unsub(email_address text) RETURNS unit
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  BEGIN ATOMIC
+    WITH updated_contact AS (
+      UPDATE contacts c
+      SET unsub_token = gen_random_uuid(), unsub_requested = now()
+      WHERE c.email_address = request_unsub.email_address
+      AND COALESCE(unsub_requested < now() - interval '1 day', TRUE)
+      RETURNING contact_id
+    )
+    INSERT INTO email_sending (unsub_contact_id)
+    SELECT contact_id FROM updated_contact
+    RETURNING 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION request_unsub FROM public;
+GRANT  EXECUTE ON FUNCTION request_unsub TO api;
 
-CREATE OR REPLACE TRIGGER notify_emails AFTER INSERT ON email_sending
-  FOR EACH ROW
-  -- can't access NEW from the function call, so can't pass a useful payload
-  EXECUTE FUNCTION trigger_notify('email_sending', '');
+CREATE OR REPLACE FUNCTION public.complete_unsub(email_address text, unsub_token uuid) RETURNS unit
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  BEGIN ATOMIC
+    UPDATE contacts c
+    SET blacklist = TRUE
+    WHERE c.email_address = complete_unsub.email_address
+      AND c.unsub_token = complete_unsub.unsub_token
+    RETURNING 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION complete_unsub FROM public;
+GRANT  EXECUTE ON FUNCTION complete_unsub TO api;

@@ -15,17 +15,45 @@ import qualified Amazonka.SES as SES
 import qualified Amazonka.SES.SendEmail as SES
 import qualified Amazonka.SES.Types as SES
 import qualified Control.Concurrent.TokenBucket as TokenBucket
+import qualified Data.UUID.Types as UUID
 import qualified Database.PostgreSQL.Simple as SQL
 import qualified Database.PostgreSQL.Simple.Notification as SQL
 import qualified Database.PostgreSQL.Simple.Types as SQL
 import qualified Database.PostgreSQL.Simple.SqlQQ as QQ
 
-data Email = Email
+data EmailRow = EmailRow
   { emailId :: Integer
-  , recipientAddresses :: SQL.PGArray Text
-  , recipientNames :: SQL.PGArray Text
-  , wouldMatches :: SQL.PGArray Text
+  , rawRecipientAddresses :: SQL.PGArray Text
+  , rawRecipientNames :: SQL.PGArray Text
+  , rawWouldMatches :: Maybe (SQL.PGArray Text)
+  , rawUnsubAddress :: Maybe Text
+  , rawUnsubToken :: Maybe UUID.UUID
   } deriving (Show, Generic, SQL.FromRow)
+
+data Email
+  = Match
+      { recipientAddresses :: [Text]
+      , recipientNames :: [Text]
+      , wouldMatches :: [Text]
+      }
+  | Unsub { unsubAddress :: Text, unsubToken :: UUID.UUID }
+
+ofRow :: EmailRow -> Either [Text] Email
+ofRow EmailRow
+  { rawRecipientAddresses = SQL.PGArray recipientAddresses
+  , rawRecipientNames = SQL.PGArray recipientNames
+  , rawWouldMatches = Just (SQL.PGArray wouldMatches)
+  , rawUnsubAddress = Nothing
+  , rawUnsubToken = Nothing
+  } = Right Match{ recipientAddresses, recipientNames, wouldMatches }
+ofRow EmailRow
+  { rawRecipientAddresses = SQL.PGArray []
+  , rawRecipientNames = SQL.PGArray []
+  , rawWouldMatches = Nothing
+  , rawUnsubAddress = Just unsubAddress
+  , rawUnsubToken = Just unsubToken
+  } = Right Unsub{ unsubAddress, unsubToken }
+ofRow other = Left ["Unexpected EmailRow: " <> Text.pack (show other)]
 
 main :: IO ()
 main = do
@@ -65,21 +93,21 @@ createRateLimiter = do
 
 withEmails :: SQL.Connection -> (Email -> IO (Either [Text] ())) -> IO ()
 withEmails conn f = do
-  toSend :: [Email] <- SQL.query_ conn [QQ.sql|
+  toSend :: [EmailRow] <- SQL.query_ conn [QQ.sql|
       WITH from_queue AS (
         SELECT email_id
         FROM email_sending
         WHERE sending_started IS NULL
         AND sending_cancelled IS NULL
-        AND match_id IS NOT NULL
-        ORDER BY created_at ASC
+        ORDER BY unsub_contact_id IS NOT NULL DESC, created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       ), to_send AS (
-        UPDATE email_sending e SET sending_started = now()
+        UPDATE email_sending e
+        SET sending_started = now()
         FROM from_queue q
         WHERE e.email_id = q.email_id
-        RETURNING e.email_id, e.match_id
+        RETURNING e.email_id, e.match_id, e.unsub_contact_id
       )
       SELECT
           t.email_id
@@ -87,15 +115,20 @@ withEmails conn f = do
             CASE WHEN NOT c1.blacklist THEN c1.email_address END
           , CASE WHEN NOT c2.blacklist THEN c2.email_address END
           ], NULL) AS recipient_addresses
-        , ARRAY[ma.name1, ma.name2] AS recipient_names
+        , array_remove(ARRAY[ma.name1, ma.name2], NULL) AS recipient_names
         , ma.would_matches
+        , unsub.email_address AS unsub_address
+        , unsub.unsub_token AS unsub_token
       FROM to_send t
       LEFT JOIN matches ma USING (match_id)
       LEFT JOIN contacts c1 ON (c1.contact_id = ma.contact_id1)
       LEFT JOIN contacts c2 ON (c2.contact_id = ma.contact_id2)
+      LEFT JOIN contacts unsub ON (unsub.contact_id = t.unsub_contact_id)
     |]
-  forM_ toSend $ \email@Email{ emailId } -> do
-    result <- f email
+  forM_ toSend $ \row@EmailRow{ emailId } -> do
+    result <- case ofRow row of
+      Left errors -> pure $ Left errors
+      Right email -> f email
     case result of
       Left errors ->
         SQL.execute conn
@@ -114,22 +147,26 @@ withEmails conn f = do
   unless (null toSend) $ withEmails conn f
 
 sendEmail :: AWS.Env -> Email -> IO (Either [Text] ())
-sendEmail aws Email{ recipientAddresses, recipientNames, wouldMatches } = do
+sendEmail aws email = do
   let
     sendEmailReq =
       SES.newSendEmail source destination message
       & SES.sendEmail_replyToAddresses .~ Just toAddresses
     source = "meddler@reciprocity.rpm.cc"
     toAddresses =
-      if False
-      then SQL.fromPGArray recipientAddresses
-      else ["thebenmachine+ses@gmail.com"]
+      case email of
+        _ -> ["thebenmachine+ses@gmail.com"]
+        Match{ recipientAddresses } -> recipientAddresses
+        Unsub{ unsubAddress } -> [unsubAddress]
     destination =
       SES.newDestination
       & SES.destination_toAddresses .~ Just toAddresses
     message = SES.newMessage (SES.newContent subject) body
-    subject = "reciprocity match between " <> Text.intercalate " and " names
-    names = SQL.fromPGArray recipientNames
+    subject =
+      case email of
+        Match{ recipientNames } ->
+          "reciprocity match between " <> Text.intercalate " and " recipientNames
+        Unsub{} -> "Unsubscribe from reciprocity emails"
     body =
       SES.newBody
       & SES.body_text .~ Just (SES.newContent (mkBody False))
@@ -140,22 +177,31 @@ sendEmail aws Email{ recipientAddresses, recipientNames, wouldMatches } = do
         tag n onOpen content =
           (ifHtml $ "<" <> n <> onOpen <> ">") <> content <> (ifHtml $ "</" <> n <> ">")
       in
-      Text.unlines $ concat
-        [ [ ifHtml $ "<!DOCTYPE html>\n<html><head><title>" <> subject <> "</title></head><body>"
-          , tag "p" "" $ "Hello " <> Text.intercalate " and " names <> ","
-          , ""
-          , ifHtml "<p>" <> "Good news! You have a shared enthusiasm for the following:" <> ifHtml "<ul>"
+      Text.unlines . concat $ case email of
+        Match{ recipientNames, wouldMatches } ->
+          [ [ ifHtml $ "<!DOCTYPE html>\n<html><head><title>" <> subject <> "</title></head><body>"
+            , tag "p" "" $ "Hello " <> Text.intercalate " and " recipientNames <> ","
+            , ""
+            , ifHtml "<p>" <> "Good news! You have a shared enthusiasm for the following:" <> ifHtml "<ul>"
+            ]
+          , map (tag "li" "") wouldMatches
+          , [ ifHtml "</ul>"
+            , tag "p" "" "You can use this thread to organise if you want."
+            , ""
+            , tag "p" "" $
+                "Love,\n" <> ifHtml "<br>"
+                <> "The " <> tag "a" " href=\"https://reciprocity.rpm.cc\"" "reciprocity" <> " meddler bot"
+            , ifHtml "</body></html>"
+            ]
           ]
-        , map (tag "li" "") (SQL.fromPGArray wouldMatches)
-        , [ ifHtml "</ul>"
-          , tag "p" "" "You can use this thread to organise if you want."
-          , ""
-          , tag "p" "" $
-               "Love,\n" <> ifHtml "<br>"
-               <> "The " <> tag "a" " href=\"https://reciprocity.rpm.cc\"" "reciprocity" <> " meddler bot"
-          , ifHtml "</body></html>"
+        Unsub{ unsubAddress, unsubToken } ->
+          [ [ ifHtml $ "<!DOCTYPE html>\n<html><head><title>" <> subject <> "</title></head><body>"
+            , tag "p" "" "Hello,"
+            , ""
+            , tag "p" "" $ "We've received a request to stop sending emails to " <> unsubAddress <> "."
+            , ifHtml "</body></html>"
+            ]
           ]
-        ]
   response <- AWS.runResourceT $ AWS.send aws sendEmailReq
   let status = response ^. SES.sendEmailResponse_httpStatus
   pure $ if status == 200
