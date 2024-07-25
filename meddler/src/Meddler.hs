@@ -30,7 +30,7 @@ main :: IO ()
 main = do
   aws <- AWS.newEnv AWS.discover
   conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
-  _ <- SQL.execute_ conn "LISTEN email_sending"
+  _ <- SQL.execute_ conn "LISTEN match_emails"
   notified <- newEmptyMVar
   withAsync (notifyThread conn notified) $ \_ -> forever $ do
     putStrLn "checking for emails to send"
@@ -43,7 +43,7 @@ main = do
     notifyThread conn notified = forever $ do
       n@SQL.Notification{ notificationChannel } <- SQL.getNotification conn
       putStrLn $ "notification received: " <> show n
-      when (notificationChannel == "email_sending") $ do
+      when (notificationChannel == "match_emails") $ do
         putStrLn "wake up main thread"
         (_ :: Bool) <- tryPutMVar notified ()
         pure ()
@@ -53,14 +53,14 @@ withEmails conn f = do
   toSend :: [Email] <- SQL.query_ conn [QQ.sql|
       WITH to_send AS (
         SELECT email_id
-        FROM email_sending
+        FROM match_emails
         WHERE sending_started IS NULL
         AND sending_cancelled IS NULL
         ORDER BY created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       )
-      UPDATE email_sending e SET sending_started = now()
+      UPDATE match_emails e SET sending_started = now()
       FROM to_send
       WHERE e.email_id = to_send.email_id
       RETURNING e.email_id, recipient_addresses, recipient_names, would_matches
@@ -70,14 +70,14 @@ withEmails conn f = do
     case result of
       Left errors ->
         SQL.execute conn
-          [QQ.sql| UPDATE email_sending
+          [QQ.sql| UPDATE match_emails
             SET sending_cancelled = now(), errors = ?
             WHERE email_id = ?
           |]
           (SQL.PGArray errors, emailId)
       Right () ->
         SQL.execute conn
-          [QQ.sql| UPDATE email_sending
+          [QQ.sql| UPDATE match_emails
             SET sending_completed = now()
             WHERE email_id = ?
           |]

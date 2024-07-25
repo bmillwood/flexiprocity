@@ -351,7 +351,7 @@ CREATE VIEW public.user_profiles AS
   GROUP BY users.user_id, fwu.since, uf.*, uf.since;
 GRANT SELECT ON user_profiles TO api;
 
-CREATE TABLE public.email_sending
+CREATE TABLE public.match_emails
   ( email_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , created_at timestamptz NOT NULL DEFAULT now()
   , recipient_addresses text[] NOT NULL CHECK (recipient_addresses <> '{}')
@@ -364,7 +364,7 @@ CREATE TABLE public.email_sending
   , errors text[]
   );
 GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled)
-  ON email_sending TO meddler;
+  ON match_emails TO meddler;
 
 CREATE OR REPLACE FUNCTION public.queue_match_emails() RETURNS TRIGGER
   LANGUAGE plpgsql SECURITY DEFINER AS $$BEGIN
@@ -375,7 +375,7 @@ CREATE OR REPLACE FUNCTION public.queue_match_emails() RETURNS TRIGGER
       JOIN woulds ON woulds.would_id = nuw.would_id
       GROUP BY nuw.user_id, nuw.with_id
     )
-    INSERT INTO email_sending (recipient_addresses, recipient_names, would_matches)
+    INSERT INTO match_emails (recipient_addresses, recipient_names, would_matches)
     SELECT
         array_remove(ARRAY[
             CASE WHEN us.send_email_on_matches THEN us.verified_contact_email END
@@ -402,6 +402,6 @@ CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER
     RETURN NULL;
   END$$;
 
-CREATE OR REPLACE TRIGGER notify_email_sending AFTER INSERT ON email_sending
+CREATE OR REPLACE TRIGGER notify_match_emails AFTER INSERT ON match_emails
   FOR EACH ROW
-  EXECUTE FUNCTION trigger_notify('email_sending', email_id);
+  EXECUTE FUNCTION trigger_notify('match_emails', email_id);
