@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(21);
+SELECT plan(22);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -37,6 +37,12 @@ SELECT isnt_empty(
 SELECT lives_ok(
   $$ SELECT update_me(name => 'Alice') $$,
   'can update name'
+);
+
+SELECT bag_eq(
+  $$ SELECT name FROM my_user() me $$,
+  $$ VALUES ('Alice') $$,
+  'my_user returns new name'
 );
 
 RESET ROLE; -- can't select or update users directly
@@ -198,9 +204,21 @@ SELECT is_empty(
 );
 ROLLBACK TO before_match;
 RESET ROLE;
+WITH user_emails AS (
+  SELECT user_id, lower(name) || '@host.example' AS email_address
+  FROM users
+), new_contacts AS (
+  INSERT INTO contacts (email_address)
+  SELECT email_address
+  FROM user_emails
+  RETURNING contact_id, email_address
+)
 UPDATE users
 SET send_email_on_matches = TRUE
-  , verified_contact_email = lower(name) || '@host.example';
+  , verified_contact_id = contact_id
+FROM user_emails ue, new_contacts nc
+WHERE users.user_id = ue.user_id
+AND ue.email_address = nc.email_address;
 SET ROLE api;
 
 SELECT isnt_empty(
@@ -217,8 +235,14 @@ SELECT isnt_empty(
 
 RESET ROLE;
 SELECT bag_eq(
-  $$ SELECT recipient_addresses, recipient_names, would_matches FROM email_sending $$,
-  $$ VALUES (ARRAY['alice@host.example', 'bob@host.example'], ARRAY['Alice', 'Bob'], ARRAY['Hang out sometime']) $$,
+  $$
+    SELECT c1.email_address AS e1, c2.email_address AS e2, ma.name1, ma.name2, ma.would_matches
+    FROM email_sending
+    LEFT JOIN matches ma USING (match_id)
+    LEFT JOIN contacts c1 ON (c1.contact_id = ma.contact_id1)
+    LEFT JOIN contacts c2 ON (c2.contact_id = ma.contact_id2)
+  $$,
+  $$ VALUES ('alice@host.example', 'bob@host.example', 'Alice', 'Bob', ARRAY['Hang out sometime']) $$,
   'email queued'
 );
 SET ROLE api;

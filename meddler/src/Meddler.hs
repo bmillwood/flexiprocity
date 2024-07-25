@@ -30,14 +30,9 @@ data Email = Email
 main :: IO ()
 main = do
   aws <- AWS.newEnv AWS.discover
-  rateLimiter <- TokenBucket.newTokenBucket
-  let
-    burstSize = 10
-    secondsPerEmail = 300
-    rateLimit =
-      TokenBucket.tokenBucketWait rateLimiter burstSize (secondsPerEmail * 1_000_000)
+  rateLimit <- createRateLimiter
   conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
-  _ <- SQL.execute_ conn "LISTEN match_emails"
+  _ <- SQL.execute_ conn "LISTEN email_sending"
   notified <- newEmptyMVar
   withAsync (notifyThread conn notified) $ \_ -> forever $ do
     putStrLn "checking for emails to send"
@@ -52,41 +47,66 @@ main = do
     notifyThread conn notified = forever $ do
       n@SQL.Notification{ notificationChannel } <- SQL.getNotification conn
       putStrLn $ "notification received: " <> show n
-      when (notificationChannel == "match_emails") $ do
+      when (notificationChannel == "email_sending") $ do
         putStrLn "wake up main thread"
         (_ :: Bool) <- tryPutMVar notified ()
         pure ()
 
+createRateLimiter :: IO (IO ())
+createRateLimiter = do
+  rateLimiter <- TokenBucket.newTokenBucket
+  let
+    burstSize = 10
+    secondsPerEmail = 300
+    usPerEmail = secondsPerEmail * 1_000_000
+  -- fill the token bucket, so we can't exceed rate limits by restarting
+  -- True <- TokenBucket.tokenBucketTryAlloc rateLimiter burstSize usPerEmail burstSize
+  pure $ TokenBucket.tokenBucketWait rateLimiter burstSize usPerEmail
+
 withEmails :: SQL.Connection -> (Email -> IO (Either [Text] ())) -> IO ()
 withEmails conn f = do
   toSend :: [Email] <- SQL.query_ conn [QQ.sql|
-      WITH to_send AS (
+      WITH from_queue AS (
         SELECT email_id
-        FROM match_emails
+        FROM email_sending
         WHERE sending_started IS NULL
         AND sending_cancelled IS NULL
+        AND match_id IS NOT NULL
         ORDER BY created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
+      ), to_send AS (
+        UPDATE email_sending e SET sending_started = now()
+        FROM from_queue q
+        WHERE e.email_id = q.email_id
+        RETURNING e.email_id, e.match_id
       )
-      UPDATE match_emails e SET sending_started = now()
-      FROM to_send
-      WHERE e.email_id = to_send.email_id
-      RETURNING e.email_id, recipient_addresses, recipient_names, would_matches
+      SELECT
+          t.email_id
+        , array_remove(ARRAY[
+            CASE WHEN NOT c1.blacklist THEN c1.email_address END
+          , CASE WHEN NOT c2.blacklist THEN c2.email_address END
+          ], NULL) AS recipient_addresses
+        , ARRAY[ma.name1, ma.name2] AS recipient_names
+        , ma.would_matches
+      FROM to_send t
+      LEFT JOIN matches ma USING (match_id)
+      LEFT JOIN contacts c1 ON (c1.contact_id = ma.contact_id1)
+      LEFT JOIN contacts c2 ON (c2.contact_id = ma.contact_id2)
     |]
   forM_ toSend $ \email@Email{ emailId } -> do
     result <- f email
     case result of
       Left errors ->
         SQL.execute conn
-          [QQ.sql| UPDATE match_emails
+          [QQ.sql| UPDATE email_sending
             SET sending_cancelled = now(), errors = ?
             WHERE email_id = ?
           |]
           (SQL.PGArray errors, emailId)
       Right () ->
         SQL.execute conn
-          [QQ.sql| UPDATE match_emails
+          [QQ.sql| UPDATE email_sending
             SET sending_completed = now()
             WHERE email_id = ?
           |]

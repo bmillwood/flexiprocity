@@ -31,6 +31,35 @@ CREATE TABLE public.privacy_policies
   ( version text PRIMARY KEY
   );
 
+CREATE TABLE public.contacts
+  ( contact_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
+  , email_address text NOT NULL UNIQUE
+  , blacklist bool NOT NULL DEFAULT FALSE
+  , unsub_token text
+  );
+GRANT SELECT ON contacts TO meddler;
+
+CREATE FUNCTION get_or_create_contact_id() RETURNS bigint
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  BEGIN ATOMIC
+    WITH verified_email AS (
+      SELECT
+        CASE get_google_field('email_verified')
+          WHEN 'true' THEN get_google_email()
+        END AS email_address
+    ), new_contact AS (
+      INSERT INTO contacts (email_address)
+      SELECT email_address FROM verified_email WHERE email_address IS NOT NULL
+      EXCEPT SELECT email_address FROM contacts
+      RETURNING contact_id
+    )
+    SELECT COALESCE(new_contact.contact_id, old_contact.contact_id) AS contact_id
+    FROM new_contact, verified_email, contacts old_contact
+    WHERE old_contact.email_address = verified_email.email_address;
+  END;
+REVOKE EXECUTE ON FUNCTION get_or_create_contact_id FROM public;
+GRANT  EXECUTE ON FUNCTION get_or_create_contact_id TO api;
+
 CREATE TABLE public.users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , facebook_id text UNIQUE
@@ -42,7 +71,7 @@ CREATE TABLE public.users
   , bio text NOT NULL DEFAULT ''
   , visible_to audience NOT NULL DEFAULT 'self'
   , show_me audience NOT NULL DEFAULT 'everyone'
-  , verified_contact_email text
+  , verified_contact_id bigint REFERENCES contacts(contact_id) ON DELETE SET NULL
   , send_email_on_matches bool NOT NULL DEFAULT FALSE
   , created_at timestamptz NOT NULL DEFAULT now()
   );
@@ -76,18 +105,16 @@ CREATE FUNCTION public.update_me
   , privacy_policy_version text = NULL
   , send_email_on_matches bool = NULL
   ) RETURNS users
-  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL RESTRICTED
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
   BEGIN ATOMIC
     UPDATE users
     SET name = COALESCE(update_me.name, get_google_field('name'), users.name)
       , bio = COALESCE(update_me.bio, users.bio)
       , picture = COALESCE(get_google_field('picture'), users.picture)
-      , verified_contact_email =
+      , verified_contact_id =
           COALESCE(
-            CASE get_google_field('email_verified')
-              WHEN 'true' THEN get_google_email()
-            END
-          , users.verified_contact_email
+            get_or_create_contact_id()
+          , users.verified_contact_id
           )
       , visible_to = COALESCE(update_me.visible_to, users.visible_to)
       , show_me = COALESCE(update_me.show_me, users.show_me)
@@ -95,7 +122,7 @@ CREATE FUNCTION public.update_me
           COALESCE(update_me.privacy_policy_version, users.privacy_policy_version)
       , send_email_on_matches =
           COALESCE(update_me.send_email_on_matches, users.send_email_on_matches)
-    WHERE user_id = current_user_id()
+    WHERE users.user_id = current_user_id()
     RETURNING *;
   END;
 REVOKE EXECUTE ON FUNCTION update_me FROM public;
@@ -351,42 +378,56 @@ CREATE VIEW public.user_profiles AS
   GROUP BY users.user_id, fwu.since, uf.*, uf.since;
 GRANT SELECT ON user_profiles TO api;
 
-CREATE TABLE public.match_emails
+CREATE TABLE public.matches
+  ( match_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
+  , name1 text NOT NULL
+  , contact_id1 bigint REFERENCES contacts(contact_id) ON DELETE CASCADE
+  , name2 text NOT NULL
+  , contact_id2 bigint REFERENCES contacts(contact_id) ON DELETE CASCADE
+  , would_matches text[] NOT NULL CHECK (would_matches <> '{}')
+  );
+GRANT SELECT ON matches TO meddler;
+
+CREATE TABLE public.email_sending
   ( email_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , created_at timestamptz NOT NULL DEFAULT now()
-  , recipient_addresses text[] NOT NULL CHECK (recipient_addresses <> '{}')
-  , recipient_names text[] NOT NULL CHECK (recipient_names <> '{}')
-  , would_matches text[] NOT NULL CHECK (would_matches <> '{}')
   , sending_started timestamptz
   , sending_completed timestamptz
   , CHECK (sending_started IS NOT NULL OR sending_completed IS NULL)
   , sending_cancelled timestamptz
+  , CHECK (sending_completed IS NULL OR sending_cancelled IS NULL)
   , errors text[]
+  , match_id bigint REFERENCES matches(match_id)
+  , unsub_contact_id bigint REFERENCES contacts(contact_id) ON DELETE CASCADE
+  , CHECK ((match_id IS NULL) <> (unsub_contact_id IS NULL))
   );
 GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled)
-  ON match_emails TO meddler;
+  ON email_sending TO meddler;
 
 CREATE OR REPLACE FUNCTION public.queue_match_emails() RETURNS TRIGGER
   LANGUAGE plpgsql SECURITY DEFINER AS $$BEGIN
-    WITH matches AS (
+    WITH matches_to_queue AS (
       SELECT nuw.user_id, array_agg(woulds.name) AS would_names, nuw.with_id
       FROM new_user_woulds nuw
       JOIN user_woulds wu ON nuw.would_id = wu.would_id AND nuw.user_id = wu.with_id
       JOIN woulds ON woulds.would_id = nuw.would_id
       GROUP BY nuw.user_id, nuw.with_id
+    ), new_matches AS (
+      INSERT INTO matches (name1, contact_id1, name2, contact_id2, would_matches)
+      SELECT
+          us.name AS name1
+        , CASE WHEN us.send_email_on_matches THEN us.verified_contact_id END AS contact_id1
+        , them.name AS name2
+        , CASE WHEN them.send_email_on_matches THEN them.verified_contact_id END AS contact_id2
+        , mq.would_names AS would_matches
+      FROM matches_to_queue mq
+      JOIN users us ON us.user_id = mq.user_id
+      JOIN users them ON them.user_id = mq.with_id
+      WHERE us.send_email_on_matches OR them.send_email_on_matches
+      RETURNING match_id
     )
-    INSERT INTO match_emails (recipient_addresses, recipient_names, would_matches)
-    SELECT
-        array_remove(ARRAY[
-            CASE WHEN us.send_email_on_matches THEN us.verified_contact_email END
-          , CASE WHEN them.send_email_on_matches THEN them.verified_contact_email END
-          ], NULL) AS recipient_addresses
-      , ARRAY[us.name, them.name] AS recipient_names
-      , matches.would_names AS would_matches
-    FROM matches
-    JOIN users us ON us.user_id = matches.user_id
-    JOIN users them ON them.user_id = matches.with_id
-    WHERE us.send_email_on_matches OR them.send_email_on_matches
+    INSERT INTO email_sending (match_id)
+    SELECT match_id FROM new_matches
     ;
     RETURN NULL;
   END$$;
@@ -402,7 +443,7 @@ CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER
     RETURN NULL;
   END$$;
 
-CREATE OR REPLACE TRIGGER notify_match_emails AFTER INSERT ON match_emails
+CREATE OR REPLACE TRIGGER notify_emails AFTER INSERT ON email_sending
   FOR EACH ROW
   -- can't access NEW from the function call, so can't pass a useful payload
-  EXECUTE FUNCTION trigger_notify('match_emails', '');
+  EXECUTE FUNCTION trigger_notify('email_sending', '');
