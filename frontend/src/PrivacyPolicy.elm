@@ -85,9 +85,9 @@ viewPrivacyPolicy =
         people use the app, or how many people have how many matches, as part of
         ensuring the app is running correctly, doing maintenance and debugging,
         developing additional features or removing unused features, and e.g.
-        reassuring AWS support that I'm not going to send too many e-mails. I
-        will never intentionally look at private data relating to a specific
-        user whose identity I know."""
+        reassuring AWS support that I'm not going to send too many e-mails. For
+        the avoidance of doubt, I will not intentionally look at the private
+        data of any individual user without their permission."""
     ]
   , Html.p [] [
       Html.text """If a mistake in my code reveals to me information that I
@@ -101,8 +101,9 @@ viewPrivacyPolicy =
         this doesn't happen, but this is a hobbyist project and not capable of
         delivering complete assurance on this. You agree not to submit any data
         for which this level of best-effort protection or the remedies I
-        outlined are inappropriate, and not to pursue any other remedies from me
-        in such an event."""
+        outlined are inappropriate, and agree there will be no further
+        consequences for an accidental breach for which I follow the above
+        procedure."""
     ]
   , Html.p []
       [ Html.text "You can delete all the data held about you on your "
