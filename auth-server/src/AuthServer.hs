@@ -1,15 +1,18 @@
 module AuthServer (app, main) where
 
+import Control.Exception
 import qualified Control.Monad.Except as Except
+import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import Data.Proxy (Proxy (Proxy))
-import qualified Data.Map as Map
 import Data.Map (Map)
-import qualified Data.Text as Text
+import qualified Data.Map as Map
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.Time as Time
 
 import Servant ((:<|>) ((:<|>)))
 import qualified Servant
@@ -30,6 +33,14 @@ data Env = Env
 
 doInit :: IO Env
 doInit = Env <$> Google.init <*> MakeJwt.init
+
+addTimestamp :: String -> IO String
+addTimestamp s = do
+  now <- Time.getCurrentTime
+  pure $ "[" <> show now <> "] " <> s
+
+logMsg :: String -> IO ()
+logMsg = putStrLn <=< addTimestamp
 
 jwtCookie :: MakeJwt.Env -> Map Text Aeson.Value -> IO Text
 jwtCookie jwtEnv claimsMap = cookie <$> MakeJwt.makeJwt jwtEnv claimsMap
@@ -68,21 +79,24 @@ googleStart env (Just host) = do
 
 googleComplete :: Env -> Maybe Google.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
 googleComplete _ _ (Just errMsg) _ = do
-  liftIO . putStrLn $ "googleComplete error: " <> show errMsg
+  liftIO . logMsg $ "googleComplete error: " <> show errMsg
   Except.throwError Servant.err403
 googleComplete _ Nothing _ _ = do
-  liftIO . putStrLn $ "googleComplete error: no sessId"
+  liftIO . logMsg $ "googleComplete error: no sessId"
   Except.throwError Servant.err403
 googleComplete _ _ _ Nothing = do
-  liftIO . putStrLn $ "googleComplete error: no code"
+  liftIO . logMsg $ "googleComplete error: no code"
   Except.throwError Servant.err403
 googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) = do
-  claims <- liftIO $ Google.codeToClaims google sessId (Text.encodeUtf8 code)
-  cookie <- liftIO $ jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
-  pure
-    $ Servant.addHeader cookie
-    $ Servant.addHeader "/"
-    $ Servant.NoContent
+  liftIO $ do
+    claims <- Google.codeToClaims google sessId (Text.encodeUtf8 code)
+      `catch` \e@SomeException{} -> logMsg (show e) >> throwIO e
+    cookie <- jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
+      `catch` \e@SomeException{} -> logMsg (show e) >> throwIO e
+    pure
+      $ Servant.addHeader cookie
+      $ Servant.addHeader "/"
+      $ Servant.NoContent
 
 facebookDecodeSignedReq :: Facebook.SignedRequest -> Servant.Handler Aeson.Value
 facebookDecodeSignedReq signedReq = do
@@ -108,5 +122,5 @@ app env = Servant.serve (Proxy @Api.Api) (server env)
 main :: IO ()
 main = do
   env <- doInit
-  putStrLn "Initialization finished"
+  logMsg $ "Initialization finished"
   Warp.run 5001 (Cors.simpleCors (app env))
