@@ -90,9 +90,9 @@ googleComplete _ _ _ Nothing = do
 googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) = do
   liftIO $ do
     claims <- Google.codeToClaims google sessId (Text.encodeUtf8 code)
-      `catch` \e@SomeException{} -> logMsg (show e) >> throwIO e
+      `catch` \e@SomeException{} -> logMsg ("codeToClaims: " <> show e) >> throwIO e
     cookie <- jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
-      `catch` \e@SomeException{} -> logMsg (show e) >> throwIO e
+      `catch` \e@SomeException{} -> logMsg ("cookie: " <> show e) >> throwIO e
     pure
       $ Servant.addHeader cookie
       $ Servant.addHeader "/"
