@@ -21,6 +21,8 @@ import qualified System.Random.Stateful as Random
 import qualified Web.Cookie as Cookie
 import qualified Web.OIDC.Client as OIDC
 
+import qualified Diagnose
+
 data ClientSecret = ClientSecret
   { clientId :: BS.ByteString
   , clientSecret :: BS.ByteString
@@ -149,5 +151,5 @@ codeToClaims env@Env{ sessions, httpManager } sessId code = do
     oidc = oidcWithRedirectUri env redirectUri
     sessionStore = getSessionStore sessions sessId redirectUri
   OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
-    <- OIDC.getValidTokens sessionStore oidc httpManager state code
+    <- Diagnose.annotateException "codeToClaims/getValidTokens" $ OIDC.getValidTokens sessionStore oidc httpManager state code
   pure otherClaims
