@@ -22,6 +22,8 @@ import qualified Database.PostgreSQL.Simple.Notification as SQL
 import qualified Database.PostgreSQL.Simple.Types as SQL
 import qualified Database.PostgreSQL.Simple.SqlQQ as QQ
 
+import qualified Inbox
+
 data EmailRow = EmailRow
   { emailId :: Integer
   , rawRecipientAddresses :: SQL.PGArray Text
@@ -57,21 +59,22 @@ ofRow EmailRow
 ofRow other = Left ["Unexpected EmailRow: " <> Text.pack (show other)]
 
 main :: IO ()
-main = do
-  aws <- AWS.newEnv AWS.discover
-  rateLimit <- createRateLimiter
-  conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
-  _ <- SQL.execute_ conn "LISTEN email_sending"
-  notified <- newEmptyMVar
-  withAsync (notifyThread conn notified) $ \_ -> forever $ do
-    putStrLn "checking for emails to send"
-    withEmails conn $ \email -> do
-      rateLimit
-      putStrLn "sending an email"
-      sendEmail aws email `catch` \(err :: IOException) ->
-        pure (Left [Text.pack $ show err])
-    putStrLn "done sending emails, going to sleep"
-    takeMVar notified
+main =
+  withAsync Inbox.inbox $ \inbox -> link inbox >> do
+    aws <- AWS.newEnv AWS.discover
+    rateLimit <- createRateLimiter
+    conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
+    _ <- SQL.execute_ conn "LISTEN email_sending"
+    notified <- newEmptyMVar
+    withAsync (notifyThread conn notified) $ \_ -> forever $ do
+      putStrLn "checking for emails to send"
+      withEmails conn $ \email -> do
+        rateLimit
+        putStrLn "sending an email"
+        sendEmail aws email `catch` \(err :: IOException) ->
+          pure (Left [Text.pack $ show err])
+      putStrLn "done sending emails, going to sleep"
+      takeMVar notified
   where
     notifyThread conn notified = forever $ do
       n@SQL.Notification{ notificationChannel } <- SQL.getNotification conn
