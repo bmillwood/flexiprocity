@@ -40,7 +40,7 @@ CREATE TABLE public.contacts
   );
 GRANT SELECT ON contacts TO meddler;
 
-CREATE FUNCTION get_or_create_contact_id() RETURNS bigint
+CREATE OR REPLACE FUNCTION get_or_create_contact_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
   BEGIN ATOMIC
     WITH verified AS (
@@ -52,6 +52,7 @@ CREATE FUNCTION get_or_create_contact_id() RETURNS bigint
       INSERT INTO contacts (email_address)
       SELECT email_address FROM verified WHERE email_address IS NOT NULL
       EXCEPT SELECT email_address FROM contacts
+      ON CONFLICT DO NOTHING -- can hit if you try to do this twice in quick succession
       RETURNING contact_id
     )
     SELECT COALESCE(new_.contact_id, old_.contact_id) AS contact_id
