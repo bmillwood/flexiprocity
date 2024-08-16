@@ -399,6 +399,8 @@ CREATE TABLE public.email_sending
   , CHECK (sending_started IS NOT NULL OR sending_completed IS NULL)
   , sending_cancelled timestamptz
   , CHECK (sending_completed IS NULL OR sending_cancelled IS NULL)
+  , message_id text
+  , CHECK (sending_completed IS NOT NULL OR message_id IS NULL)
   , errors text[]
   , match_id bigint REFERENCES matches(match_id)
   , unsub_contact_id bigint REFERENCES contacts(contact_id) ON DELETE CASCADE
@@ -407,7 +409,7 @@ CREATE TABLE public.email_sending
 CREATE UNIQUE INDEX only_one_inflight_unsub
   ON email_sending (unsub_contact_id)
   WHERE sending_started IS NULL;
-GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled, errors)
+GRANT SELECT, UPDATE(sending_started, sending_completed, sending_cancelled, message_id, errors)
   ON email_sending TO meddler;
 
 CREATE OR REPLACE FUNCTION public.trigger_notify() RETURNS TRIGGER

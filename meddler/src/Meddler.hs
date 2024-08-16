@@ -95,7 +95,7 @@ createRateLimiter = do
   -- True <- TokenBucket.tokenBucketTryAlloc rateLimiter burstSize usPerEmail burstSize
   pure $ TokenBucket.tokenBucketWait rateLimiter burstSize usPerEmail
 
-withEmails :: SQL.Connection -> (Email -> IO (Either [Text] ())) -> IO ()
+withEmails :: SQL.Connection -> (Email -> IO (Either [Text] Text)) -> IO ()
 withEmails conn f = do
   toSend :: [EmailRow] <- SQL.query_ conn [QQ.sql|
       WITH from_queue AS (
@@ -141,16 +141,17 @@ withEmails conn f = do
             WHERE email_id = ?
           |]
           (SQL.PGArray errors, emailId)
-      Right () ->
+      Right messageId ->
         SQL.execute conn
           [QQ.sql| UPDATE email_sending
             SET sending_completed = now()
+              , message_id = ?
             WHERE email_id = ?
           |]
-          (SQL.Only emailId)
+          (messageId, emailId)
   unless (null toSend) $ withEmails conn f
 
-sendEmail :: AWS.Env -> Email -> IO (Either [Text] ())
+sendEmail :: AWS.Env -> Email -> IO (Either [Text] Text)
 sendEmail aws email = do
   recipientOverride <- lookupEnv "RECIPIENT_OVERRIDE"
   let
@@ -237,5 +238,5 @@ sendEmail aws email = do
   response <- AWS.runResourceT $ AWS.send aws sendEmailReq
   let status = response ^. SES.sendEmailResponse_httpStatus
   pure $ if status == 200
-    then Right ()
+    then Right $ response ^. SES.sendEmailResponse_messageId
     else Left [Text.pack $ "sendEmail status " <> show status]
