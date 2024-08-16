@@ -43,20 +43,21 @@ GRANT SELECT ON contacts TO meddler;
 CREATE FUNCTION get_or_create_contact_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
   BEGIN ATOMIC
-    WITH verified_email AS (
+    WITH verified AS (
       SELECT
         CASE get_google_field('email_verified')
           WHEN 'true' THEN get_google_email()
         END AS email_address
-    ), new_contact AS (
+    ), new_ AS (
       INSERT INTO contacts (email_address)
-      SELECT email_address FROM verified_email WHERE email_address IS NOT NULL
+      SELECT email_address FROM verified WHERE email_address IS NOT NULL
       EXCEPT SELECT email_address FROM contacts
       RETURNING contact_id
     )
-    SELECT COALESCE(new_contact.contact_id, old_contact.contact_id) AS contact_id
-    FROM new_contact, verified_email, contacts old_contact
-    WHERE old_contact.email_address = verified_email.email_address;
+    SELECT COALESCE(new_.contact_id, old_.contact_id) AS contact_id
+    FROM verified
+    LEFT JOIN contacts old_ ON old_.email_address = verified.email_address
+    LEFT JOIN new_ ON (true);
   END;
 REVOKE EXECUTE ON FUNCTION get_or_create_contact_id FROM public;
 GRANT  EXECUTE ON FUNCTION get_or_create_contact_id TO api;

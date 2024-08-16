@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(22);
+SELECT plan(24);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -25,7 +25,7 @@ SELECT is(
   'get_or_create_user_id() with no credentials'
 );
 
-SELECT set_config('jwt.claims.facebookUserId', 'aliceId', true);
+SELECT set_config('jwt.claims.google', '{"email": "alice@host.example", "email_verified": true}', true);
 
 SELECT isnt_empty(
   $$ SELECT u FROM (SELECT get_or_create_user_id() AS u) r
@@ -37,6 +37,23 @@ SELECT isnt_empty(
 SELECT lives_ok(
   $$ SELECT update_me(name => 'Alice') $$,
   'can update name'
+);
+
+RESET ROLE; -- can't select contacts directly
+SELECT bag_eq(
+  $$ SELECT email_address
+     FROM contacts
+     JOIN users ON users.verified_contact_id = contacts.contact_id
+     WHERE users.user_id = current_user_id()
+  $$,
+  $$ VALUES ('alice@host.example') $$,
+  'update_me sets verified email address correctly'
+);
+SET ROLE api;
+
+SELECT isnt(
+  get_or_create_contact_id(), NULL,
+  'get_or_create_contact_id works after contact is created'
 );
 
 SELECT bag_eq(
@@ -204,21 +221,16 @@ SELECT is_empty(
 );
 ROLLBACK TO before_match;
 RESET ROLE;
-WITH user_emails AS (
-  SELECT user_id, lower(name) || '@host.example' AS email_address
-  FROM users
-), new_contacts AS (
+WITH bob_contact AS (
   INSERT INTO contacts (email_address)
-  SELECT email_address
-  FROM user_emails
-  RETURNING contact_id, email_address
+  VALUES ('bob@host.example')
+  RETURNING contact_id
 )
 UPDATE users
-SET send_email_on_matches = TRUE
-  , verified_contact_id = contact_id
-FROM user_emails ue, new_contacts nc
-WHERE users.user_id = ue.user_id
-AND ue.email_address = nc.email_address;
+SET verified_contact_id = bob_contact.contact_id
+FROM bob_contact
+WHERE users.facebook_id = 'bobId';
+UPDATE users SET send_email_on_matches = TRUE;
 SET ROLE api;
 
 SELECT isnt_empty(
