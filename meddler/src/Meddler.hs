@@ -9,6 +9,7 @@ import Control.Monad
 import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
+import System.Environment (lookupEnv)
 
 import qualified Amazonka as AWS
 import qualified Amazonka.SES as SES
@@ -148,16 +149,17 @@ withEmails conn f = do
 
 sendEmail :: AWS.Env -> Email -> IO (Either [Text] ())
 sendEmail aws email = do
+  recipientOverride <- lookupEnv "RECIPIENT_OVERRIDE"
   let
     sendEmailReq =
       SES.newSendEmail source destination message
       & SES.sendEmail_replyToAddresses .~ Just toAddresses
     source = "meddler@reciprocity.rpm.cc"
     toAddresses =
-      case email of
-        _ -> ["thebenmachine+ses@gmail.com"]
-        Match{ recipientAddresses } -> recipientAddresses
-        Unsub{ unsubAddress } -> [unsubAddress]
+      case (recipientOverride, email) of
+        (Just override, _) -> [Text.pack override]
+        (Nothing, Match{ recipientAddresses }) -> recipientAddresses
+        (Nothing, Unsub{ unsubAddress }) -> [unsubAddress]
     destination =
       SES.newDestination
       & SES.destination_toAddresses .~ Just toAddresses

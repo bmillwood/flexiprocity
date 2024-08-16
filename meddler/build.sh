@@ -11,7 +11,7 @@ do
   inotifywait --quiet -e modify -e delete app src *.cabal &
   if cabal build "$@"
   then
-    cabal run meddler &
+    RECIPIENT_OVERRIDE=thebenmachine+ses@gmail.com cabal run meddler &
     cabal test
     wait %inotifywait
     jobs -x killGrandchild %?run
