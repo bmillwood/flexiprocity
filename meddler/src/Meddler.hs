@@ -10,6 +10,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import System.Environment (lookupEnv)
+import System.IO
 
 import qualified Amazonka as AWS
 import qualified Amazonka.SES as SES
@@ -59,9 +60,10 @@ ofRow EmailRow
 ofRow other = Left ["Unexpected EmailRow: " <> Text.pack (show other)]
 
 main :: IO ()
-main =
-  withAsync Inbox.inbox $ \inbox -> link inbox >> do
-    aws <- AWS.newEnv AWS.discover
+main = do
+  aws <- AWS.newEnv AWS.discover
+  hSetBuffering stdout LineBuffering
+  withAsync (Inbox.inbox aws) $ \inbox -> link inbox >> do
     rateLimit <- createRateLimiter
     conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
     _ <- SQL.execute_ conn "LISTEN email_sending"

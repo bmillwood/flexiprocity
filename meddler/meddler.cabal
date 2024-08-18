@@ -33,21 +33,20 @@ library
     exposed-modules:  Meddler
     other-modules:
       Inbox
+      StructuralAeson
     build-depends:
       aeson >= 2.1 && < 2.3,
       amazonka ^>= 2.0,
       amazonka-ses ^>= 2.0,
+      amazonka-sqs ^>= 2.0,
       async ^>= 2.2,
       base ^>= 4.18,
       bytestring >=0.11.4.0 && < 0.13,
-      http-types ^>=0.12,
       lens >= 5.2 && < 5.4,
       postgresql-simple ^>= 0.7,
       text >=1.2.5.0 && < 2.2,
       token-bucket ^>= 0.1,
       uuid-types ^>= 1.0,
-      wai ^>=3.2.3,
-      warp >=3.3.23 && <3.5,
     hs-source-dirs:   src
 
 executable meddler

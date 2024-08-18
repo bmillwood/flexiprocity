@@ -1,47 +1,72 @@
 module Inbox where
 
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import Data.Function (fix)
+import Control.Concurrent
+import Control.Lens
+import Control.Monad
+import Data.Char
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import GHC.Generics (Generic)
+import System.Environment
+import System.IO
 
-import Data.Aeson ((.:))
+import qualified Amazonka as AWS
+import qualified Amazonka.SQS as SQS
+import qualified Amazonka.SQS.ReceiveMessage as SQS
+import qualified Amazonka.SQS.Types.Message as SQS
 import qualified Data.Aeson as Aeson
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
 
-newtype SESEvents = SESEvents [SESEvent] deriving stock (Show, Generic)
-data SESEvent = SESEvent
-  { mail :: Aeson.Value
-  , receipt :: Aeson.Value
-  } deriving stock (Show)
+import qualified StructuralAeson as StAe
 
-instance Aeson.FromJSON SESEvents where
-  parseJSON = Aeson.withObject "SESEvents" $ \o -> do
-    SESEvents <$> o .: "Records"
+data SQSBody = SQSBody
+  { messageId :: Text
+  , topicArn :: Text
+  , subject :: Text
+  , message :: StAe.Embedded (StAe.At "content" Text)
+  } deriving stock (Generic, Show)
 
-instance Aeson.FromJSON SESEvent where
-  parseJSON = Aeson.withObject "SESEvent" $ \o -> do
-    "aws:ses" :: Text <- o .: "eventSource"
-    "1.0" :: Text <- o .: "eventVersion"
-    ses <- o .: "ses"
-    mail <- ses .: "mail"
-    receipt <- ses .: "receipt"
-    pure SESEvent{ mail, receipt }
+initialUpper :: String -> String
+initialUpper "" = ""
+initialUpper (c : cs) = toUpper c : cs
 
-inbox :: IO ()
-inbox = Warp.runEnv 57960 $ \req respond ->
-  if Wai.rawPathInfo req /= "/inbox"
-  then respond (Wai.responseLBS HTTP.notFound404 [] "Not found :(")
-  else if Wai.requestMethod req /= "POST"
-  then respond (Wai.responseLBS HTTP.methodNotAllowed405 [] "Not POST :(")
-  else do
-    print req
-    body <- BSL.fromChunks <$> fix \again -> do
-      chunk <- Wai.getRequestBodyChunk req
-      if BS.null chunk then pure [] else (chunk :) <$> again
-    print body
-    print (Aeson.eitherDecode @SESEvents body)
-    respond (Wai.responseLBS HTTP.ok200 [] "ok!")
+instance Aeson.FromJSON SQSBody where
+  parseJSON =
+    Aeson.genericParseJSON
+      Aeson.defaultOptions{ Aeson.fieldLabelModifier = initialUpper }
+
+deleteQueueMessage :: AWS.Env -> Text -> SQS.Message -> IO ()
+deleteQueueMessage aws queueUrl msg =
+  case msg ^. SQS.message_receiptHandle of
+    Nothing -> error "no receipt handle?"
+    Just handle -> do
+      SQS.DeleteMessageResponse' <- AWS.runResourceT
+        $ AWS.send aws
+        $ SQS.newDeleteMessage queueUrl handle
+      putStrLn $ "deleted messageId " <> show (msg ^. SQS.message_messageId)
+
+inbox :: AWS.Env -> IO ()
+inbox aws = forever $ do
+  threadDelay 1_000_000
+  queueUrl <- Text.pack <$> getEnv "QUEUE_URL"
+  let
+    receiveMessage =
+      SQS.newReceiveMessage queueUrl
+      & SQS.receiveMessage_waitTimeSeconds .~ Just 20
+  receiveResp <- AWS.runResourceT $ AWS.send aws receiveMessage
+  when
+    (receiveResp ^. SQS.receiveMessageResponse_httpStatus /= 200)
+    (error ("receiveMessage status code check failed: " <> show receiveResp))
+  case receiveResp ^. SQS.receiveMessageResponse_messages of
+    Nothing -> putStr "." >> hFlush stdout
+    Just msgs ->
+      forM_ msgs $ \msg -> do
+        case msg ^. SQS.message_body of
+          Nothing -> error $ "no body? " <> show msg
+          Just body ->
+            case Aeson.eitherDecode $ BSL.fromStrict $ Text.encodeUtf8 body of
+              Left err -> error $ "decoding body: " <> err
+              Right SQSBody{ message = StAe.Embedded (StAe.At email) } ->
+                print email
+        --deleteQueueMessage aws queueUrl msg
