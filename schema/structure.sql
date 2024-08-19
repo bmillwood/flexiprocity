@@ -31,10 +31,15 @@ CREATE TABLE public.privacy_policies
   ( version text PRIMARY KEY
   );
 
+CREATE TYPE public.contact_disable_reason AS ENUM
+  ( 'unsubscribed'
+  , 'bounced'
+  );
+
 CREATE TABLE public.contacts
   ( contact_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , email_address text NOT NULL UNIQUE
-  , blacklist bool NOT NULL DEFAULT FALSE
+  , disable_reason contact_disable_reason
   , unsub_requested timestamptz
   , unsub_token uuid
   );
@@ -477,10 +482,22 @@ CREATE OR REPLACE FUNCTION public.complete_unsub(email_address text, unsub_token
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
   BEGIN ATOMIC
     UPDATE contacts c
-    SET blacklist = TRUE
+    SET disable_reason = 'unsubscribed'
     WHERE c.email_address = complete_unsub.email_address
       AND c.unsub_token = complete_unsub.unsub_token
     RETURNING 'unit'::unit;
   END;
 REVOKE EXECUTE ON FUNCTION complete_unsub FROM public;
 GRANT  EXECUTE ON FUNCTION complete_unsub TO api;
+
+CREATE OR REPLACE FUNCTION public.email_bounced(email_address text) RETURNS unit
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  BEGIN ATOMIC
+    UPDATE contacts c
+    SET disable_reason = 'bounced'
+    WHERE c.email_address = email_bounced.email_address
+    AND disable_reason IS NULL
+    RETURNING 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION email_bounced FROM public;
+GRANT  EXECUTE ON FUNCTION email_bounced TO meddler;

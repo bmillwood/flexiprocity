@@ -23,6 +23,7 @@ common language
       DataKinds
       DeriveAnyClass
       DerivingStrategies
+      DerivingVia
       DisambiguateRecordFields
       OverloadedStrings
     -- other-extensions:
@@ -34,16 +35,20 @@ library
     other-modules:
       Inbox
       StructuralAeson
+      Task
     build-depends:
       aeson >= 2.1 && < 2.3,
       amazonka ^>= 2.0,
       amazonka-ses ^>= 2.0,
       amazonka-sqs ^>= 2.0,
       async ^>= 2.2,
+      attoparsec ^>= 0.14,
       base ^>= 4.18,
       bytestring >=0.11.4.0 && < 0.13,
+      delivery-status-notification ^>= 0.2,
       lens >= 5.2 && < 5.4,
       postgresql-simple ^>= 0.7,
+      purebred-email ^>= 0.6,
       text >=1.2.5.0 && < 2.2,
       token-bucket ^>= 0.1,
       uuid-types ^>= 1.0,

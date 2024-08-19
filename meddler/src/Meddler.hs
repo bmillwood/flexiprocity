@@ -2,10 +2,11 @@
 module Meddler (main) where
 
 import Control.Concurrent.Async
-import Control.Concurrent.MVar
+import Control.Concurrent.Chan
 import Control.Exception
 import Control.Lens
 import Control.Monad
+import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
@@ -24,6 +25,7 @@ import qualified Database.PostgreSQL.Simple.Types as SQL
 import qualified Database.PostgreSQL.Simple.SqlQQ as QQ
 
 import qualified Inbox
+import qualified Task
 
 data EmailRow = EmailRow
   { emailId :: Integer
@@ -61,29 +63,44 @@ ofRow other = Left ["Unexpected EmailRow: " <> Text.pack (show other)]
 
 main :: IO ()
 main = do
-  aws <- AWS.newEnv AWS.discover
   hSetBuffering stdout LineBuffering
-  withAsync (Inbox.inbox aws) $ \inbox -> link inbox >> do
+  aws <- AWS.newEnv AWS.discover
+  tasks <- newChan
+  writeChan tasks Task.SendEmails
+  withAsync (Inbox.inbox aws tasks) $ \inbox -> link inbox >> do
     rateLimit <- createRateLimiter
     conn <- SQL.connectPostgreSQL "user=meddler dbname=flexiprocity"
     _ <- SQL.execute_ conn "LISTEN email_sending"
-    notified <- newEmptyMVar
-    withAsync (notifyThread conn notified) $ \_ -> forever $ do
-      putStrLn "checking for emails to send"
-      withEmails conn $ \email -> do
-        rateLimit
-        putStrLn "sending an email"
-        sendEmail aws email `catch` \(err :: IOException) ->
-          pure (Left [Text.pack $ show err])
-      putStrLn "done sending emails, going to sleep"
-      takeMVar notified
+    withAsync (notifyThread conn tasks) $ \_ -> forever $ do
+      task <- readChan tasks
+      case task of
+        Task.SendEmails -> do
+          putStrLn "checking for emails to send"
+          withEmails conn $ \email -> do
+            rateLimit
+            putStrLn "sending an email"
+            sendEmail aws email `catch` \(err :: IOException) ->
+              pure (Left [Text.pack $ show err])
+          putStrLn "done sending emails"
+        Task.DisableEmails addresses -> do
+          putStrLn $ "disabling e-mail addresses: " <> show addresses
+          results :: [SQL.Only (Maybe Text)] <- SQL.returning conn [QQ.sql|
+              SELECT email_bounced(e)::text
+              FROM (VALUES (?)) es(e)
+            |]
+            (map SQL.Only addresses)
+          putStrLn
+            $ "disabled "
+            <> show (length (filter (\(SQL.Only mt) -> isJust mt) results))
+            <> " of "
+            <> show (length addresses)
   where
-    notifyThread conn notified = forever $ do
+    notifyThread conn tasks = forever $ do
       n@SQL.Notification{ notificationChannel } <- SQL.getNotification conn
       putStrLn $ "notification received: " <> show n
       when (notificationChannel == "email_sending") $ do
         putStrLn "wake up main thread"
-        (_ :: Bool) <- tryPutMVar notified ()
+        writeChan tasks Task.SendEmails
         pure ()
 
 createRateLimiter :: IO (IO ())
@@ -118,8 +135,8 @@ withEmails conn f = do
       SELECT
           t.email_id
         , array_remove(ARRAY[
-            CASE WHEN NOT c1.blacklist THEN c1.email_address END
-          , CASE WHEN NOT c2.blacklist THEN c2.email_address END
+            CASE WHEN c1.disable_reason IS NULL THEN c1.email_address END
+          , CASE WHEN c2.disable_reason IS NULL THEN c2.email_address END
           ], NULL) AS recipient_addresses
         , array_remove(ARRAY[ma.name1, ma.name2], NULL) AS recipient_names
         , ma.would_matches
