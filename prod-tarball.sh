@@ -18,8 +18,8 @@ uglifyjs "$d"/elm.premin.js --compress "pure_funcs=[F2,F3,F4,F5,F6,F7,F8,F9,A2,A
 rm "$d"/elm.premin.js
 popd > /dev/null
 mkdir -p "$d"/nginx/var/{log,run}
-cp nginx/{nginx.conf,start.sh} "$d"/nginx
-sed -i -re 's/(listen .*)57958;/\180;/' -e 's/(listen .*)57959 ssl;/\1443 ssl;/' "$d"/nginx/nginx.conf
+cp nginx/{flexiprocity.conf,standalone.conf,start.sh} "$d"/nginx
+sed -i -re 's/(listen .*)57958;/\180;/' -e 's/(listen .*)57959 ssl;/\1443 ssl;/' "$d"/nginx/flexiprocity.conf
 mkdir "$d"/postgraphile
 cp postgraphile/{package.json,postgraphile.tags.json5,start.sh} "$d"/postgraphile
 
@@ -32,7 +32,7 @@ tmux new-session \; \
       "cd auth-server" Enter \
       "./auth-server" Enter \; \
     split-window -h \; \
-    send-keys "cd nginx" Enter "nginx -p $PWD/nginx -c nginx.conf" Enter \; \
+    send-keys "cd nginx" Enter "nginx -p $PWD/nginx -c standalone.conf" Enter \; \
     split-window -h \; \
     send-keys "cd postgraphile" Enter \
       "npm install" Enter \
