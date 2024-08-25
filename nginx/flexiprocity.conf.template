@@ -44,9 +44,6 @@ server {
     location /graphiql {
         proxy_pass http://localhost:5000/;
     }
-    location /gateway {
-        proxy_pass http://localhost:57960/;
-    }
     location /sentry.js {
         return 301 SENTRY_URL;
     }
