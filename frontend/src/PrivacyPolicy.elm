@@ -115,6 +115,10 @@ viewPrivacyPolicy =
   , Html.p [] [
       Html.text """If this policy is changed, you will continue to be subject to
         the terms of the old policy until you explicitly agree to the new
-        one."""
+        one. If I need to stop supporting an older privacy policy, I will
+        contact users if possible to ask them to switch, and if I can't contact
+        them, I will delete their accounts. I will aim to leave at least 6
+        months since a policy was obsoleted before I delete accounts relating to
+        it, but if necessary I can delete any account at any time."""
     ]
   ]
