@@ -14,7 +14,7 @@ let
     ];
 in
 mkDerivation {
-  pname = "auth-server";
+  pname = "flexiprocity-auth-server";
   version = "0.1.0.0";
   src = ./.;
   isLibrary = false;

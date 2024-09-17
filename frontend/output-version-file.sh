@@ -1,2 +1,8 @@
 #!/usr/bin/env bash
-echo "const latestPrivacyPolicy = '$("$(git rev-parse --show-toplevel)"/frontend/privacy-policy-version.sh)';"
+if [ -n "$1" ]
+then
+  version=$1
+else
+  version=$("$(git rev-parse --show-toplevel)"/frontend/privacy-policy-version.sh)
+fi
+echo "const latestPrivacyPolicy = '$version';"
