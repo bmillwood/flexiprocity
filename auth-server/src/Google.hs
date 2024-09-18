@@ -10,6 +10,7 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.IORef as IORef
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
@@ -17,6 +18,7 @@ import GHC.Generics (Generic)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTPS
 import qualified Servant.API as Servant
+import qualified System.Environment as Env
 import qualified System.Random.Stateful as Random
 import qualified Web.Cookie as Cookie
 import qualified Web.OIDC.Client as OIDC
@@ -61,13 +63,19 @@ data Env = Env
   , secret :: ClientSecret
   }
 
+getSecret :: IO ClientSecret
+getSecret = do
+  secretsDir <- fromMaybe "../secrets" <$> Env.lookupEnv "SECRETS_DIR"
+  Right secret
+    <- Aeson.eitherDecode <$> BSL.readFile (secretsDir <> "/google_client_secret.json")
+  pure secret
+
 init :: IO Env
 init = do
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
   provider <- OIDC.discover "https://accounts.google.com" httpManager
   sessions <- IORef.newIORef Map.empty
-  Right secret
-    <- Aeson.eitherDecode <$> BSL.readFile "../secrets/google_client_secret.json"
+  secret <- getSecret
   pure Env
     { sessions
     , httpManager

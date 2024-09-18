@@ -12,6 +12,8 @@ in
       serviceConfig = {
         User = "api";
         ExecStart = "${authServer}/bin/auth-server";
+        # Currently this dir has to be set up manually, which is a shame
+        Environment = "SECRETS_DIR=/home/api/secrets";
       };
     };
     users.users.api = {
