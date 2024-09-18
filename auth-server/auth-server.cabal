@@ -43,6 +43,7 @@ library
       Facebook
       Google
       MakeJwt
+      Secrets
     build-depends:
       aeson >= 2.1 && < 2.3,
       base >= 4.16.4.0 && < 4.19,

@@ -14,11 +14,15 @@ import qualified Jose.Jwa as Jwa
 import qualified Jose.Jws as Jws
 import qualified Jose.Jwt as Jwt
 
+import qualified Secrets
+
 newtype Env = Env { privateKey :: RSA.PrivateKey }
 
 init :: IO Env
 init = do
-  [X509.PrivKeyRSA privateKey] <- X509.readKeyFile "../secrets/jwt/private-key.pem"
+  secretsDir <- Secrets.getDir
+  [X509.PrivKeyRSA privateKey]
+    <- X509.readKeyFile (secretsDir <> "/jwt/private-key.pem")
   pure $ Env privateKey
 
 makeJwt :: Env -> Map.Map Text Aeson.Value -> IO BS.ByteString
