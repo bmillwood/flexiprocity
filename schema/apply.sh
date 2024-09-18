@@ -5,4 +5,6 @@ export PGUSER=${PGUSER:-postgres}
 export PGDATABASE=${PGDATABASE:-flexiprocity}
 dropdb "$PGDATABASE" || true
 createdb "$PGDATABASE"
-psql -v ON_ERROR_STOP=on -f structure.sql -f ../secrets/seeds.sql
+psql -v ON_ERROR_STOP=on \
+     -c "GRANT CONNECT ON DATABASE flexiprocity TO api, inbox, meddler" \
+     -f structure.sql -f ../secrets/seeds.sql
