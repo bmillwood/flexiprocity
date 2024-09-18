@@ -8,6 +8,10 @@ let
   inherit (lib) mkIf mkOption types;
 in
 {
+  imports = [
+    ./schema/config.nix
+  ];
+
   options = {
     services.flexiprocity = {
       enable = lib.mkEnableOption "flexiprocity";
