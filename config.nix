@@ -21,8 +21,8 @@ in
       enable = true;
       virtualHosts = {
         "flexiprocity.rpm.cc" = {
-          forceSSL = false;
-          enableACME = false;
+          forceSSL = true;
+          enableACME = true;
           locations."/auth" = {
             proxyPass = "http://127.0.0.1:5001/";
             recommendedProxySettings = true;
