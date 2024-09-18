@@ -33,7 +33,7 @@ stdenv.mkDerivation {
   };
   buildPhase = ''
     mkdir "$out"
-    pushd "./$flexiprocitySubmodule/frontend"
+    pushd "./${flexiprocitySubmodule}/frontend"
     cp *.{html,css} driver.js "$out/"
     bash output-version-file.sh > "$out"/version.js
     elm make --output="$out/elm.js" src/Main.elm

@@ -1,14 +1,28 @@
-{ lib, pkgs
-, # see frontend for why we need these two
-  gitRoot ? ./.
-, flexiproxitySubmodule ? "."
-, ... }:
+{ config, lib, pkgs, ... }:
 let
+  cfg = config.services.flexiprocity;
   authServer = pkgs.callPackage ./auth-server {};
-  frontend = pkgs.callPackage ./frontend { inherit gitRoot flexiprocitySubmodule; };
+  frontend = pkgs.callPackage ./frontend {
+    inherit (cfg) gitRoot flexiprocitySubmodule;
+  };
+  inherit (lib) mkIf mkOption types;
 in
 {
-  config = {
+  options = {
+    services.flexiprocity = {
+      enable = lib.mkEnableOption "flexiprocity";
+
+      # see frontend for why we need these two
+      gitRoot = lib.mkOption {
+        type = types.path;
+      };
+      flexiprocitySubmodule = lib.mkOption {
+        type = types.str;
+      };
+    };
+  };
+
+  config = mkIf cfg.enable {
     systemd.services.authServer = {
       description = "flexiprocity auth server";
       after = [ "network.target" ];
