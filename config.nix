@@ -1,7 +1,11 @@
-{ lib, pkgs, ... }:
+{ lib, pkgs
+, # see frontend for why we need these two
+  gitRoot ? ./.
+, flexiproxitySubmodule ? "."
+, ... }:
 let
   authServer = pkgs.callPackage ./auth-server {};
-  frontend = pkgs.callPackage ./frontend {};
+  frontend = pkgs.callPackage ./frontend { inherit gitRoot flexiprocitySubmodule; };
 in
 {
   config = {
