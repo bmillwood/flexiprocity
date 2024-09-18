@@ -1,9 +1,7 @@
 { lib, pkgs, ... }:
 let
   authServer = pkgs.callPackage ./auth-server {};
-  frontend = pkgs.callPackage ./frontend {
-    privacyPolicyVersion = "worry about this later";
-  };
+  frontend = pkgs.callPackage ./frontend {};
 in
 {
   config = {

@@ -3,6 +3,7 @@ if [ -n "$1" ]
 then
   version=$1
 else
-  version=$("$(git rev-parse --show-toplevel)"/frontend/privacy-policy-version.sh)
+  version=$(bash "$(git rev-parse --show-toplevel)"/frontend/privacy-policy-version.sh)
 fi
+[ -n "$version" ] || exit 1
 echo "const latestPrivacyPolicy = '$version';"

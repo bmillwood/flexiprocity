@@ -1,8 +1,5 @@
 { nixpkgs ? <nixpkgs>
 , config ? {}
-, # This derivation uses a src that doesn't contain the git dir,
-  # and it seems a shame to pull in the whole git dir just for this
-  privacyPolicyVersion
 }:
 
 let
@@ -11,9 +8,10 @@ let
 in
 stdenv.mkDerivation {
   name = "flexiprocity-frontend";
-  src = ./.;
+  src = ../.;
   buildInputs = [
     pkgs.elmPackages.elm
+    pkgs.git
   ];
   configurePhase = pkgs.elmPackages.fetchElmDeps {
     # generate with `elm2nix --convert`
@@ -23,8 +21,10 @@ stdenv.mkDerivation {
   };
   buildPhase = ''
     mkdir "$out"
-    cp *.{html,css,js} "$out/"
-    bash output-version-file.sh "${privacyPolicyVersion}" > "$out"/version.js
+    pushd frontend
+    cp *.{html,css} driver.js "$out/"
+    bash output-version-file.sh > "$out"/version.js
     elm make --output="$out/elm.js" src/Main.elm
+    popd
   '';
 }
