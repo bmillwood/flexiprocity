@@ -80,12 +80,25 @@ in
     };
     services.nginx = {
       enable = true;
+      appendHttpConfig = ''
+        map $cookie_jwt $authorization {
+          "" "";
+          default "Bearer $cookie_jwt";
+        }
+      '';
       virtualHosts = {
         "flexiprocity.rpm.cc" = {
           forceSSL = true;
           enableACME = true;
           locations."/auth" = {
             proxyPass = "http://127.0.0.1:5001/";
+            recommendedProxySettings = true;
+          };
+          locations."/graphql" = {
+            extraConfig = ''
+              proxy_set_header Authorization "$authorization";
+            '';
+            proxyPass = "http://localhost:5000/graphql";
             recommendedProxySettings = true;
           };
           locations."/" = {
