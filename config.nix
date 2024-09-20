@@ -56,7 +56,7 @@ in
             # copied from my dev script, but not possible here
             #"--watch"
             #"--owner-connection 'socket:/run/postgresql?db=flexiprocity&user=postgres'"
-            "--export-schema-graphql /home/api/schema.graphql"
+            "--export-schema-graphql schema.graphql"
             "--graphiql /"
             "--enhance-graphiql"
             "--allow-explain"
@@ -95,6 +95,8 @@ in
         script = lib.concatStringsSep " " scriptPieces;
         serviceConfig = {
           User = "api";
+          # only matters when graphiql wants to read schema.graphql
+          WorkingDirectory = "/home/api";
         };
       };
     };
