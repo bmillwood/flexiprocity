@@ -98,6 +98,8 @@ in
           "cd ~/postgraphile"
           # somewhat silly to copy this every time, but can't think of a better way
           "cp ${./postgraphile/postgraphile.tags.json5} postgraphile.tags.json5"
+          # because otherwise overwriting it next time will fail
+          "chmod u+w postgraphile.tags.json5"
           (lib.concatStringsSep " " scriptPieces)
         ];
         serviceConfig = {
