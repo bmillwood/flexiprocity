@@ -5,7 +5,7 @@ let
   frontend = pkgs.callPackage ./frontend {
     inherit (cfg) gitRoot flexiprocitySubmodule;
   };
-  inherit (lib) mkIf mkOption types;
+  inherit (lib) mkIf mkMerge mkOption types;
 in
 {
   imports = [
@@ -19,6 +19,11 @@ in
 
       virtualHost = mkOption {
         type = types.str;
+      };
+
+      sentryUrl = mkOption {
+        type = types.nullOr types.str;
+        default = null;
       };
 
       # see frontend for why we need these two
@@ -54,16 +59,23 @@ in
         ${cfg.virtualHost} = {
           forceSSL = true;
           enableACME = true;
-          locations = {
-            "/auth/" = {
-              proxyPass = "http://127.0.0.1:5001/";
-              recommendedProxySettings = true;
-            };
-            "/" = {
-              root = "${frontend}";
-              tryFiles = "$uri /index.html =404";
-            };
-          };
+          locations = mkMerge [
+            {
+              "/auth/" = {
+                proxyPass = "http://127.0.0.1:5001/";
+                recommendedProxySettings = true;
+              };
+              "/" = {
+                root = "${frontend}";
+                tryFiles = "$uri /index.html =404";
+              };
+            }
+            (mkIf (cfg.sentryUrl != null) {
+              "/sentry.js" = {
+                return = "301 ${cfg.sentryUrl}";
+              };
+            })
+          ];
         };
       };
     };
