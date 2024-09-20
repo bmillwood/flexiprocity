@@ -121,7 +121,7 @@ in
           forceSSL = true;
           enableACME = true;
           locations = {
-            "/auth" = {
+            "/auth/" = {
               proxyPass = "http://127.0.0.1:5001/";
               recommendedProxySettings = true;
             };
