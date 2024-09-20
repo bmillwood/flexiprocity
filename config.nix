@@ -92,11 +92,16 @@ in
           nodePackages.nodejs
           nodePackages.npm
         ];
-        script = lib.concatStringsSep " " scriptPieces;
+        script = lib.concatStringsSep "\n" [
+          # since we want to create this directory, WorkingDirectory isn't useful
+          "mkdir -p ~/postgraphile"
+          "cd ~/postgraphile"
+          # somewhat silly to copy this every time, but can't think of a better way
+          "cp ${./postgraphile/postgraphile.tags.json5} postgraphile.tags.json5"
+          (lib.concatStringsSep " " scriptPieces)
+        ];
         serviceConfig = {
           User = "api";
-          # only matters when graphiql wants to read schema.graphql
-          WorkingDirectory = "/home/api";
         };
       };
     };
