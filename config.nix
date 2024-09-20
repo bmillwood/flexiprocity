@@ -15,6 +15,10 @@ in
   options = {
     services.flexiprocity = {
       enable = lib.mkEnableOption "flexiprocity";
+      postgraphileDevMode = lib.mkOption {
+        type = types.bool;
+        default = false;
+      };
 
       # see frontend for why we need these two
       gitRoot = lib.mkOption {
@@ -39,7 +43,46 @@ in
           Environment = "SECRETS_DIR=/home/api/secrets";
         };
       };
-      postgraphile = {
+      postgraphile =
+        let
+          prodFlags = [
+            "--retry-on-init-fail"
+            "--extended-errors errcode"
+            "--disable-query-log"
+          ];
+          devFlags = [
+            "--show-error-stack=json"
+            "--extended-errors hint,detail,errcode"
+            # copied from my dev script, but not possible here
+            #"--watch"
+            #"--owner-connection 'socket:/run/postgresql?db=flexiprocity&user=postgres'"
+            #"--export-schema-graphql schema.graphql"
+            "--graphiql /"
+            "--enhance-graphiql"
+            "--allow-explain"
+          ];
+          scriptPieces = [
+            # -y: skip installation confirmation
+            "npm exec -y"
+            # seems like it should be implied by the command being run, but apparently not
+            "--package postgraphile"
+            "--package @graphile-contrib/pg-simplify-inflector"
+            "--"
+            "postgraphile"
+            "--append-plugins @graphile-contrib/pg-simplify-inflector"
+            "--dynamic-json"
+            "--no-setof-functions-contain-nulls"
+            "--no-ignore-rbac"
+            "--enable-query-batching"
+            "--legacy-relations omit"
+            "--connection 'socket:/run/postgresql?db=flexiprocity'"
+            "--jwt-secret \"$(cat /home/api/secrets/jwt/public-key.pem)\""
+            "--jwt-verify-algorithms RS256"
+            "--jwt-verify-clock-tolerance 1"
+            "--cors"
+            "--schema public"
+          ] ++ (if cfg.postgraphileDevMode then devFlags else prodFlags);
+        in {
         description = "flexiprocity postgraphile";
         after = [ "postgresql.service" ];
         wantedBy = [ "multi-user.target" ];
@@ -49,27 +92,7 @@ in
           nodePackages.nodejs
           nodePackages.npm
         ];
-        script = lib.concatStringsSep " " [
-          # -y: skip installation confirmation
-          "npm exec -y"
-          # seems like it should be implied by the command being run, but apparently not
-          "--package postgraphile"
-          "--package @graphile-contrib/pg-simplify-inflector"
-          "--"
-          "postgraphile"
-          "--append-plugins @graphile-contrib/pg-simplify-inflector"
-          "--dynamic-json"
-          "--no-setof-functions-contain-nulls"
-          "--no-ignore-rbac"
-          "--enable-query-batching"
-          "--legacy-relations omit"
-          "--connection 'socket:/run/postgresql?db=flexiprocity'"
-          "--jwt-secret \"$(cat /home/api/secrets/jwt/public-key.pem)\""
-          "--jwt-verify-algorithms RS256"
-          "--jwt-verify-clock-tolerance 1"
-          "--cors"
-          "--schema public"
-        ];
+        script = lib.concatStringsSep " " scriptPieces;
         serviceConfig = {
           User = "api";
         };
@@ -105,7 +128,12 @@ in
             root = "${frontend}";
             tryFiles = "$uri /index.html =404";
           };
-        };
+        } // (if cfg.postgraphileDevMode then {
+            locations."/graphiql" = {
+              proxyPass = "http://localhost:5000/";
+            };
+          } else {}
+        );
       };
     };
   };
