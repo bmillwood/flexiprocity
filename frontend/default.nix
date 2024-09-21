@@ -29,7 +29,7 @@ stdenv.mkDerivation {
     # generate with `elm2nix --convert`
     elmPackages = import ./elm-srcs.nix;
     elmVersion = "0.19.1";
-    registryDat = ~/.elm/0.19.1/packages/registry.dat;
+    registryDat = ./registry.dat;
   };
   buildPhase = ''
     mkdir "$out"
