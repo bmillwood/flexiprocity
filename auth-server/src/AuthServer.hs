@@ -111,4 +111,4 @@ main :: IO ()
 main = do
   env <- doInit
   Diagnose.logMsg $ "Initialization finished"
-  Warp.run 5001 (Cors.simpleCors (app env))
+  Warp.runEnv 5001 (Cors.simpleCors (app env))
