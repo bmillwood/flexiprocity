@@ -1,8 +1,8 @@
 module Diagnose where
 
 import Control.Exception
-import Control.Monad
 import qualified Data.Time as Time
+import qualified System.IO as IO
 
 addTimestamp :: String -> IO String
 addTimestamp s = do
@@ -10,7 +10,9 @@ addTimestamp s = do
   pure $ "[" <> show now <> "] " <> s
 
 logMsg :: String -> IO ()
-logMsg = putStrLn <=< addTimestamp
+logMsg s = do
+  putStrLn =<< addTimestamp s
+  IO.hFlush IO.stdout
 
 annotateException :: String -> IO a -> IO a
 annotateException prefix act =

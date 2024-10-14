@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified System.IO as IO
 
 import Servant ((:<|>) ((:<|>)))
 import qualified Servant
@@ -109,6 +110,9 @@ app env = Servant.serve (Proxy @Api.Api) (server env)
 
 main :: IO ()
 main = do
+  IO.hGetBuffering IO.stdout
+    >>= Diagnose.logMsg . ("stdout buffering was: " <>) . show
+  IO.hSetBuffering IO.stdout IO.LineBuffering
   env <- doInit
   Diagnose.logMsg $ "Initialization finished"
   Warp.runEnv 5001 (Cors.simpleCors (app env))
