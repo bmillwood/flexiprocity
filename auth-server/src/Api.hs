@@ -6,7 +6,7 @@ import Data.Text (Text)
 import Servant.API
 
 import qualified Facebook
-import qualified Google
+import qualified Sessions
 
 type SetCookie a = Headers '[Header "Set-Cookie" Text] a
 
@@ -22,7 +22,7 @@ type LoginGoogle =
     :> Header "X-Forwarded-Host" Text
     :> Verb 'GET 303 '[PlainText] CookieRedirect
   :<|> "complete"
-    :> Header "Cookie" Google.SessionId
+    :> Header "Cookie" Sessions.SessionId
     :> QueryParam "error" Text
     :> QueryParam "code" Text
     :> Verb 'GET 303 '[JSON] CookieRedirect

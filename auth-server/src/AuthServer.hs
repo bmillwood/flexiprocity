@@ -24,6 +24,7 @@ import qualified Diagnose
 import qualified Facebook
 import qualified Google
 import qualified MakeJwt
+import qualified Sessions
 
 data Env = Env
   { google :: Google.Env
@@ -64,11 +65,11 @@ googleStart _ Nothing =
 googleStart env (Just host) = do
   (sessId, url) <- liftIO $ Google.startUrlForOrigin env host
   pure
-    $ Servant.addHeader (Google.sessionIdCookie sessId)
+    $ Servant.addHeader (Sessions.sessionIdCookie sessId)
     $ Servant.addHeader url
     $ Servant.NoContent
 
-googleComplete :: Env -> Maybe Google.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
+googleComplete :: Env -> Maybe Sessions.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
 googleComplete _ _ (Just errMsg) _ = do
   liftIO . Diagnose.logMsg $ "googleComplete error: " <> show errMsg
   Except.throwError Servant.err403

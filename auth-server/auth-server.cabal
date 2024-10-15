@@ -25,6 +25,7 @@ common language
       DataKinds
       DeriveAnyClass
       DerivingStrategies
+      DisambiguateRecordFields
       OverloadedStrings
     -- other-extensions:
 
@@ -44,6 +45,7 @@ library
       Google
       MakeJwt
       Secrets
+      Sessions
     build-depends:
       aeson >= 2.1 && < 2.3,
       base >= 4.16.4.0 && < 4.19,
