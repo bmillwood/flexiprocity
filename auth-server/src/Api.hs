@@ -2,8 +2,10 @@ module Api where
 
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
+import qualified Data.Text as Text
 
 import Servant.API
+import qualified Network.URI as URI
 
 import qualified Facebook
 import qualified Sessions
@@ -15,7 +17,12 @@ type LoginFacebook =
     -- https://github.com/haskell-servant/servant/issues/1267
     :> Verb 'POST 204 '[JSON] (SetCookie NoContent)
 
-type CookieRedirect = Headers '[Header "Set-Cookie" Text, Header "Location" Text] NoContent
+newtype Location = Location URI.URI
+
+instance ToHttpApiData Location where
+  toUrlPiece (Location uri) = Text.pack (URI.uriToString id uri "")
+
+type CookieRedirect = Headers '[Header "Set-Cookie" Text, Header "Location" Location] NoContent
 
 type LoginGoogle =
   "start"

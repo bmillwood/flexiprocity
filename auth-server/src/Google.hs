@@ -5,13 +5,13 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson ((.:))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import GHC.Generics (Generic)
 
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTPS
+import qualified Network.URI as URI
 import qualified Web.OIDC.Client as OIDC
 
 import qualified Diagnose
@@ -63,7 +63,7 @@ oidcWithRedirectUri Env{ provider, secret } redirectUri =
   where
     ClientSecret{ clientId, clientSecret } = secret
 
-startUrlForOrigin :: Env -> Text -> IO (Sessions.SessionId, Text)
+startUrlForOrigin :: Env -> Text -> IO (Sessions.SessionId, URI.URI)
 startUrlForOrigin env@Env{ sessions } origin = do
   sessId <- Sessions.newSessionId
   let
@@ -71,7 +71,7 @@ startUrlForOrigin env@Env{ sessions } origin = do
     oidc = oidcWithRedirectUri env redirectUri
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
     scopes = [OIDC.openId, OIDC.profile, OIDC.email]
-  url <- Text.pack . show <$> OIDC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
+  url <- OIDC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
   pure (sessId, url)
 
 data Claims = Claims

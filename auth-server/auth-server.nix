@@ -1,8 +1,9 @@
 { mkDerivation, aeson, base, bytestring, containers, cookie
 , crypton, crypton-x509, crypton-x509-store, http-api-data
 , http-client, http-client-tls, http-types, jose-jwt, lib, memory
-, mtl, oidc-client, random, req, servant, servant-server, text
-, time, wai, wai-cors, warp, cryptonite, x509, x509-store
+, mtl, network-uri, oidc-client, random, req, servant, servant-server
+, text, time, wai, wai-cors, warp
+, cryptonite, x509, x509-store
 }:
 let
   cryptoDeps =
@@ -24,8 +25,8 @@ mkDerivation {
   enableSharedLibraries = false;
   libraryHaskellDepends = [
     aeson base bytestring containers cookie http-api-data http-client
-    http-client-tls http-types jose-jwt memory mtl oidc-client random
-    req servant servant-server text time wai wai-cors warp
+    http-client-tls http-types jose-jwt memory mtl network-uri oidc-client
+    random req servant servant-server text time wai wai-cors warp
   ] ++ cryptoDeps;
   executableHaskellDepends = [ base ];
   description = "Server which provides jwts for flexiprocity";

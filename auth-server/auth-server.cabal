@@ -58,6 +58,7 @@ library
       http-types ^>=0.12,
       memory ^>=0.18.0,
       mtl >=2.2 && <2.4,
+      network-uri ^>= 2.6,
       oidc-client ^>= 0.8,
       random ^>=1.2,
       req ^>=3.13.0,

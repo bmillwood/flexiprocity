@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 module AuthServer (app, main) where
 
 import qualified Control.Monad.Except as Except
@@ -14,6 +15,7 @@ import qualified System.IO as IO
 
 import Servant ((:<|>) ((:<|>)))
 import qualified Servant
+import qualified Network.URI.Static as URI
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
@@ -66,7 +68,7 @@ googleStart env (Just host) = do
   (sessId, url) <- liftIO $ Google.startUrlForOrigin env host
   pure
     $ Servant.addHeader (Sessions.sessionIdCookie sessId)
-    $ Servant.addHeader url
+    $ Servant.addHeader (Api.Location url)
     $ Servant.NoContent
 
 googleComplete :: Env -> Maybe Sessions.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
@@ -85,7 +87,7 @@ googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) = do
     cookie <- jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
     pure
       $ Servant.addHeader cookie
-      $ Servant.addHeader "/"
+      $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
       $ Servant.NoContent
 
 facebookDecodeSignedReq :: Facebook.SignedRequest -> Servant.Handler Aeson.Value
