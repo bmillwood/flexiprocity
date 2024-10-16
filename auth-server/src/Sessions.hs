@@ -20,7 +20,7 @@ sessionIdKey :: BS.ByteString
 sessionIdKey = "sessionId"
 
 randomString :: IO String
-randomString = replicateM 80 randomChar
+randomString = replicateM 40 randomChar
   where
     randomChars = BSC.pack $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9']
     randomChar :: IO Char
@@ -60,15 +60,23 @@ newStore :: IO Store
 newStore = IORef.newIORef Map.empty
 
 getSession :: SessionId -> Store -> IO (Maybe Session)
-getSession sid store = Map.lookup sid <$> IORef.readIORef store
+getSession sessId store = Map.lookup sessId <$> IORef.readIORef store
+
+setSession :: SessionId -> Session -> Store -> IO ()
+setSession sessId session store =
+  IORef.atomicModifyIORef store $ \sessMap -> (Map.insert sessId session sessMap, ())
+
+deleteSession :: SessionId -> Store -> IO ()
+deleteSession sessId store =
+  IORef.atomicModifyIORef store $ \sessMap -> (Map.delete sessId sessMap, ())
 
 oidcSessionStore :: Store -> SessionId -> BS.ByteString -> OIDC.SessionStore IO
-oidcSessionStore ref sessId redirectUri =
+oidcSessionStore store sessId redirectUri =
   let
-    sessionStoreSave state nonce = do
-      IORef.atomicModifyIORef ref $ \sessMap -> (Map.insert sessId Session{ state, nonce, redirectUri } sessMap, ())
+    sessionStoreSave state nonce =
+      setSession sessId Session{ state, nonce, redirectUri } store
     sessionStoreGet clientState = do
-      found <- Map.lookup sessId <$> IORef.readIORef ref
+      found <- getSession sessId store
       pure $ found >>= \Session{ state, nonce } ->
         if state == clientState
           then Just nonce
@@ -79,7 +87,7 @@ oidcSessionStore ref sessId redirectUri =
     -- now, but we'll eventually need to address it somehow. (Perhaps by using
     -- some "real" session storage mechanism, rather than "thing I hacked
     -- together quickly to get this working".)
-    sessionStoreDelete = IORef.atomicModifyIORef ref $ \sessMap -> (Map.delete sessId sessMap, ())
+    sessionStoreDelete = deleteSession sessId store
   in
   OIDC.SessionStore
     { sessionStoreGenerate = BSC.pack <$> randomString

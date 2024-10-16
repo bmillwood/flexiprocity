@@ -42,6 +42,7 @@ library
       Api
       Diagnose
       Facebook
+      Friendica
       Google
       MakeJwt
       Secrets

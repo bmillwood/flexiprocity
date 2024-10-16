@@ -15,6 +15,8 @@ import qualified System.IO as IO
 
 import Servant ((:<|>) ((:<|>)))
 import qualified Servant
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTPS
 import qualified Network.URI.Static as URI
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -24,17 +26,25 @@ import qualified Web.Cookie as Cookie
 import qualified Api
 import qualified Diagnose
 import qualified Facebook
+import qualified Friendica
 import qualified Google
 import qualified MakeJwt
 import qualified Sessions
 
 data Env = Env
-  { google :: Google.Env
+  { friendica :: Friendica.Env
+  , google :: Google.Env
   , jwt :: MakeJwt.Env
   }
 
 doInit :: IO Env
-doInit = Env <$> Google.init <*> MakeJwt.init
+doInit = do
+  sessions <- Sessions.newStore
+  httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
+  friendica <- Friendica.init sessions httpManager
+  google <- Google.init sessions httpManager
+  jwt <- MakeJwt.init
+  pure Env{ friendica, google, jwt }
 
 jwtCookie :: MakeJwt.Env -> Map Text Aeson.Value -> IO Text
 jwtCookie jwtEnv claimsMap = cookie <$> MakeJwt.makeJwt jwtEnv claimsMap
@@ -104,12 +114,13 @@ facebookDecodeSignedReq signedReq = do
     bsFromString = BSL.fromStrict . Text.encodeUtf8 . Text.pack
 
 server :: Env -> Servant.Server Api.Api
-server env@Env{ google, jwt } = loginServer :<|> facebookDecodeSignedReq
+server env@Env{ friendica, google, jwt } = loginServer :<|> facebookDecodeSignedReq
   where
     loginServer =
       logout
       :<|> facebookLogin jwt
       :<|> (googleStart google :<|> googleComplete env)
+      :<|> (Friendica.start friendica :<|> Friendica.complete friendica)
 
 app :: Env -> Wai.Application
 app env = Servant.serve (Proxy @Api.Api) (server env)

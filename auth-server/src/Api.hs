@@ -35,6 +35,23 @@ type LoginGoogle =
     :> QueryParam "state" Text
     :> Verb 'GET 303 '[JSON] CookieRedirect
 
+newtype InstanceName = InstanceName { getInstanceName :: Text }
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Aeson.FromJSON, Aeson.FromJSONKey, FromHttpApiData)
+
+type LoginFriendica =
+  "start"
+    :> Capture "instance" InstanceName
+    :> Header "X-Forwarded-Host" Text
+    :> Verb 'GET 303 '[PlainText] CookieRedirect
+  :<|> "complete"
+    :> Capture "instance" InstanceName
+    :> Header "Cookie" Sessions.SessionId
+    :> QueryParam "error" Text
+    :> QueryParam "code" Text
+    :> QueryParam "state" Text
+    :> Verb 'GET 303 '[JSON] CookieRedirect
+
 type FacebookDecodeSignedRequest =
   ReqBody '[JSON] Facebook.SignedRequest
   :> Get '[JSON] Aeson.Value
@@ -44,5 +61,6 @@ type Api =
     Verb 'DELETE 204 '[JSON] (SetCookie NoContent)
     :<|> "facebook" :> LoginFacebook
     :<|> "google" :> LoginGoogle
+    :<|> "friendica" :> LoginFriendica
   )
   :<|> "facebook" :> "decode-signed-request" :> FacebookDecodeSignedRequest

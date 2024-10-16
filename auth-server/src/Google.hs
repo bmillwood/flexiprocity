@@ -9,7 +9,6 @@ import qualified Data.Text.Encoding as Text
 import GHC.Generics (Generic)
 
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTPS
 import qualified Network.URI as URI
 import qualified Web.OIDC.Client as OIDC
 
@@ -36,11 +35,9 @@ data Env = Env
   , secret :: ClientSecret
   }
 
-init :: IO Env
-init = do
-  httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
+init :: Sessions.Store -> HTTP.Manager -> IO Env
+init sessions httpManager = do
   provider <- OIDC.discover "https://accounts.google.com" httpManager
-  sessions <- Sessions.newStore
   secret <- Secrets.getJson "google_client_secret.json"
   pure Env
     { sessions
