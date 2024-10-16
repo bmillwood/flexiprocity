@@ -1,2 +1,6 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc96" }:
-(import ./default.nix { inherit nixpkgs compiler; }).env
+{ nixpkgs ? import <nixpkgs> {} }:
+nixpkgs.haskellPackages.developPackage {
+  root = ./.;
+  modifier = drv:
+    nixpkgs.haskell.lib.addBuildTools drv [ nixpkgs.cabal-install ];
+}
