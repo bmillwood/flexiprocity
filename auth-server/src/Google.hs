@@ -4,7 +4,6 @@ module Google where
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.:))
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import GHC.Generics (Generic)
@@ -37,19 +36,12 @@ data Env = Env
   , secret :: ClientSecret
   }
 
-getSecret :: IO ClientSecret
-getSecret = do
-  secretsDir <- Secrets.getDir
-  Right secret
-    <- Aeson.eitherDecode <$> BSL.readFile (secretsDir <> "/google_client_secret.json")
-  pure secret
-
 init :: IO Env
 init = do
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
   provider <- OIDC.discover "https://accounts.google.com" httpManager
   sessions <- Sessions.newStore
-  secret <- getSecret
+  secret <- Secrets.getJson "google_client_secret.json"
   pure Env
     { sessions
     , httpManager
