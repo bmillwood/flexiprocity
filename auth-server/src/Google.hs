@@ -74,12 +74,12 @@ data Claims = Claims
   -- other keys: at_hash, au, azp, exp, family_name, given_name, iat, iss, nonce, sub
   } deriving (Generic, Aeson.FromJSON, Aeson.ToJSON, Show)
 
-codeToClaims :: Env -> Sessions.SessionId -> BS.ByteString -> IO Claims
-codeToClaims env@Env{ sessions, httpManager } sessId code = do
-  Just Sessions.Session{ state, nonce = _, redirectUri } <- Sessions.getSession sessId sessions
+codeToClaims :: Env -> Sessions.SessionId -> BS.ByteString -> BS.ByteString -> IO Claims
+codeToClaims env@Env{ sessions, httpManager } sessId code clientState = do
+  Just Sessions.Session{ state = _, nonce = _, redirectUri } <- Sessions.getSession sessId sessions
   let
     oidc = oidcWithRedirectUri env redirectUri
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
   OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
-    <- Diagnose.annotateException "codeToClaims/getValidTokens" $ OIDC.getValidTokens sessionStore oidc httpManager state code
+    <- Diagnose.annotateException "codeToClaims/getValidTokens" $ OIDC.getValidTokens sessionStore oidc httpManager clientState code
   pure otherClaims

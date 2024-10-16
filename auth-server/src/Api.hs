@@ -32,6 +32,7 @@ type LoginGoogle =
     :> Header "Cookie" Sessions.SessionId
     :> QueryParam "error" Text
     :> QueryParam "code" Text
+    :> QueryParam "state" Text
     :> Verb 'GET 303 '[JSON] CookieRedirect
 
 type FacebookDecodeSignedRequest =

@@ -71,19 +71,22 @@ googleStart env (Just host) = do
     $ Servant.addHeader (Api.Location url)
     $ Servant.NoContent
 
-googleComplete :: Env -> Maybe Sessions.SessionId -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
-googleComplete _ _ (Just errMsg) _ = do
+googleComplete :: Env -> Maybe Sessions.SessionId -> Maybe Text -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
+googleComplete _ _ (Just errMsg) _ _ = do
   liftIO . Diagnose.logMsg $ "googleComplete error: " <> show errMsg
   Except.throwError Servant.err403
-googleComplete _ Nothing _ _ = do
+googleComplete _ Nothing _ _ _ = do
   liftIO . Diagnose.logMsg $ "googleComplete error: no sessId"
   Except.throwError Servant.err403
-googleComplete _ _ _ Nothing = do
+googleComplete _ _ _ Nothing _ = do
   liftIO . Diagnose.logMsg $ "googleComplete error: no code"
   Except.throwError Servant.err403
-googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) = do
+googleComplete _ _ _ _ Nothing = do
+  liftIO . Diagnose.logMsg $ "googleComplete error: no state"
+  Except.throwError Servant.err403
+googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) (Just state) = do
   liftIO $ do
-    claims <- Google.codeToClaims google sessId (Text.encodeUtf8 code)
+    claims <- Google.codeToClaims google sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
     cookie <- jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
     pure
       $ Servant.addHeader cookie
