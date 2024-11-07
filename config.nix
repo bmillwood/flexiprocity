@@ -42,11 +42,18 @@ in
         description = "flexiprocity auth server";
         after = [ "network.target" ];
         wantedBy = [ "multi-user.target" ];
+        environment = mkMerge [
+          {
+            # Currently this dir has to be set up manually, which is a shame
+            SECRETS_DIR = "/home/api/secrets";
+          }
+          (mkIf (cfg.sentryUrl != null) {
+            SENTRY_DSN = cfg.sentryUrl;
+          })
+        ];
         serviceConfig = {
           User = "api";
           ExecStart = "${authServer}/bin/auth-server";
-          # Currently this dir has to be set up manually, which is a shame
-          Environment = "SECRETS_DIR=/home/api/secrets";
         };
       };
     };

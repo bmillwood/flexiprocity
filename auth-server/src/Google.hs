@@ -12,9 +12,9 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
 import qualified Web.OIDC.Client as OIDC
 
-import qualified Diagnose
 import qualified Secrets
 import qualified Sessions
+import qualified Sentry
 
 data ClientSecret = ClientSecret
   { clientId :: BS.ByteString
@@ -33,17 +33,20 @@ data Env = Env
   , httpManager :: HTTP.Manager
   , provider :: OIDC.Provider
   , secret :: ClientSecret
+  , sentry :: Sentry.Service
   }
 
 init :: Sessions.Store -> HTTP.Manager -> IO Env
 init sessions httpManager = do
   provider <- OIDC.discover "https://accounts.google.com" httpManager
   secret <- Secrets.getJson "google_client_secret.json"
+  sentry <- Sentry.init
   pure Env
     { sessions
     , httpManager
     , provider
     , secret
+    , sentry
     }
 
 oidcWithRedirectUri :: Env -> BS.ByteString -> OIDC.OIDC
@@ -72,11 +75,12 @@ data Claims = Claims
   } deriving (Generic, Aeson.FromJSON, Aeson.ToJSON, Show)
 
 codeToClaims :: Env -> Sessions.SessionId -> BS.ByteString -> BS.ByteString -> IO Claims
-codeToClaims env@Env{ sessions, httpManager } sessId code clientState = do
+codeToClaims env@Env{ sentry, sessions, httpManager } sessId code clientState = do
   Just Sessions.Session{ state = _, nonce = _, redirectUri } <- Sessions.getSession sessId sessions
   let
     oidc = oidcWithRedirectUri env redirectUri
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
   OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
-    <- Diagnose.annotateException "codeToClaims/getValidTokens" $ OIDC.getValidTokens sessionStore oidc httpManager clientState code
+    <- Sentry.reportException sentry
+    $ OIDC.getValidTokens sessionStore oidc httpManager clientState code
   pure otherClaims

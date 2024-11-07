@@ -26,6 +26,7 @@ common language
       DeriveAnyClass
       DerivingStrategies
       DisambiguateRecordFields
+      LambdaCase
       OverloadedStrings
     -- other-extensions:
 
@@ -47,6 +48,7 @@ library
       MakeJwt
       Secrets
       Sessions
+      Sentry
     build-depends:
       aeson >= 2.1 && < 2.3,
       base >= 4.16.4.0 && < 4.19,
@@ -62,6 +64,7 @@ library
       network-uri ^>= 2.6,
       oidc-client ^>= 0.8,
       random ^>=1.2,
+      raven-haskell ^>=0.1,
       req ^>=3.13.0,
       servant >=0.19.1 && <0.21,
       servant-server >=0.19.1 && <0.21,
