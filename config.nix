@@ -21,7 +21,11 @@ in
         type = types.str;
       };
 
-      sentryUrl = mkOption {
+      sentry.dsn = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+      };
+      sentry.loaderUrl = mkOption {
         type = types.nullOr types.str;
         default = null;
       };
@@ -47,8 +51,8 @@ in
             # Currently this dir has to be set up manually, which is a shame
             SECRETS_DIR = "/home/api/secrets";
           }
-          (mkIf (cfg.sentryUrl != null) {
-            SENTRY_DSN = cfg.sentryUrl;
+          (mkIf (cfg.sentry.dsn != null) {
+            SENTRY_DSN = cfg.sentry.dsn;
           })
         ];
         serviceConfig = {
@@ -77,9 +81,9 @@ in
                 tryFiles = "$uri /index.html =404";
               };
             }
-            (mkIf (cfg.sentryUrl != null) {
+            (mkIf (cfg.sentry.loaderUrl != null) {
               "/sentry.js" = {
-                return = "301 ${cfg.sentryUrl}";
+                return = "301 ${cfg.sentry.loaderUrl}";
               };
             })
           ];
