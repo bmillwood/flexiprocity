@@ -87,7 +87,7 @@ oidcSessionStore store sessId redirectUri =
     -- now, but we'll eventually need to address it somehow. (Perhaps by using
     -- some "real" session storage mechanism, rather than "thing I hacked
     -- together quickly to get this working".)
-    sessionStoreDelete = deleteSession sessId store
+    sessionStoreDelete _ = deleteSession sessId store
   in
   OIDC.SessionStore
     { sessionStoreGenerate = BSC.pack <$> randomString
