@@ -41,8 +41,10 @@ reportException service act =
   Exception.catch act (\e@Exception.SomeException{} -> do
     send service ("Exception: " <> show e)
       [ ("exception", show e)
-      , ("callStack", Stack.prettyCallStack Stack.callStack)
       ]
-      []
+      [ ( "callStack"
+        , Aeson.toJSON (Stack.prettyCallStack Stack.callStack)
+        )
+      ]
     Exception.throw e
   )
