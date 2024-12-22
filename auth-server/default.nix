@@ -7,8 +7,8 @@ nixpkgs.haskellPackages.callPackage ./auth-server.nix {
     src = fetchFromGitHub {
       owner = "bmillwood";
       repo = "haskell-oidc-client";
-      rev = "2d19db09bf13f02f49248f7b21703b2c59e06ecc";
-      hash = "sha256-DuVFfsv0lpV0sMfAk0blbDhMQeia5lzUTH1GH/FSslg=";
+      rev = "f9e6fe672b0e1e4cf89b29cad85ad07dcad364d4";
+      hash = "sha256-qFLBstUqgbSINa6RDPb/csfaQ0421i3Sm0/GiGqtrLI=";
     };
   } nixpkgs.haskellPackages.oidc-client;
 }

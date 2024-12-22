@@ -31,27 +31,27 @@ instance Aeson.FromJSON ClientSecret where
 data Env = Env
   { sessions :: Sessions.Store
   , httpManager :: HTTP.Manager
-  , provider :: OIDC.Provider
+  , getProvider :: IO OIDC.Provider
   , secret :: ClientSecret
   , sentry :: Sentry.Service
   }
 
 init :: Sessions.Store -> HTTP.Manager -> IO Env
 init sessions httpManager = do
-  provider <- OIDC.discover "https://accounts.google.com" httpManager
+  getProvider <- OIDC.cachedDiscover "https://accounts.google.com" httpManager
   secret <- Secrets.getJson "google_client_secret.json"
   sentry <- Sentry.init
   pure Env
     { sessions
     , httpManager
-    , provider
+    , getProvider
     , secret
     , sentry
     }
 
-oidcWithRedirectUri :: Env -> BS.ByteString -> OIDC.OIDC
-oidcWithRedirectUri Env{ provider, secret } redirectUri =
-    OIDC.setCredentials clientId clientSecret redirectUri (OIDC.newOIDC provider)
+oidcWithRedirectUri :: Env -> BS.ByteString -> IO OIDC.OIDC
+oidcWithRedirectUri Env{ getProvider, secret } redirectUri = do
+    OIDC.setCredentials clientId clientSecret redirectUri . OIDC.newOIDC <$> getProvider
   where
     ClientSecret{ clientId, clientSecret } = secret
 
@@ -60,9 +60,9 @@ startUrlForOrigin env@Env{ sessions } origin = do
   sessId <- Sessions.newSessionId
   let
     redirectUri = "https://" <> Text.encodeUtf8 origin <> "/auth/login/google/complete"
-    oidc = oidcWithRedirectUri env redirectUri
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
     scopes = [OIDC.openId, OIDC.profile, OIDC.email]
+  oidc <- oidcWithRedirectUri env redirectUri
   url <- OIDC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
   pure (sessId, url)
 
@@ -78,8 +78,8 @@ codeToClaims :: Env -> Sessions.SessionId -> BS.ByteString -> BS.ByteString -> I
 codeToClaims env@Env{ sentry, sessions, httpManager } sessId code clientState = do
   Just Sessions.Session{ state = _, nonce = _, redirectUri } <- Sessions.getSession sessId sessions
   let
-    oidc = oidcWithRedirectUri env redirectUri
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
+  oidc <- oidcWithRedirectUri env redirectUri
   OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
     <- Sentry.reportException sentry
     $ OIDC.getValidTokens sessionStore oidc httpManager clientState code
