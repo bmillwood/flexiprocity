@@ -17,18 +17,18 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 common warnings
-    ghc-options: -Wall
+  ghc-options: -Wall
 
 common language
-    default-language: GHC2021
-    default-extensions:
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DisambiguateRecordFields
-      LambdaCase
-      OverloadedStrings
-    -- other-extensions:
+  default-language: GHC2021
+  default-extensions:
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DisambiguateRecordFields
+    LambdaCase
+    OverloadedStrings
+  -- other-extensions:
 
 flag pre_crypton
   description: use pre-crypton versions of deps
@@ -36,44 +36,45 @@ flag pre_crypton
   default: False
 
 library
-    import:           warnings
-    import:           language
-    exposed-modules:  AuthServer
-    other-modules:
-      Api
-      Diagnose
-      Facebook
-      Friendica
-      Google
-      MakeJwt
-      Secrets
-      Sessions
-      Sentry
-    build-depends:
-      aeson >= 2.1 && < 2.3,
-      base >= 4.16.4.0 && < 4.19,
-      bytestring >=0.11.4.0 && < 0.13,
-      containers >=0.6.5.1 && < 0.8,
-      cookie >=0.4 && <0.6,
-      http-api-data >=0.4 && <0.7,
-      http-client ^>= 0.7,
-      http-client-tls ^>= 0.3,
-      http-types ^>=0.12,
-      memory ^>=0.18.0,
-      mtl >=2.2 && <2.4,
-      network-uri ^>= 2.6,
-      oidc-client ^>= 0.8,
-      random ^>=1.2,
-      raven-haskell ^>=0.1,
-      req ^>=3.13.0,
-      servant >=0.19.1 && <0.21,
-      servant-server >=0.19.1 && <0.21,
-      text >=1.2.5.0 && < 2.2,
-      time >=1.11.1.1 && <1.15,
-      wai ^>=3.2.3,
-      wai-cors ^>=0.2.7,
-      warp >=3.3.23 && <3.5,
-    hs-source-dirs:   src
+  import:           warnings
+  import:           language
+  exposed-modules:  AuthServer
+  other-modules:
+    Api
+    Diagnose
+    Facebook
+    Friendica
+    Google
+    MakeJwt
+    Secrets
+    Sessions
+    Sentry
+  build-depends:
+    aeson >= 2.1 && < 2.3,
+    base >= 4.16.4.0 && < 4.19,
+    bytestring >=0.11.4.0 && < 0.13,
+    containers >=0.6.5.1 && < 0.8,
+    cookie >=0.4 && <0.6,
+    http-api-data >=0.4 && <0.7,
+    http-client ^>= 0.7,
+    http-client-tls ^>= 0.3,
+    http-types ^>=0.12,
+    memory ^>=0.18.0,
+    mtl >=2.2 && <2.4,
+    network-uri ^>= 2.6,
+    oidc-client ^>= 0.8,
+    random ^>=1.2,
+    raven-haskell ^>=0.1,
+    req ^>=3.13.0,
+    servant >=0.19.1 && <0.21,
+    servant-server >=0.19.1 && <0.21,
+    text >=1.2.5.0 && < 2.2,
+    time >=1.11.1.1 && <1.15,
+    wai ^>=3.2.3,
+    wai-cors ^>=0.2.7,
+    warp >=3.3.23 && <3.5,
+  hs-source-dirs:   src
+
   if flag(pre_crypton)
     build-depends:
       cryptonite ^>=0.30,
@@ -88,12 +89,12 @@ library
       jose-jwt ^>= 0.10,
 
 executable auth-server
-    import:           warnings
-    import:           language
-    main-is:          Main.hs
-    -- other-modules:
-    -- other-extensions:
-    build-depends:
-      auth-server,
-      base >= 4.16.4.0 && < 4.19,
-    hs-source-dirs:   app
+  import:           warnings
+  import:           language
+  main-is:          Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:
+    auth-server,
+    base >= 4.16.4.0 && < 4.19,
+  hs-source-dirs:   app
