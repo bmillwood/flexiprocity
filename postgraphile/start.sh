@@ -28,7 +28,11 @@ case "$1" in
     exit 1;;
 esac
 
-npm exec -- postgraphile \
+npm exec \
+    --package postgraphile \
+    --package @graphile-contrib/pg-simplify-inflector \
+    -- \
+    postgraphile \
     --append-plugins @graphile-contrib/pg-simplify-inflector \
     --dynamic-json \
     --no-setof-functions-contain-nulls \
