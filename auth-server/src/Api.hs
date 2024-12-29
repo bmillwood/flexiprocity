@@ -37,7 +37,7 @@ type LoginGoogle =
 
 newtype InstanceName = InstanceName { getInstanceName :: Text }
   deriving stock (Eq, Ord, Show)
-  deriving newtype (Aeson.FromJSON, Aeson.FromJSONKey, FromHttpApiData)
+  deriving newtype (Aeson.FromJSON, Aeson.FromJSONKey, Aeson.ToJSONKey, FromHttpApiData)
 
 type LoginFriendica =
   "start"

@@ -6,7 +6,6 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import Data.Proxy (Proxy (Proxy))
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -21,7 +20,6 @@ import qualified Network.URI.Static as URI
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
-import qualified Web.Cookie as Cookie
 
 import qualified Api
 import qualified Diagnose
@@ -41,31 +39,17 @@ doInit :: IO Env
 doInit = do
   sessions <- Sessions.newStore
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
-  friendica <- Friendica.init sessions httpManager
-  google <- Google.init sessions httpManager
   jwt <- MakeJwt.init
+  friendica <- Friendica.init sessions httpManager jwt
+  google <- Google.init sessions httpManager
   pure Env{ friendica, google, jwt }
-
-jwtCookie :: MakeJwt.Env -> Map Text Aeson.Value -> IO Text
-jwtCookie jwtEnv claimsMap = cookie <$> MakeJwt.makeJwt jwtEnv claimsMap
-  where
-    cookie encodedJwt =
-      Text.decodeUtf8 $ Cookie.renderSetCookieBS Cookie.defaultSetCookie
-        { Cookie.setCookieName = "jwt"
-        , Cookie.setCookieValue = encodedJwt
-        , Cookie.setCookiePath = Just "/"
-        , Cookie.setCookieMaxAge = Just 86400
-        , Cookie.setCookieHttpOnly = True
-        , Cookie.setCookieSecure = True
-        , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
-        }
 
 facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogin jwtEnv userToken = do
   cookie <- liftIO $ do
     fbUserId <- Facebook.getUserId userToken
-    jwtCookie jwtEnv (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
-  pure $ Servant.addHeader cookie Servant.NoContent
+    MakeJwt.cookie jwtEnv (Map.singleton "facebookUserId" (Aeson.toJSON fbUserId))
+  pure $ Servant.addHeader (Text.decodeUtf8 cookie) Servant.NoContent
 
 logout :: Servant.Handler (Api.SetCookie Servant.NoContent)
 logout =
@@ -97,9 +81,9 @@ googleComplete _ _ _ _ Nothing = do
 googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) (Just state) = do
   liftIO $ do
     claims <- Google.codeToClaims google sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
-    cookie <- jwtCookie jwt (Map.singleton "google" (Aeson.toJSON claims))
+    cookie <- MakeJwt.cookie jwt (Map.singleton "google" (Aeson.toJSON claims))
     pure
-      $ Servant.addHeader cookie
+      $ Servant.addHeader (Text.decodeUtf8 cookie)
       $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
       $ Servant.NoContent
 

@@ -13,6 +13,7 @@ import qualified Data.X509.File as X509
 import qualified Jose.Jwa as Jwa
 import qualified Jose.Jws as Jws
 import qualified Jose.Jwt as Jwt
+import qualified Web.Cookie as Cookie
 
 import qualified Secrets
 
@@ -37,3 +38,17 @@ makeJwt Env{ privateKey } claimsMap = do
     claimsBS = BSL.toStrict $ Aeson.encode (Map.union static claimsMap)
   Right jwt <- Jws.rsaEncode Jwa.RS256 privateKey claimsBS
   pure (Jwt.unJwt jwt)
+
+cookie :: Env -> Map.Map Text Aeson.Value -> IO BS.ByteString
+cookie env claimsMap = ofEncoded <$> makeJwt env claimsMap
+  where
+    ofEncoded encodedJwt =
+      Cookie.renderSetCookieBS Cookie.defaultSetCookie
+        { Cookie.setCookieName = "jwt"
+        , Cookie.setCookieValue = encodedJwt
+        , Cookie.setCookiePath = Just "/"
+        , Cookie.setCookieMaxAge = Just 86400
+        , Cookie.setCookieHttpOnly = True
+        , Cookie.setCookieSecure = True
+        , Cookie.setCookieSameSite = Just Cookie.sameSiteLax
+        }

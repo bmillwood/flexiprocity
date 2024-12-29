@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 module Friendica where
 
 import Data.Aeson ((.:))
@@ -18,9 +19,11 @@ import GHC.Generics (Generic)
 
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
+import qualified Network.URI.Static as URI
 import qualified Servant
 
 import qualified Api
+import qualified MakeJwt
 import qualified Secrets
 import qualified Sessions
 
@@ -41,13 +44,14 @@ instance Aeson.FromJSON Instance where
 data Env = Env
   { sessions :: Sessions.Store
   , httpManager :: HTTP.Manager
+  , jwt :: MakeJwt.Env
   , instances :: Map.Map Api.InstanceName Instance
   }
 
-init :: Sessions.Store -> HTTP.Manager -> IO Env
-init sessions httpManager = do
+init :: Sessions.Store -> HTTP.Manager -> MakeJwt.Env -> IO Env
+init sessions httpManager jwt = do
   instances <- Secrets.getJson "friendica_instances.json"
-  pure Env{ sessions, httpManager, instances }
+  pure Env{ sessions, httpManager, jwt, instances }
 
 orError :: (Except.MonadError e m) => e -> Maybe a -> m a
 orError err = maybe (Except.throwError err) pure
@@ -96,6 +100,11 @@ data Token = Token
   } deriving stock (Generic, Show)
     deriving anyclass (Aeson.FromJSON)
 
+data VerifyCredentials = VerifyCredentials
+  { id_str :: Text }
+  deriving stock (Generic, Show)
+  deriving anyclass (Aeson.FromJSON)
+
 complete
   :: Env
   -> Api.InstanceName
@@ -105,7 +114,7 @@ complete
   -> Maybe Text
   -> Servant.Handler Api.CookieRedirect
 complete
-    Env{ httpManager, sessions, instances } instanceName
+    Env{ httpManager, sessions, jwt, instances } instanceName
     maybeSessId maybeError maybeCode maybeState
   = do
   Instance{ clientId, clientSecret, baseUrl } <-
@@ -124,20 +133,39 @@ complete
   liftIO $ Sessions.deleteSession sessId sessions
   when (state /= Text.encodeUtf8 clientState)
     $ Except.throwError Servant.err400{ Servant.errBody = "state mismatch" }
-  req <-
-    HTTP.parseUrlThrow
-      ("POST " <> URI.uriToString id baseUrl "" <> "/oauth/token")
-    <&> HTTP.urlEncodedBody
-      [ ("client_id", Text.encodeUtf8 clientId)
-      , ("client_secret", Text.encodeUtf8 clientSecret)
-      , ("redirect_uri", redirectUri)
-      , ("code", Text.encodeUtf8 code)
-      , ("grant_type", "authorization_code")
-      ]
-  resp <- liftIO $ HTTP.httpLbs req httpManager
-  Right Token{ access_token = _, me } <- pure $ Aeson.eitherDecode $ HTTP.responseBody resp
-  Except.throwError Servant.err500{ Servant.errBody =
-      "Authentication completed "
-      <> "(hi " <> TLE.encodeUtf8 (TL.fromStrict me) <> ")"
-      <> " but I haven't written the code to do anything with it yet"
-    }
+  t@Token{ access_token } <- do
+    req <-
+      HTTP.parseUrlThrow
+        ("POST " <> URI.uriToString id baseUrl "/oauth/token")
+      <&> HTTP.urlEncodedBody
+        [ ("client_id", Text.encodeUtf8 clientId)
+        , ("client_secret", Text.encodeUtf8 clientSecret)
+        , ("redirect_uri", redirectUri)
+        , ("code", Text.encodeUtf8 code)
+        , ("grant_type", "authorization_code")
+        ]
+    resp <- liftIO $ HTTP.httpLbs req httpManager
+    either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp
+  liftIO $ print t
+  let
+    withAuth req =
+      req
+        { HTTP.requestHeaders
+            = ( "Authorization"
+              , "Bearer " <> Text.encodeUtf8 access_token
+              ) : HTTP.requestHeaders req
+        }
+  VerifyCredentials{ id_str } <- do
+    req <-
+      withAuth <$> HTTP.parseUrlThrow
+        ("GET " <> URI.uriToString id baseUrl "/api/account/verify_credentials")
+    resp <- liftIO $ HTTP.httpLbs req httpManager
+    either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp
+  cookie <- liftIO $ MakeJwt.cookie jwt
+    $ Map.singleton "friendica"
+    $ Aeson.toJSON
+    $ Map.singleton instanceName id_str
+  pure
+    $ Servant.addHeader (Text.decodeUtf8 cookie)
+    $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
+    $ Servant.NoContent
