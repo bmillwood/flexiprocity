@@ -41,7 +41,6 @@ library
   exposed-modules:  AuthServer
   other-modules:
     Api
-    BlueskyApi
     Bluesky
     Diagnose
     Facebook
@@ -51,10 +50,10 @@ library
     Secrets
     Sessions
     Sentry
-    StructuralAeson
   build-depends:
     aeson >= 2.1 && < 2.3,
     base >= 4.16.4.0 && < 4.19,
+    bluesky-tools >= 0.2.2 && < 0.3,
     bytestring >=0.11.4.0 && < 0.13,
     containers >=0.6.5.1 && < 0.8,
     cookie >=0.4 && <0.6,

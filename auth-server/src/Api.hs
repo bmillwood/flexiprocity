@@ -4,10 +4,10 @@ import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import qualified Data.Text as Text
 
+import qualified Bluesky.Handle as Bluesky
 import Servant.API
 import qualified Network.URI as URI
 
-import qualified BlueskyApi
 import qualified Facebook
 import qualified Sessions
 
@@ -55,7 +55,7 @@ type LoginFriendica =
 
 type LoginBluesky =
   "start"
-    :> Capture "handle" BlueskyApi.Handle
+    :> Capture "handle" Bluesky.Handle
     :> Get '[JSON] Aeson.Value
 
 type FacebookDecodeSignedRequest =
