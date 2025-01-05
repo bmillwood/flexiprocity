@@ -64,3 +64,7 @@ type Api =
     :<|> "friendica" :> LoginFriendica
   )
   :<|> "facebook" :> "decode-signed-request" :> FacebookDecodeSignedRequest
+  :<|> "bluesky"
+    :> "client_metadata.json"
+    :> Header "X-Forwarded-Host" Text
+    :> Get '[JSON] Aeson.Value

@@ -22,6 +22,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 
 import qualified Api
+import qualified Bluesky
 import qualified Diagnose
 import qualified Facebook
 import qualified Friendica
@@ -98,13 +99,20 @@ facebookDecodeSignedReq signedReq = do
     bsFromString = BSL.fromStrict . Text.encodeUtf8 . Text.pack
 
 server :: Env -> Servant.Server Api.Api
-server env@Env{ friendica, google, jwt } = loginServer :<|> facebookDecodeSignedReq
+server env@Env{ friendica, google, jwt } =
+  loginServer
+  :<|> facebookDecodeSignedReq
+  :<|> blueskyClientMetadata
   where
     loginServer =
       logout
       :<|> facebookLogin jwt
       :<|> (googleStart google :<|> googleComplete env)
       :<|> (Friendica.start friendica :<|> Friendica.complete friendica)
+    blueskyClientMetadata Nothing =
+      Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
+    blueskyClientMetadata (Just host) =
+      pure (Bluesky.clientMetadata host)
 
 app :: Env -> Wai.Application
 app env = Servant.serve (Proxy @Api.Api) (server env)

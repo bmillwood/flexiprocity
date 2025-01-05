@@ -41,6 +41,7 @@ library
   exposed-modules:  AuthServer
   other-modules:
     Api
+    Bluesky
     Diagnose
     Facebook
     Friendica
