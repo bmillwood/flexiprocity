@@ -7,6 +7,7 @@ import qualified Data.Text as Text
 import Servant.API
 import qualified Network.URI as URI
 
+import qualified BlueskyApi
 import qualified Facebook
 import qualified Sessions
 
@@ -52,6 +53,11 @@ type LoginFriendica =
     :> QueryParam "state" Text
     :> Verb 'GET 303 '[JSON] CookieRedirect
 
+type LoginBluesky =
+  "start"
+    :> Capture "handle" BlueskyApi.Handle
+    :> Get '[JSON] Aeson.Value
+
 type FacebookDecodeSignedRequest =
   ReqBody '[JSON] Facebook.SignedRequest
   :> Get '[JSON] Aeson.Value
@@ -62,6 +68,7 @@ type Api =
     :<|> "facebook" :> LoginFacebook
     :<|> "google" :> LoginGoogle
     :<|> "friendica" :> LoginFriendica
+    :<|> "bluesky" :> LoginBluesky
   )
   :<|> "facebook" :> "decode-signed-request" :> FacebookDecodeSignedRequest
   :<|> "bluesky"

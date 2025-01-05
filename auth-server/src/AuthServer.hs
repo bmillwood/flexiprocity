@@ -31,7 +31,8 @@ import qualified MakeJwt
 import qualified Sessions
 
 data Env = Env
-  { friendica :: Friendica.Env
+  { bluesky :: Bluesky.Env
+  , friendica :: Friendica.Env
   , google :: Google.Env
   , jwt :: MakeJwt.Env
   }
@@ -41,9 +42,10 @@ doInit = do
   sessions <- Sessions.newStore
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
   jwt <- MakeJwt.init
+  bluesky <- Bluesky.init httpManager
   friendica <- Friendica.init sessions httpManager jwt
   google <- Google.init sessions httpManager
-  pure Env{ friendica, google, jwt }
+  pure Env{ bluesky, friendica, google, jwt }
 
 facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogin jwtEnv userToken = do
@@ -99,7 +101,7 @@ facebookDecodeSignedReq signedReq = do
     bsFromString = BSL.fromStrict . Text.encodeUtf8 . Text.pack
 
 server :: Env -> Servant.Server Api.Api
-server env@Env{ friendica, google, jwt } =
+server env@Env{ bluesky, friendica, google, jwt } =
   loginServer
   :<|> facebookDecodeSignedReq
   :<|> blueskyClientMetadata
@@ -109,6 +111,7 @@ server env@Env{ friendica, google, jwt } =
       :<|> facebookLogin jwt
       :<|> (googleStart google :<|> googleComplete env)
       :<|> (Friendica.start friendica :<|> Friendica.complete friendica)
+      :<|> Bluesky.start bluesky
     blueskyClientMetadata Nothing =
       Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
     blueskyClientMetadata (Just host) =
