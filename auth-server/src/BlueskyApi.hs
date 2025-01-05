@@ -11,6 +11,9 @@ import qualified Servant.API as Servant
 newtype Handle = Handle { getHandle :: Text }
   deriving stock (Eq, Ord, Show)
 
+-- We need to be strict with these since we accept them from the user and then
+-- make HTTP requests to https://$handle, so allowing arbitrary content there
+-- would allow people to make almost arbitrary HTTP requests from us.
 validHandle :: Text -> Either Text Handle
 validHandle t
   | Text.length t > 253 = Left "too long"

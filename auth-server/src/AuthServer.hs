@@ -104,7 +104,7 @@ server :: Env -> Servant.Server Api.Api
 server env@Env{ bluesky, friendica, google, jwt } =
   loginServer
   :<|> facebookDecodeSignedReq
-  :<|> blueskyClientMetadata
+  :<|> Bluesky.serveClientMetadata
   where
     loginServer =
       logout
@@ -112,10 +112,6 @@ server env@Env{ bluesky, friendica, google, jwt } =
       :<|> (googleStart google :<|> googleComplete env)
       :<|> (Friendica.start friendica :<|> Friendica.complete friendica)
       :<|> Bluesky.start bluesky
-    blueskyClientMetadata Nothing =
-      Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
-    blueskyClientMetadata (Just host) =
-      pure (Bluesky.clientMetadata host)
 
 app :: Env -> Wai.Application
 app env = Servant.serve (Proxy @Api.Api) (server env)
