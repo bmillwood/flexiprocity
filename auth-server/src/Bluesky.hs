@@ -5,8 +5,8 @@ import Control.Monad
 import qualified Control.Monad.Except as Except
 import Control.Monad.IO.Class
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
 import Data.Aeson ((.=), (.:))
+import qualified Data.Aeson.Types as Aeson
 import Data.Functor
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -19,6 +19,7 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
 import qualified Servant
 
+import qualified DPoP
 import qualified PKCE
 
 data Env = Env
@@ -39,6 +40,9 @@ clientMetadata host = Aeson.object
   , "dpop_bound_access_tokens" .= True
   , "client_name" .= ("flexiprocity" :: Text)
   , "client_uri" .= ("https://" <> host)
+  , -- this really seems like it should be the default, but the PDS insisted I
+    -- specify it for some reason
+    "token_endpoint_auth_method" .= ("none" :: Text)
   ]
   where
     base_uri = "https://" <> host <> "/auth"
@@ -104,19 +108,27 @@ start Env{ httpManager } handle = do
   liftIO $ do
     -- First request deliberately failed in order to get a DPoP nonce
     getDpopReq <- HTTP.requestFromURI parURI
-    dpopResp <- HTTP.httpLbs getDpopReq{ HTTP.method = "POST" } httpManager
-    _ <-
+      <&> HTTP.urlEncodedBody []
+    dpopResp <- HTTP.httpLbs getDpopReq httpManager
+    dpopNonce <-
       case lookup "DPoP-Nonce" $ HTTP.responseHeaders dpopResp of
         Nothing -> fail "No DPoP-Nonce"
-        Just n -> pure n
-    _ <- error "DPoP not implemented yet"
-    _req <- HTTP.requestFromURI parURI
+        Just n -> pure (Text.decodeASCII n)
+    jwk <- DPoP.createJwk
+    req <- HTTP.requestFromURI parURI
       <&> HTTP.urlEncodedBody
-        [ ("state", state)
+        [ ("client_id", "https://reciprocity.rpm.cc/auth/bluesky/client_metadata.json")
+        , ("response_type", "code")
         , ("code_challenge", challenge)
         , ("code_challenge_method", "S256")
-        , ("scopes", "atproto")
+        , ("state", state)
+        , -- Sadly this has to be under the same origin as the client_id, which
+          -- has to be a publicly accessible URL. So I don't see a way to
+          -- support local dev here.
+          ("redirect_uri", "https://reciprocity.rpm.cc/auth/login/bluesky/complete")
+        , ("scope", "atproto")
         , ("login_hint", Text.encodeUtf8 (Handle.rawHandle handle))
         ]
-    pure ()
-  pure (Aeson.object [])
+      >>= DPoP.dpopRequest (Just dpopNonce) jwk
+    resp <- HTTP.httpLbs req httpManager
+    either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp

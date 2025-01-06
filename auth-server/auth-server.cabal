@@ -38,6 +38,7 @@ library
     Api
     Bluesky
     Diagnose
+    DPoP
     Facebook
     Friendica
     Google
@@ -62,6 +63,7 @@ library
     http-types ^>=0.12,
     jose ^>=0.11,
     memory ^>=0.18.0,
+    lens ^>=5.3,
     mtl >=2.2 && <2.4,
     network-uri ^>= 2.6,
     oidc-client ^>= 0.8,
