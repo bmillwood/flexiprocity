@@ -1,6 +1,10 @@
 { nixpkgs ? import <nixpkgs> {} }:
-nixpkgs.haskellPackages.developPackage {
-  root = ./.;
-  modifier = drv:
-    nixpkgs.haskell.lib.addBuildTools drv [ nixpkgs.cabal-install ];
+nixpkgs.haskellPackages.shellFor {
+  packages = hpkgs: [
+    (import ./. { inherit nixpkgs; })
+  ];
+  nativeBuildInputs = [
+    nixpkgs.cabal-install
+    nixpkgs.inotify-tools # for inotifywait in build.sh
+  ];
 }
