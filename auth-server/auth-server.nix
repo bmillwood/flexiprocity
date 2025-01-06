@@ -1,19 +1,9 @@
-{ mkDerivation, aeson, base, bytestring, containers, cookie
-, crypton, crypton-x509, crypton-x509-store, http-api-data
-, http-client, http-client-tls, http-types, jose-jwt, lib, memory
-, mtl, network-uri, oidc-client, random, raven-haskell, req, servant
+{ mkDerivation, aeson, base, bluesky-tools, bytestring, containers
+, cookie, crypton, crypton-x509, crypton-x509-store, http-api-data
+, http-client, http-client-tls, http-types, jose, lib, memory, mtl
+, network-uri, oidc-client, random, raven-haskell, req, servant
 , servant-server, text, time, wai, wai-cors, warp
-, cryptonite, x509, x509-store
 }:
-let
-  cryptoDeps =
-    if builtins.compareVersions jose-jwt.version "0.10" >= 0
-    then [
-      crypton crypton-x509 crypton-x509-store
-    ] else [
-      cryptonite x509 x509-store
-    ];
-in
 mkDerivation {
   pname = "flexiprocity-auth-server";
   version = "0.1.0.0";
@@ -24,10 +14,12 @@ mkDerivation {
   enableLibraryProfiling = false;
   enableSharedLibraries = false;
   libraryHaskellDepends = [
-    aeson base bytestring containers cookie http-api-data http-client
-    http-client-tls http-types jose-jwt memory mtl network-uri oidc-client
-    random raven-haskell req servant servant-server text time wai wai-cors warp
-  ] ++ cryptoDeps;
+    aeson base bluesky-tools bytestring containers cookie crypton
+    crypton-x509 crypton-x509-store http-api-data http-client
+    http-client-tls http-types jose memory mtl network-uri oidc-client
+    random raven-haskell req servant servant-server text time wai
+    wai-cors warp
+  ];
   executableHaskellDepends = [ base ];
   description = "Server which provides jwts for flexiprocity";
   license = lib.licenses.bsd3;
