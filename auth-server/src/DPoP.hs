@@ -11,7 +11,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
 import qualified Data.Time as Time
 
-import qualified Crypto.JOSE.Compact as JOSE
+import qualified Crypto.JOSE.Compact as JC
 import qualified Crypto.JOSE.Error as JOSE
 import qualified Crypto.JOSE.Header as Header
 import qualified Crypto.JOSE.JWK as JWK
@@ -78,6 +78,6 @@ dpopRequest nonce key req = do
     uri = HTTP.getUri req
   Right @JOSE.Error jwt <- JOSE.runJOSE
     $ JWT.signJWT key (header key) =<< liftIO (makeClaims method uri nonce)
-  let jwtEnc = BSL.toStrict $ JOSE.encodeCompact jwt
+  let jwtEnc = BSL.toStrict $ JC.encodeCompact jwt
   pure req
     { HTTP.requestHeaders = ("DPoP", jwtEnc) : HTTP.requestHeaders req }

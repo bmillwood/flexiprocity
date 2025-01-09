@@ -56,7 +56,7 @@ type LoginFriendica =
 type LoginBluesky =
   "start"
     :> Capture "handle" Bluesky.Handle
-    :> Get '[JSON] Aeson.Value
+    :> Verb 'GET 303 '[JSON] CookieRedirect
 
 type FacebookDecodeSignedRequest =
   ReqBody '[JSON] Facebook.SignedRequest

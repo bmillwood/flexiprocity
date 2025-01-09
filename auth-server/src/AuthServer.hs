@@ -104,7 +104,7 @@ server :: Env -> Servant.Server Api.Api
 server env@Env{ bluesky, friendica, google, jwt } =
   loginServer
   :<|> facebookDecodeSignedReq
-  :<|> Bluesky.serveClientMetadata
+  :<|> Bluesky.serveClientMetadata bluesky
   where
     loginServer =
       logout

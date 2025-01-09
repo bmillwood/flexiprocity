@@ -37,6 +37,7 @@ library
   other-modules:
     Api
     Bluesky
+    ClientAssertion
     Diagnose
     DPoP
     Facebook
