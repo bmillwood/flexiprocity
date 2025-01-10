@@ -41,7 +41,7 @@ doInit :: IO Env
 doInit = do
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
   jwt <- MakeJwt.init
-  bluesky <- Bluesky.init httpManager
+  bluesky <- Bluesky.init httpManager jwt
   friendica <- Friendica.init httpManager jwt
   google <- Google.init httpManager
   pure Env{ bluesky, friendica, google, jwt }

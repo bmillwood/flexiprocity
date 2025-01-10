@@ -12,6 +12,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BSL
 import Data.Functor
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
@@ -28,6 +29,7 @@ import qualified Servant
 import qualified Api
 import qualified ClientAssertion
 import qualified DPoP
+import qualified MakeJwt
 import qualified PKCE
 import qualified Sessions
 
@@ -45,16 +47,17 @@ data Env = Env
   { httpManager :: HTTP.Manager
   , clientAssertion :: ClientAssertion.Env
   , sessions :: Sessions.Store Session
+  , jwt :: MakeJwt.Env
   }
 
 clientId :: URI.URI
 clientId = [URI.uri|https://reciprocity.rpm.cc/auth/bluesky/client_metadata.json|]
 
-init :: HTTP.Manager -> IO Env
-init httpManager = do
+init :: HTTP.Manager -> MakeJwt.Env -> IO Env
+init httpManager jwt = do
   clientAssertion <- ClientAssertion.init clientId
   sessions <- Sessions.newStore
-  pure Env{ httpManager, clientAssertion, sessions }
+  pure Env{ httpManager, clientAssertion, sessions, jwt }
 
 newtype AesonURI = AesonURI URI.URI
   deriving stock (Eq, Ord, Show)
@@ -190,6 +193,13 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
     $ Servant.addHeader (Api.Location authURI{ URI.uriQuery })
     $ Servant.NoContent
 
+data TokenResponse = TokenResponse
+  { access_token :: Text
+  , scope :: Text
+  , sub :: Did.Did
+  } deriving stock (Generic)
+    deriving anyclass (Aeson.FromJSON)
+
 -- To be honest, I don't fully understand why authentication is not already
 -- complete at this point. The client is sending us the state token, which we
 -- only sent to the auth server, and I think the auth server only sends it to
@@ -201,7 +211,8 @@ complete
   -> Maybe Sessions.SessionId
   -> Maybe Api.Issuer -> Maybe Text -> Maybe Text
   -> Servant.Handler Api.CookieRedirect
-complete Env{ clientAssertion, httpManager, sessions } mSessId mIss mState mCode = do
+complete Env{ clientAssertion, httpManager, sessions, jwt }
+    mSessId mIss mState mCode = do
   sessId <- or400 "No session ID" mSessId
   Api.Issuer iss <- or400 "Expected query parameter: iss" mIss
   stateFromClient <- or400 "Expected query parameter: state" mState
@@ -215,7 +226,7 @@ complete Env{ clientAssertion, httpManager, sessions } mSessId mIss mState mCode
   when (stateFromClient /= Text.decodeUtf8 state) $
     Except.throwError Servant.err400
       { Servant.errBody = "state query parameter doesn't match session" }
-  liftIO $ do
+  TokenResponse{ scope, sub } <- liftIO $ do
     authJwt <- ClientAssertion.makeAssertion clientAssertion authorizationServer
     req <- HTTP.requestFromURI tokenURI
       <&> HTTP.urlEncodedBody
@@ -223,9 +234,23 @@ complete Env{ clientAssertion, httpManager, sessions } mSessId mIss mState mCode
         , ("code", Text.encodeUtf8 code)
         , ("redirect_uri", "https://reciprocity.rpm.cc/auth/login/bluesky/complete")
         , ("code_verifier", PKCE.verifier pkce)
+        , ("client_id", BSC.pack $ URI.uriToString id clientId "")
         , ("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         , ("client_assertion", authJwt)
         ]
       >>= DPoP.dpopRequest (Just dpopNonce) dpopJwk
-    print =<< HTTP.httpLbs req httpManager
-  Except.throwError Servant.err500
+    resp <- HTTP.httpLbs req httpManager
+    either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp
+  when (scope /= "atproto") $
+    Except.throwError Servant.err400
+      { Servant.errBody = "unexpected scope" }
+  when (sub /= did) $
+    Except.throwError Servant.err400
+      { Servant.errBody = "token does not belong to user" }
+  cookie <- liftIO
+    $ MakeJwt.cookie jwt
+    $ Map.singleton "bluesky" (Aeson.String $ Did.rawDid did)
+  pure
+    $ Servant.addHeader (Text.decodeUtf8 cookie)
+    $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
+    $ Servant.NoContent
