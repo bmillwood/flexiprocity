@@ -39,12 +39,11 @@ data Env = Env
 
 doInit :: IO Env
 doInit = do
-  sessions <- Sessions.newStore
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
   jwt <- MakeJwt.init
   bluesky <- Bluesky.init httpManager
-  friendica <- Friendica.init sessions httpManager jwt
-  google <- Google.init sessions httpManager
+  friendica <- Friendica.init httpManager jwt
+  google <- Google.init httpManager
   pure Env{ bluesky, friendica, google, jwt }
 
 facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
@@ -64,7 +63,7 @@ googleStart _ Nothing =
 googleStart env (Just host) = do
   (sessId, url) <- liftIO $ Google.startUrlForOrigin env host
   pure
-    $ Servant.addHeader (Sessions.sessionIdCookie sessId)
+    $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/google" sessId)
     $ Servant.addHeader (Api.Location url)
     $ Servant.NoContent
 

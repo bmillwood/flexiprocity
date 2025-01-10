@@ -29,15 +29,16 @@ instance Aeson.FromJSON ClientSecret where
     pure ClientSecret{ clientId, clientSecret }
 
 data Env = Env
-  { sessions :: Sessions.Store
+  { sessions :: Sessions.Store Sessions.Session
   , httpManager :: HTTP.Manager
   , getProvider :: IO OIDC.Provider
   , secret :: ClientSecret
   , sentry :: Sentry.Service
   }
 
-init :: Sessions.Store -> HTTP.Manager -> IO Env
-init sessions httpManager = do
+init :: HTTP.Manager -> IO Env
+init httpManager = do
+  sessions <- Sessions.newStore
   getProvider <- OIDC.cachedDiscover "https://accounts.google.com" httpManager
   secret <- Secrets.getJson "google_client_secret.json"
   sentry <- Sentry.init

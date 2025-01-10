@@ -164,7 +164,7 @@ start Env{ httpManager, clientAssertion } handle = do
   -- we don't use this sessId yet but we will need to when implementing /complete
   sessId <- liftIO Sessions.newSessionId
   pure
-    $ Servant.addHeader (Sessions.sessionIdCookie sessId)
+    $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/bluesky" sessId)
     $ Servant.addHeader
         (Api.Location authURI{ URI.uriQuery })
     $ Servant.NoContent

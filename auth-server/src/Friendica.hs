@@ -1,11 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Friendica where
 
-import Data.Aeson ((.:))
-import qualified Data.Aeson as Aeson
 import Control.Monad
 import qualified Control.Monad.Except as Except
 import Control.Monad.IO.Class
+import qualified Data.Aeson as Aeson
+import Data.Aeson ((.:))
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.Foldable
 import Data.Functor
@@ -41,15 +42,22 @@ instance Aeson.FromJSON Instance where
     Just baseUrl <- pure $ URI.parseAbsoluteURI (Text.unpack baseUrlText)
     pure Instance{ clientId, clientSecret, baseUrl }
 
+-- OAuth 1 doesn't use nonce, I think
+data Session = Session
+  { state :: BS.ByteString
+  , redirectUri :: BS.ByteString
+  }
+
 data Env = Env
-  { sessions :: Sessions.Store
+  { sessions :: Sessions.Store Session
   , httpManager :: HTTP.Manager
   , jwt :: MakeJwt.Env
   , instances :: Map.Map Api.InstanceName Instance
   }
 
-init :: Sessions.Store -> HTTP.Manager -> MakeJwt.Env -> IO Env
-init sessions httpManager jwt = do
+init :: HTTP.Manager -> MakeJwt.Env -> IO Env
+init httpManager jwt = do
+  sessions <- Sessions.newStore
   instances <- Secrets.getJson "friendica_instances.json"
   pure Env{ sessions, httpManager, jwt, instances }
 
@@ -86,10 +94,9 @@ start Env{ sessions, instances } instanceName (Just host) = do
         , URI.uriPath = "/oauth/authorize"
         }
     redirectUri = BSC.pack redirectUriString
-  -- OAuth 1 doesn't use nonce, I think
-  liftIO $ Sessions.setSession sessId Sessions.Session{ state, nonce = "", redirectUri } sessions
+  liftIO $ Sessions.setSession sessId Session{ state, redirectUri } sessions
   pure
-    $ Servant.addHeader (Sessions.sessionIdCookie sessId)
+    $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/friendica" sessId)
     $ Servant.addHeader (Api.Location friendicaUri)
     $ Servant.NoContent
 
@@ -122,7 +129,7 @@ complete
   let
     or400 msg = orError Servant.err400{ Servant.errBody = msg }
   sessId <- or400 "no session id" maybeSessId
-  Sessions.Session{ state, nonce = _, redirectUri }
+  Session{ state, redirectUri }
     <- or400 "unknown session id" =<< liftIO (Sessions.getSession sessId sessions)
   for_ maybeError $ \msg ->
     Except.throwError Servant.err400{

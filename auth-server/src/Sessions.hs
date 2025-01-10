@@ -37,16 +37,32 @@ instance Servant.FromHttpApiData SessionId where
       Just c -> Right (SessionId (Text.decodeUtf8 c))
   parseQueryParam qp = Left ("parseQueryParam " <> Text.pack (show qp))
 
-sessionIdCookie :: SessionId -> Text
-sessionIdCookie (SessionId sessId) =
+sessionIdCookie :: BS.ByteString -> SessionId -> Text
+sessionIdCookie path (SessionId sessId) =
   Text.decodeUtf8 $ Cookie.renderSetCookieBS Cookie.defaultSetCookie
     { Cookie.setCookieName = sessionIdKey
     , Cookie.setCookieValue = Text.encodeUtf8 sessId
-    , Cookie.setCookiePath = Just "/"
+    , Cookie.setCookiePath = Just path
     , Cookie.setCookieMaxAge = Just 3600
     , Cookie.setCookieHttpOnly = True
     , Cookie.setCookieSecure = True
     }
+
+type Store s = IORef.IORef (Map.Map SessionId s)
+
+newStore :: IO (Store s)
+newStore = IORef.newIORef Map.empty
+
+getSession :: SessionId -> Store s -> IO (Maybe s)
+getSession sessId store = Map.lookup sessId <$> IORef.readIORef store
+
+setSession :: SessionId -> s -> Store s -> IO ()
+setSession sessId session store =
+  IORef.atomicModifyIORef store $ \sessMap -> (Map.insert sessId session sessMap, ())
+
+deleteSession :: SessionId -> Store s -> IO ()
+deleteSession sessId store =
+  IORef.atomicModifyIORef store $ \sessMap -> (Map.delete sessId sessMap, ())
 
 data Session = Session
   { state :: BS.ByteString
@@ -54,23 +70,7 @@ data Session = Session
   , redirectUri :: BS.ByteString
   }
 
-type Store = IORef.IORef (Map.Map SessionId Session)
-
-newStore :: IO Store
-newStore = IORef.newIORef Map.empty
-
-getSession :: SessionId -> Store -> IO (Maybe Session)
-getSession sessId store = Map.lookup sessId <$> IORef.readIORef store
-
-setSession :: SessionId -> Session -> Store -> IO ()
-setSession sessId session store =
-  IORef.atomicModifyIORef store $ \sessMap -> (Map.insert sessId session sessMap, ())
-
-deleteSession :: SessionId -> Store -> IO ()
-deleteSession sessId store =
-  IORef.atomicModifyIORef store $ \sessMap -> (Map.delete sessId sessMap, ())
-
-oidcSessionStore :: Store -> SessionId -> BS.ByteString -> OIDC.SessionStore IO
+oidcSessionStore :: Store Session -> SessionId -> BS.ByteString -> OIDC.SessionStore IO
 oidcSessionStore store sessId redirectUri =
   let
     sessionStoreSave state nonce =
