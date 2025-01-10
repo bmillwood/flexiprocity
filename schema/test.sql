@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(24);
+SELECT plan(25);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -32,7 +32,14 @@ SELECT isnt_empty(
      WHERE u IS NOT NULL
   $$,
   'get_or_create_user_id() works'
-);
+  );
+
+SELECT isnt_empty(
+  $$ SELECT u FROM (SELECT current_user_id() AS u) r
+     WHERE u IS NOT NULL
+  $$,
+  'current_user_id() works'
+  );
 
 SELECT lives_ok(
   $$ SELECT update_me(name => 'Alice') $$,
@@ -70,7 +77,13 @@ SELECT bag_eq(
   'current_user_id() returns id of user'
 );
 
-INSERT INTO users (facebook_id, name, visible_to) VALUES ('bobId', 'Bob', 'everyone');
+WITH u AS (
+  INSERT INTO users (name, visible_to) VALUES ('Bob', 'everyone')
+  RETURNING user_id
+)
+INSERT INTO facebook_login (facebook_id, user_id)
+SELECT 'bobId', user_id
+FROM u;
 
 SET ROLE api;
 
@@ -178,7 +191,7 @@ SELECT isnt_empty(
     SELECT current_user_id(), w.would_id, them.user_id
     FROM woulds w, user_profiles them
     WHERE w.name = 'Hang out sometime'
-    AND them.facebook_id = 'bobId'
+    AND them.name = 'Bob'
     RETURNING *
   $$,
   'can express interest'
@@ -190,7 +203,7 @@ SELECT throws_ok(
     SELECT them.user_id, w.would_id, current_user_id()
     FROM woulds w, user_profiles them
     WHERE w.name = 'Hang out sometime'
-    AND them.facebook_id = 'bobId'
+    AND them.name = 'Bob'
     RETURNING *
   $$,
   '42501', 'new row violates row-level security policy for table "user_woulds"',
@@ -208,7 +221,7 @@ SELECT isnt_empty(
     SELECT current_user_id(), w.would_id, them.user_id
     FROM woulds w, user_profiles them
     WHERE w.name = 'Hang out sometime'
-    AND them.facebook_id = 'bobId'
+    AND them.name = 'Bob'
     RETURNING *
   $$,
   'can express reciprocated interest'
@@ -229,7 +242,7 @@ WITH bob_contact AS (
 UPDATE users
 SET verified_contact_id = bob_contact.contact_id
 FROM bob_contact
-WHERE users.facebook_id = 'bobId';
+WHERE users.name = 'Bob';
 UPDATE users SET send_email_on_matches = TRUE;
 SET ROLE api;
 
@@ -239,7 +252,7 @@ SELECT isnt_empty(
     SELECT current_user_id(), w.would_id, them.user_id
     FROM woulds w, user_profiles them
     WHERE w.name = 'Hang out sometime'
-    AND them.facebook_id = 'bobId'
+    AND them.name = 'Bob'
     RETURNING *
   $$,
   'can express reciprocated interest'

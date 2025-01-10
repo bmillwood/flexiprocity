@@ -16,6 +16,25 @@ CREATE FUNCTION public.get_google_email() RETURNS text
     SELECT get_google_field('email');
   END;
 
+CREATE FUNCTION public.get_bluesky_field(fieldname text) RETURNS text
+  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    SELECT current_setting('jwt.claims.bluesky', true)::jsonb->>fieldname;
+  END;
+
+CREATE FUNCTION public.get_bluesky_did() RETURNS text
+  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    SELECT get_bluesky_field('did');
+  END;
+
+CREATE FUNCTION public.get_bluesky_handle() RETURNS text
+  LANGUAGE sql SECURITY INVOKER STABLE PARALLEL RESTRICTED
+  BEGIN ATOMIC
+    SELECT get_bluesky_field('handle');
+  END;
+
+
 CREATE TYPE public.audience AS ENUM
   ( 'self'
   , 'friends'
@@ -68,9 +87,6 @@ GRANT  EXECUTE ON FUNCTION get_or_create_contact_id TO api;
 
 CREATE TABLE public.users
   ( user_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
-  , facebook_id text UNIQUE
-  , google_email text UNIQUE
-  , CHECK ((facebook_id IS NOT NULL) <> (google_email IS NOT NULL))
   , privacy_policy_version text REFERENCES privacy_policies(version)
   , name text
   , picture text
@@ -85,12 +101,32 @@ CREATE TABLE public.users
 COMMENT ON COLUMN public.users.show_me
   IS 'stored in the database but applied on the client';
 
+CREATE TABLE public.facebook_login
+  ( facebook_id text PRIMARY KEY
+  , user_id bigint NOT NULL REFERENCES users(user_id)
+  );
+
+CREATE TABLE public.google_login
+  ( google_email text PRIMARY KEY
+  , user_id bigint NOT NULL REFERENCES users(user_id)
+  );
+
+CREATE TABLE public.bluesky_login
+  ( bluesky_did text PRIMARY KEY
+  , user_id bigint NOT NULL REFERENCES users(user_id)
+  , bluesky_handle text
+  );
+
 CREATE FUNCTION public.current_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
   BEGIN ATOMIC
     SELECT user_id FROM users
+    LEFT JOIN facebook_login USING (user_id)
+    LEFT JOIN google_login USING (user_id)
+    LEFT JOIN bluesky_login USING (user_id)
     WHERE facebook_id = get_facebook_id()
-      OR google_email = get_google_email();
+      OR google_email = get_google_email()
+      OR bluesky_did = get_bluesky_did();
   END;
 REVOKE EXECUTE ON FUNCTION current_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION current_user_id TO api;
@@ -154,14 +190,37 @@ CREATE FUNCTION public.get_or_create_user_id() RETURNS bigint
     IF ret_user_id IS NOT NULL THEN
       RETURN ret_user_id;
     END IF;
-    INSERT INTO users (facebook_id, google_email)
-    SELECT facebook_id, google_email
-    FROM (SELECT
-        get_facebook_id() AS facebook_id
-      , get_google_email() AS google_email
+
+    IF get_facebook_id() IS NULL
+      AND get_google_email() IS NULL
+      AND get_bluesky_did() IS NULL
+    THEN
+      RETURN NULL;
+    END IF;
+
+    INSERT INTO users DEFAULT VALUES
+    RETURNING user_id INTO STRICT ret_user_id;
+
+    INSERT INTO facebook_login (facebook_id, user_id)
+    SELECT facebook_id, ret_user_id
+    FROM (SELECT get_facebook_id() AS facebook_id) tmp
+    WHERE facebook_id IS NOT NULL;
+
+    INSERT INTO google_login (google_email, user_id)
+    SELECT google_email, ret_user_id
+    FROM (SELECT get_google_email() AS google_email) tmp
+    WHERE google_email IS NOT NULL;
+
+    INSERT INTO bluesky_login (bluesky_did, user_id, bluesky_handle)
+    SELECT bluesky_did, ret_user_id, bluesky_handle
+    FROM (
+      SELECT
+        get_bluesky_did() AS bluesky_did
+      , get_bluesky_handle() AS bluesky_handle
     ) tmp
-    WHERE facebook_id IS NOT NULL OR google_email IS NOT NULL;
-    RETURN current_user_id();
+    WHERE bluesky_handle IS NOT NULL;
+
+    RETURN ret_user_id;
   END$$;
 REVOKE EXECUTE ON FUNCTION get_or_create_user_id FROM public;
 GRANT  EXECUTE ON FUNCTION get_or_create_user_id TO api;
@@ -177,7 +236,10 @@ CREATE FUNCTION public.set_facebook_friends(friend_fbids text[]) RETURNS unit
   LANGUAGE sql SECURITY DEFINER
   BEGIN ATOMIC
     WITH friend_ids AS (
-      SELECT user_id AS friend_id FROM users WHERE facebook_id = ANY(friend_fbids)
+      SELECT user_id AS friend_id
+      FROM users
+      JOIN facebook_login USING (user_id)
+      WHERE facebook_id = ANY(friend_fbids)
     )
     , deleted AS (
       DELETE FROM facebook_friends
@@ -339,7 +401,7 @@ CREATE OR REPLACE TRIGGER restrict_custom_woulds BEFORE INSERT OR UPDATE OR DELE
 CREATE VIEW public.user_profiles AS
   SELECT
     users.user_id
-  , users.facebook_id
+  , fb.facebook_id
   , users.name
   , users.bio
   , users.picture
@@ -359,6 +421,7 @@ CREATE VIEW public.user_profiles AS
     , '{}'
     ) AS matched_woulds
   FROM users
+  LEFT JOIN facebook_login fb USING (user_id)
   LEFT JOIN facebook_friends fwu
     ON fwu.user_id = users.user_id
    AND fwu.friend_id = current_user_id()
@@ -381,7 +444,7 @@ CREATE VIEW public.user_profiles AS
           WHERE w.user_id = users.user_id
             AND w.with_id = current_user_id()
         )
-  GROUP BY users.user_id, fwu.since, uf.*, uf.since;
+  GROUP BY users.user_id, fb.facebook_id, fwu.since, uf.*, uf.since;
 GRANT SELECT ON user_profiles TO api;
 
 CREATE TABLE public.matches
