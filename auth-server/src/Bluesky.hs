@@ -38,6 +38,7 @@ data Session = Session
   , dpopJwk :: JWK.JWK
   , dpopNonce :: Text
   , pkce :: PKCE.PKCE
+  , handle :: Handle.Handle
   , did :: Did.Did
   , authorizationServer :: URI.URI
   , tokenURI :: URI.URI
@@ -184,8 +185,16 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
       -- maybe I should be percent-encoding these parameters but idk seems to work fine
       "?request_uri=" <> Text.unpack requestUri
       <> "&client_id=" <> URI.uriToString id clientId ""
-    session =
-      Session { state, dpopJwk, dpopNonce, pkce, did, authorizationServer, tokenURI }
+    session = Session
+      { state
+      , dpopJwk
+      , dpopNonce
+      , pkce
+      , handle
+      , did
+      , authorizationServer
+      , tokenURI
+      }
   sessId <- liftIO Sessions.newSessionId
   liftIO $ Sessions.setSession sessId session sessions
   pure
@@ -217,7 +226,8 @@ complete Env{ clientAssertion, httpManager, sessions, jwt }
   Api.Issuer iss <- or400 "Expected query parameter: iss" mIss
   stateFromClient <- or400 "Expected query parameter: state" mState
   code <- or400 "Expected query parameter: code" mCode
-  Session{ state, dpopJwk, dpopNonce, pkce, did, authorizationServer, tokenURI }
+  Session
+    { state, dpopJwk, dpopNonce, pkce, handle, did, authorizationServer, tokenURI }
     <- or400 "Can't find your session. Probably it just expired."
       =<< liftIO (Sessions.getSession sessId sessions)
   when (iss /= authorizationServer) $
@@ -247,9 +257,11 @@ complete Env{ clientAssertion, httpManager, sessions, jwt }
   when (sub /= did) $
     Except.throwError Servant.err400
       { Servant.errBody = "token does not belong to user" }
-  cookie <- liftIO
-    $ MakeJwt.cookie jwt
-    $ Map.singleton "bluesky" (Aeson.String $ Did.rawDid did)
+  cookie <- liftIO . MakeJwt.cookie jwt . Map.singleton "bluesky"
+    $ Aeson.object
+        [ "did" .= Did.rawDid did
+        , "handle" .= Handle.rawHandle handle
+        ]
   pure
     $ Servant.addHeader (Text.decodeUtf8 cookie)
     $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
