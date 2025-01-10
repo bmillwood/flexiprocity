@@ -8,7 +8,9 @@ import Control.Monad.IO.Class
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=), (.:))
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Lazy as BSL
 import Data.Functor
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -17,6 +19,7 @@ import GHC.Generics
 
 import qualified Bluesky.Did as Did
 import qualified Bluesky.Handle as Handle
+import qualified Crypto.JOSE.JWK as JWK
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
 import qualified Network.URI.Static as URI
@@ -28,9 +31,20 @@ import qualified DPoP
 import qualified PKCE
 import qualified Sessions
 
+data Session = Session
+  { state :: BS.ByteString
+  , dpopJwk :: JWK.JWK
+  , dpopNonce :: Text
+  , pkce :: PKCE.PKCE
+  , did :: Did.Did
+  , authorizationServer :: URI.URI
+  , tokenURI :: URI.URI
+  }
+
 data Env = Env
   { httpManager :: HTTP.Manager
   , clientAssertion :: ClientAssertion.Env
+  , sessions :: Sessions.Store Session
   }
 
 clientId :: URI.URI
@@ -39,7 +53,8 @@ clientId = [URI.uri|https://reciprocity.rpm.cc/auth/bluesky/client_metadata.json
 init :: HTTP.Manager -> IO Env
 init httpManager = do
   clientAssertion <- ClientAssertion.init clientId
-  pure Env{ httpManager, clientAssertion }
+  sessions <- Sessions.newStore
+  pure Env{ httpManager, clientAssertion, sessions }
 
 newtype AesonURI = AesonURI URI.URI
   deriving stock (Eq, Ord, Show)
@@ -88,8 +103,15 @@ data AuthServerInfo = AuthServerInfo
   } deriving stock (Eq, Ord, Show, Generic)
     deriving anyclass (Aeson.FromJSON)
 
-start :: Env -> Handle.Handle -> Servant.Handler Api.CookieRedirect
-start Env{ httpManager, clientAssertion } handle = do
+or400 :: BSL.ByteString -> Maybe a -> Servant.Handler a
+or400 errBody =
+  maybe
+    (Except.throwError Servant.err400{ Servant.errBody })
+    pure
+
+start :: Env -> Maybe Handle.Handle -> Servant.Handler Api.CookieRedirect
+start Env{ httpManager, clientAssertion, sessions } mHandle = do
+  handle <- or400 "Query parameter handle is required" mHandle
   did <- maybe (fail "Can't find DID") pure
     =<< liftIO (Handle.resolveVerify httpManager handle)
   doc <- maybe (fail "Can't get DID document") pure
@@ -114,26 +136,24 @@ start Env{ httpManager, clientAssertion } handle = do
   AuthServerInfo
     { pushed_authorization_request_endpoint = AesonURI parURI
     , authorization_endpoint = AesonURI authURI
+    , token_endpoint = AesonURI tokenURI
     } <- liftIO $ do
     req <- HTTP.requestFromURI
       authorizationServer{ URI.uriPath = "/.well-known/oauth-authorization-server" }
     resp <- HTTP.httpLbs req httpManager
     either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp
-  PKCE.PKCE{ verifier = _, challenge } <- liftIO PKCE.makePKCE
-  state <-
-    -- Slight abuse here, but a (fresh!) PKCE verifier is a perfectly good state
-    -- token
-    liftIO PKCE.makeVerifier
-  requestUri <- liftIO $ do
+  pkce@PKCE.PKCE{ challenge } <- liftIO PKCE.makePKCE
+  state <- BSC.pack <$> liftIO Sessions.randomString
+  dpopJwk <- liftIO DPoP.createJwk
+  dpopNonce <- liftIO $ do
     -- First request deliberately failed in order to get a DPoP nonce
     getDpopReq <- HTTP.requestFromURI parURI
       <&> HTTP.urlEncodedBody []
     dpopResp <- HTTP.httpLbs getDpopReq httpManager
-    dpopNonce <-
-      case lookup "DPoP-Nonce" $ HTTP.responseHeaders dpopResp of
-        Nothing -> fail "No DPoP-Nonce"
-        Just n -> pure (Text.decodeASCII n)
-    dpopJwk <- DPoP.createJwk
+    case lookup "DPoP-Nonce" $ HTTP.responseHeaders dpopResp of
+      Nothing -> fail "No DPoP-Nonce"
+      Just n -> pure (Text.decodeASCII n)
+  requestUri <- liftIO $ do
     authJwt <- ClientAssertion.makeAssertion clientAssertion authorizationServer
     req <- HTTP.requestFromURI parURI
       <&> HTTP.urlEncodedBody
@@ -161,10 +181,51 @@ start Env{ httpManager, clientAssertion } handle = do
       -- maybe I should be percent-encoding these parameters but idk seems to work fine
       "?request_uri=" <> Text.unpack requestUri
       <> "&client_id=" <> URI.uriToString id clientId ""
-  -- we don't use this sessId yet but we will need to when implementing /complete
+    session =
+      Session { state, dpopJwk, dpopNonce, pkce, did, authorizationServer, tokenURI }
   sessId <- liftIO Sessions.newSessionId
+  liftIO $ Sessions.setSession sessId session sessions
   pure
     $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/bluesky" sessId)
-    $ Servant.addHeader
-        (Api.Location authURI{ URI.uriQuery })
+    $ Servant.addHeader (Api.Location authURI{ URI.uriQuery })
     $ Servant.NoContent
+
+-- To be honest, I don't fully understand why authentication is not already
+-- complete at this point. The client is sending us the state token, which we
+-- only sent to the auth server, and I think the auth server only sends it to
+-- the client if they completed the auth. But the docs explicitly say when
+-- authentication clients can stop, and it's not yet. We have to do more
+-- verification first.
+complete
+  :: Env
+  -> Maybe Sessions.SessionId
+  -> Maybe Api.Issuer -> Maybe Text -> Maybe Text
+  -> Servant.Handler Api.CookieRedirect
+complete Env{ clientAssertion, httpManager, sessions } mSessId mIss mState mCode = do
+  sessId <- or400 "No session ID" mSessId
+  Api.Issuer iss <- or400 "Expected query parameter: iss" mIss
+  stateFromClient <- or400 "Expected query parameter: state" mState
+  code <- or400 "Expected query parameter: code" mCode
+  Session{ state, dpopJwk, dpopNonce, pkce, did, authorizationServer, tokenURI }
+    <- or400 "Can't find your session. Probably it just expired."
+      =<< liftIO (Sessions.getSession sessId sessions)
+  when (iss /= authorizationServer) $
+    Except.throwError Servant.err400
+      { Servant.errBody = "iss query parameter doesn't match auth server" }
+  when (stateFromClient /= Text.decodeUtf8 state) $
+    Except.throwError Servant.err400
+      { Servant.errBody = "state query parameter doesn't match session" }
+  liftIO $ do
+    authJwt <- ClientAssertion.makeAssertion clientAssertion authorizationServer
+    req <- HTTP.requestFromURI tokenURI
+      <&> HTTP.urlEncodedBody
+        [ ("grant_type", "authorization_code")
+        , ("code", Text.encodeUtf8 code)
+        , ("redirect_uri", "https://reciprocity.rpm.cc/auth/login/bluesky/complete")
+        , ("code_verifier", PKCE.verifier pkce)
+        , ("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+        , ("client_assertion", authJwt)
+        ]
+      >>= DPoP.dpopRequest (Just dpopNonce) dpopJwk
+    print =<< HTTP.httpLbs req httpManager
+  Except.throwError Servant.err500

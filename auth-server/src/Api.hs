@@ -53,9 +53,22 @@ type LoginFriendica =
     :> QueryParam "state" Text
     :> Verb 'GET 303 '[JSON] CookieRedirect
 
+newtype Issuer = Issuer URI.URI
+
+instance FromHttpApiData Issuer where
+  parseQueryParam qp = case URI.parseURI (Text.unpack qp) of
+    Nothing -> Left $ "could not parse: " <> Text.pack (show qp)
+    Just uri -> Right $ Issuer uri
+
 type LoginBluesky =
   "start"
-    :> Capture "handle" Bluesky.Handle
+    :> QueryParam "handle" Bluesky.Handle
+    :> Verb 'GET 303 '[JSON] CookieRedirect
+  :<|> "complete"
+    :> Header "Cookie" Sessions.SessionId
+    :> QueryParam "iss" Issuer
+    :> QueryParam "state" Text
+    :> QueryParam "code" Text
     :> Verb 'GET 303 '[JSON] CookieRedirect
 
 type FacebookDecodeSignedRequest =

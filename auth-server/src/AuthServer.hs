@@ -110,7 +110,7 @@ server env@Env{ bluesky, friendica, google, jwt } =
       :<|> facebookLogin jwt
       :<|> (googleStart google :<|> googleComplete env)
       :<|> (Friendica.start friendica :<|> Friendica.complete friendica)
-      :<|> Bluesky.start bluesky
+      :<|> (Bluesky.start bluesky :<|> Bluesky.complete bluesky)
 
 app :: Env -> Wai.Application
 app env = Servant.serve (Proxy @Api.Api) (server env)
