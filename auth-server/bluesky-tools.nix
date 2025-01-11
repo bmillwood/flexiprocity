@@ -4,11 +4,11 @@
 }:
 mkDerivation {
   pname = "bluesky-tools";
-  version = "0.4.0.0";
+  version = "0.6.0.0";
   src = fetchgit {
     url = "https://github.com/bmillwood/bluesky-tools";
-    sha256 = "1z1svvbyvr9jbn0nw4051lfwh5qq277d5fwhvjwjrjvyv0g4s2q9";
-    rev = "971e087bbd3000009d74fda34d5745b3c280f949";
+    sha256 = "02wyrwdwq4y2c4r3y1bs6rflx1h1wvw4hxbp8342g1g6z1y89f2i";
+    rev = "2161365fa0970653d5a356828958b4bdc4cd78d8";
     fetchSubmodules = true;
   };
   libraryHaskellDepends = [

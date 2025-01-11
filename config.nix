@@ -1,6 +1,7 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.flexiprocity;
+  agent = pkgs.callPackage ./agent {};
   authServer = pkgs.callPackage ./auth-server {};
   frontend = pkgs.callPackage ./frontend {
     inherit (cfg) gitRoot flexiprocitySubmodule;
@@ -42,6 +43,15 @@ in
 
   config = mkIf cfg.enable {
     systemd.services = {
+      agent = {
+        description = "flexiprocity agent process";
+        wants = [ "postgresql.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          User = "api";
+          ExecStart = "${agent}/bin/flexiprocity-agent";
+        };
+      };
       authServer = {
         description = "flexiprocity auth server";
         after = [ "network.target" ];

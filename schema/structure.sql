@@ -97,6 +97,7 @@ CREATE TABLE public.users
   , send_email_on_matches bool NOT NULL DEFAULT FALSE
   , created_at timestamptz NOT NULL DEFAULT now()
   );
+GRANT SELECT, UPDATE(name, picture) ON users TO agent;
 
 COMMENT ON COLUMN public.users.show_me
   IS 'stored in the database but applied on the client';
@@ -116,6 +117,7 @@ CREATE TABLE public.bluesky_login
   , user_id bigint NOT NULL REFERENCES users(user_id)
   , bluesky_handle text
   );
+GRANT SELECT ON bluesky_login TO agent;
 
 CREATE FUNCTION public.current_user_id() RETURNS bigint
   LANGUAGE sql SECURITY DEFINER STABLE PARALLEL RESTRICTED
@@ -422,6 +424,7 @@ CREATE VIEW public.user_profiles AS
     ) AS matched_woulds
   FROM users
   LEFT JOIN facebook_login fb USING (user_id)
+  LEFT JOIN bluesky_login bs USING (user_id)
   LEFT JOIN facebook_friends fwu
     ON fwu.user_id = users.user_id
    AND fwu.friend_id = current_user_id()
@@ -562,3 +565,16 @@ CREATE OR REPLACE FUNCTION public.email_bounced(email_address text) RETURNS unit
   END;
 REVOKE EXECUTE ON FUNCTION email_bounced FROM public;
 GRANT  EXECUTE ON FUNCTION email_bounced TO meddler;
+
+CREATE TABLE public.agent_tasks
+  ( id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
+  , requested_at timestamptz NOT NULL DEFAULT now()
+  , task jsonb NOT NULL
+  );
+-- We don't really need UPDATE but the FOR UPDATE SKIP LOCKED line seems to
+-- demand it.
+GRANT SELECT, UPDATE, DELETE ON agent_tasks TO agent;
+
+CREATE OR REPLACE TRIGGER notify_agent_tasks AFTER INSERT ON agent_tasks
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_notify('agent', '');

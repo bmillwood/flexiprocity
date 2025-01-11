@@ -52,7 +52,7 @@ library
     aeson >= 2.1 && < 2.3,
     async ^>= 2.2,
     base >= 4.16.4.0 && < 4.19,
-    bluesky-tools ^>= 0.4,
+    bluesky-tools ^>= 0.6,
     bytestring >=0.11.4.0 && < 0.13,
     containers >=0.6.5.1 && < 0.8,
     cookie >=0.4 && <0.6,

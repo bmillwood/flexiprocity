@@ -1,0 +1,55 @@
+cabal-version:      3.4
+
+name:               flexiprocity-agent
+version:            0.1.0.0
+synopsis:           Server which runs misc tasks for flexiprocity
+description:
+  The flexiprocity-agent does miscellaneous flexiprocity tasks, e.g. looking up
+  users in public unauthenticated APIs.
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Ben Millwood
+maintainer:         thebenmachine+git@gmail.com
+
+category:           Web
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall
+
+common language
+  default-language: GHC2021
+  default-extensions:
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DisambiguateRecordFields
+    LambdaCase
+    OverloadedStrings
+
+library
+  import:           warnings
+  import:           language
+  exposed-modules:  Agent
+  other-modules:
+  build-depends:
+    aeson >= 2.1 && < 2.3,
+    async ^>= 2.2,
+    base >= 4.16.4.0 && < 4.19,
+    bluesky-tools ^>= 0.6,
+    http-client ^>= 0.7,
+    http-client-tls ^>= 0.3,
+    network-uri ^>= 2.6,
+    postgresql-simple ^>= 0.7,
+    text ^>= 2.0,
+  hs-source-dirs:   src
+
+executable flexiprocity-agent
+  import:           warnings
+  import:           language
+  main-is:          Main.hs
+  -- other-modules:
+  build-depends:
+    flexiprocity-agent,
+    base >= 4.16.4.0 && < 4.19,
+  hs-source-dirs:   app
