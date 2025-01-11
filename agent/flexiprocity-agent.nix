@@ -5,8 +5,11 @@ mkDerivation {
   pname = "flexiprocity-agent";
   version = "0.1.0.0";
   src = ./.;
-  isLibrary = true;
+  isLibrary = false;
   isExecutable = true;
+  doHaddock = false;
+  enableLibraryProfiling = false;
+  enableSharedLibraries = false;
   libraryHaskellDepends = [
     aeson async base bluesky-tools http-client http-client-tls
     network-uri postgresql-simple text
