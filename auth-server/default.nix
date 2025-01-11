@@ -4,8 +4,7 @@ let
 in
 nixpkgs.haskellPackages.callPackage ./auth-server.nix {
   bluesky-tools =
-    haskell.lib.compose.doJailbreak
-      (nixpkgs.haskellPackages.callPackage ./bluesky-tools.nix {});
+    nixpkgs.haskellPackages.callPackage ./bluesky-tools.nix {};
   oidc-client = haskell.lib.compose.overrideSrc {
     src = fetchFromGitHub {
       owner = "bmillwood";
