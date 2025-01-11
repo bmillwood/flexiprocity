@@ -569,7 +569,7 @@ GRANT  EXECUTE ON FUNCTION email_bounced TO meddler;
 CREATE TABLE public.agent_tasks
   ( id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , requested_at timestamptz NOT NULL DEFAULT now()
-  , task jsonb NOT NULL
+  , task jsonb NOT NULL UNIQUE
   );
 -- We don't really need UPDATE but the FOR UPDATE SKIP LOCKED line seems to
 -- demand it.
@@ -578,3 +578,23 @@ GRANT SELECT, UPDATE, DELETE ON agent_tasks TO agent;
 CREATE OR REPLACE TRIGGER notify_agent_tasks AFTER INSERT ON agent_tasks
   FOR EACH ROW
   EXECUTE FUNCTION trigger_notify('agent', '');
+
+CREATE OR REPLACE FUNCTION public.request_my_bluesky_profile() RETURNS unit
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  BEGIN ATOMIC
+    INSERT INTO agent_tasks (task)
+    VALUES (jsonb_build_object('tag', 'BskyProfile', 'contents', get_bluesky_did()))
+    RETURNING 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION request_my_bluesky_profile FROM public;
+GRANT  EXECUTE ON FUNCTION request_my_bluesky_profile TO api;
+
+CREATE OR REPLACE FUNCTION public.request_my_bluesky_mutuals(did text) RETURNS unit
+  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  BEGIN ATOMIC
+    INSERT INTO agent_tasks (task)
+    VALUES (jsonb_build_object('tag', 'BskyMutuals', 'contents', get_bluesky_did()))
+    RETURNING 'unit'::unit;
+  END;
+REVOKE EXECUTE ON FUNCTION request_my_bluesky_mutuals FROM public;
+GRANT  EXECUTE ON FUNCTION request_my_bluesky_mutuals TO api;
