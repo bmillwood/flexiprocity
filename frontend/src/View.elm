@@ -80,10 +80,7 @@ viewUser model user { isMe } =
           [ icon
               { linkTo = Nothing
               , src = "/icons/Google_G_logo.svg"
-              , title =
-                  if isMe
-                  then Nothing
-                  else Just "Google account identities aren't visible to other users"
+              , title = Just "Google account identities aren't visible to other users"
               }
           ]
         else []
