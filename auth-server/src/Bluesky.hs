@@ -98,6 +98,26 @@ serveClientMetadata _ Nothing =
 serveClientMetadata env (Just host) =
   liftIO $ clientMetadata env host
 
+or400 :: BSL.ByteString -> Maybe a -> Servant.Handler a
+or400 errBody =
+  maybe
+    (Except.throwError Servant.err400{ Servant.errBody })
+    pure
+
+decodeResponseWith
+  :: String -> (Aeson.Value -> Aeson.Parser a) -> HTTP.Response BSL.ByteString -> IO a
+decodeResponseWith tag parser resp = do
+  let body = HTTP.responseBody resp
+  val <- case Aeson.decode body of
+    Nothing -> fail $ tag <> ": Couldn't parse JSON: " <> show body
+    Just v -> pure v
+  case Aeson.parseEither parser val of
+    Left e -> fail $ tag <> ": " <> e <> ", original: " <> show body
+    Right a -> pure a
+
+decodeResponse :: (Aeson.FromJSON a) => String -> HTTP.Response BSL.ByteString -> IO a
+decodeResponse tag = decodeResponseWith tag Aeson.parseJSON
+
 data AuthServerInfo = AuthServerInfo
   { issuer :: AesonURI -- doc says this is relevant, idk why yet
   , pushed_authorization_request_endpoint :: AesonURI
@@ -106,12 +126,6 @@ data AuthServerInfo = AuthServerInfo
   , scopes_supported :: [Text] -- should include "atproto"
   } deriving stock (Eq, Ord, Show, Generic)
     deriving anyclass (Aeson.FromJSON)
-
-or400 :: BSL.ByteString -> Maybe a -> Servant.Handler a
-or400 errBody =
-  maybe
-    (Except.throwError Servant.err400{ Servant.errBody })
-    pure
 
 start :: Env -> Maybe Handle.Handle -> Servant.Handler Api.CookieRedirect
 start Env{ httpManager, clientAssertion, sessions } mHandle = do
@@ -125,18 +139,14 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
   authorizationServer <- liftIO $ do
     req <- HTTP.requestFromURI pds{ URI.uriPath = "/.well-known/oauth-protected-resource" }
     resp <- HTTP.httpLbs req httpManager
-    obj <- maybe (fail "Couldn't decode OPR response") pure
-      $ Aeson.decode (HTTP.responseBody resp)
-    serverStrings <- either fail pure
-      $ Aeson.parseEither (.: "authorization_servers") obj
-    serverURIs <- forM serverStrings $ \s ->
-      maybe (fail "Couldn't parse authorization_servers URI") pure
-      $ URI.parseURI s
+    serverURIs <-
+      decodeResponseWith "OPR"
+        (Aeson.withObject "OPR" $ (.: "authorization_servers"))
+        resp
     case serverURIs of
       [] -> fail "No authorization_servers listed"
-      uri : _ ->
-        -- maybe pick one at random or something, but IME there's only one
-        pure uri
+      -- maybe pick one at random or something, but IME there's only one
+      AesonURI uri : _ -> pure uri
   AuthServerInfo
     { pushed_authorization_request_endpoint = AesonURI parURI
     , authorization_endpoint = AesonURI authURI
@@ -144,8 +154,7 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
     } <- liftIO $ do
     req <- HTTP.requestFromURI
       authorizationServer{ URI.uriPath = "/.well-known/oauth-authorization-server" }
-    resp <- HTTP.httpLbs req httpManager
-    either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp
+    decodeResponse "auth server info" =<< HTTP.httpLbs req httpManager
   pkce@PKCE.PKCE{ challenge } <- liftIO PKCE.makePKCE
   state <- BSC.pack <$> liftIO Sessions.randomString
   dpopJwk <- liftIO DPoP.createJwk
@@ -177,9 +186,9 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
         ]
       >>= DPoP.dpopRequest (Just dpopNonce) dpopJwk
     resp <- HTTP.httpLbs req httpManager
-    obj <- maybe (fail "Couldn't decode PAR response") pure
-      $ Aeson.decode (HTTP.responseBody resp)
-    either fail pure $ Aeson.parseEither (.: "request_uri") obj
+    decodeResponseWith "PAR"
+      (Aeson.withObject "PAR" $ (.: "request_uri"))
+      resp
   let
     uriQuery =
       -- maybe I should be percent-encoding these parameters but idk seems to work fine
@@ -249,8 +258,7 @@ complete Env{ clientAssertion, httpManager, sessions, jwt }
         , ("client_assertion", authJwt)
         ]
       >>= DPoP.dpopRequest (Just dpopNonce) dpopJwk
-    resp <- HTTP.httpLbs req httpManager
-    either fail pure $ Aeson.eitherDecode $ HTTP.responseBody resp
+    decodeResponse "token response" =<< HTTP.httpLbs req httpManager
   when (scope /= "atproto") $
     Except.throwError Servant.err400
       { Servant.errBody = "unexpected scope" }
