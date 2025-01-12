@@ -618,12 +618,14 @@ CREATE OR REPLACE FUNCTION public.request_my_bluesky_profile() RETURNS unit
 REVOKE EXECUTE ON FUNCTION request_my_bluesky_profile FROM public;
 GRANT  EXECUTE ON FUNCTION request_my_bluesky_profile TO api;
 
-CREATE OR REPLACE FUNCTION public.request_my_bluesky_mutuals(did text) RETURNS unit
-  LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
-  BEGIN ATOMIC
+CREATE OR REPLACE FUNCTION public.trigger_initial_bluesky_mutuals() RETURNS TRIGGER
+  LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  AS $$BEGIN
     INSERT INTO agent_tasks (task)
-    VALUES (jsonb_build_object('tag', 'BskyMutuals', 'contents', get_bluesky_did()))
-    RETURNING 'unit'::unit;
-  END;
-REVOKE EXECUTE ON FUNCTION request_my_bluesky_mutuals FROM public;
-GRANT  EXECUTE ON FUNCTION request_my_bluesky_mutuals TO api;
+    VALUES (jsonb_build_object('tag', 'BskyMutuals', 'contents', NEW.bluesky_did))
+    RETURN NEW;
+  END$$;
+
+CREATE OR REPLACE TRIGGER notify_agent_tasks AFTER INSERT ON bluesky_login
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_initial_bluesky_mutuals();
