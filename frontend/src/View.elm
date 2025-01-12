@@ -43,6 +43,7 @@ icon { linkTo, src, title } =
   Html.img
     [ Attributes.src src
     , Attributes.height 15
+    , Attributes.class "login-icon"
     ]
     []
   |> makeLink
@@ -128,7 +129,7 @@ viewUser model user { isMe } =
           in
           Html.div
             [ Attributes.style "font-weight" "bold" ]
-            (highlightedName ++ [ Html.text " " ] ++ icons)
+            (highlightedName ++ icons)
         , Html.div
             [ Attributes.style "margin" "0.1em 0.5em"
             , Attributes.style "font-size" "90%"
