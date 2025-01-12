@@ -127,6 +127,13 @@ data AuthServerInfo = AuthServerInfo
   } deriving stock (Eq, Ord, Show, Generic)
     deriving anyclass (Aeson.FromJSON)
 
+checkDPoPNonceForChanges :: Text -> HTTP.Response a -> IO ()
+checkDPoPNonceForChanges existing resp =
+  when (n /= Just existing) $
+    putStrLn $ "DPoP nonce changed: " <> show existing <> " -> " <> show n
+  where
+    n = DPoP.getNonce resp
+
 start :: Env -> Maybe Handle.Handle -> Servant.Handler Api.CookieRedirect
 start Env{ httpManager, clientAssertion, sessions } mHandle = do
   handle <- or400 "Query parameter handle is required" mHandle
@@ -163,9 +170,7 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
     getDpopReq <- HTTP.requestFromURI parURI
       <&> HTTP.urlEncodedBody []
     dpopResp <- HTTP.httpLbs getDpopReq httpManager
-    case lookup "DPoP-Nonce" $ HTTP.responseHeaders dpopResp of
-      Nothing -> fail "No DPoP-Nonce"
-      Just n -> pure (Text.decodeASCII n)
+    maybe (fail "No DPoP nonce on initial request") pure $ DPoP.getNonce dpopResp
   requestUri <- liftIO $ do
     authJwt <- ClientAssertion.makeAssertion clientAssertion authorizationServer
     req <- HTTP.requestFromURI parURI
@@ -184,8 +189,9 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
         , ("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         , ("client_assertion", authJwt)
         ]
-      >>= DPoP.dpopRequest (Just dpopNonce) dpopJwk
+      >>= DPoP.dpopRequest dpopNonce dpopJwk
     resp <- HTTP.httpLbs req httpManager
+    checkDPoPNonceForChanges dpopNonce resp
     decodeResponseWith "PAR"
       (Aeson.withObject "PAR" $ (.: "request_uri"))
       resp
@@ -257,8 +263,10 @@ complete Env{ clientAssertion, httpManager, sessions, jwt }
         , ("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         , ("client_assertion", authJwt)
         ]
-      >>= DPoP.dpopRequest (Just dpopNonce) dpopJwk
-    decodeResponse "token response" =<< HTTP.httpLbs req httpManager
+      >>= DPoP.dpopRequest dpopNonce dpopJwk
+    resp <- HTTP.httpLbs req httpManager
+    checkDPoPNonceForChanges dpopNonce resp
+    decodeResponse "token response" resp
   when (scope /= "atproto") $
     Except.throwError Servant.err400
       { Servant.errBody = "unexpected scope" }

@@ -26,6 +26,9 @@ import qualified PKCE
 createJwk :: IO JWK.JWK
 createJwk = JWK.genJWK $ JWK.ECGenParam JWK.P_256
 
+getNonce :: HTTP.Response a -> Maybe Text
+getNonce resp = Text.decodeASCII <$> lookup "DPoP-Nonce" (HTTP.responseHeaders resp)
+
 header :: JWK.JWK -> JWS.JWSHeader ()
 header key =
   JWS.newJWSHeader ((), JWS.ES256)
@@ -36,7 +39,7 @@ data DPoPClaims = DPoPClaims
   { jwtClaims :: JWT.ClaimsSet
   , htm :: Text -- ^ HTTP method
   , htu :: Text -- ^ HTTP request URL
-  , nonce :: Maybe Text -- ^ provided by the server... sometimes
+  , nonce :: Text -- ^ provided by the server
   }
 
 instance Aeson.ToJSON DPoPClaims where
@@ -44,10 +47,8 @@ instance Aeson.ToJSON DPoPClaims where
     foldr ins (Aeson.toJSON jwtClaims)
       [ ("htm", Aeson.String htm)
       , ("htu", Aeson.String htu)
+      , ("nonce", Aeson.String nonce)
       ]
-    & case nonce of
-      Nothing -> id
-      Just n -> ins ("nonce", Aeson.String n)
     where
       ins (k, v) (Aeson.Object o) = Aeson.Object $ AesonKM.insert k v o
       ins _ j = j
@@ -55,7 +56,7 @@ instance Aeson.ToJSON DPoPClaims where
 instance JWT.HasClaimsSet DPoPClaims where
   claimsSet f s = fmap (\jwtClaims -> s { jwtClaims }) (f (jwtClaims s))
 
-makeClaims :: HTTP.Method -> URI.URI -> Maybe Text -> IO DPoPClaims
+makeClaims :: HTTP.Method -> URI.URI -> Text -> IO DPoPClaims
 makeClaims method uri nonce = do
   jti <- Text.decodeUtf8 <$> PKCE.makeVerifier
   now <- Time.getCurrentTime
@@ -71,7 +72,7 @@ makeClaims method uri nonce = do
     , nonce
     }
 
-dpopRequest :: Maybe Text -> JWK.JWK -> HTTP.Request -> IO HTTP.Request
+dpopRequest :: Text -> JWK.JWK -> HTTP.Request -> IO HTTP.Request
 dpopRequest nonce key req = do
   let
     method = HTTP.method req
