@@ -52,8 +52,8 @@ viewPrivacyPolicy =
         |> Html.ul []
       , Html.text """If you log in with Bluesky, the app uses data from
           your Bluesky account as follows:"""
-      , [ """Your name and profile picture, to show to other users of the app
-            according to your visibility settings,"""
+      , [ """Your handle, name, and profile picture, to show to other users of
+            the app according to your visibility settings,"""
         , """The list of your mutuals (people who you follow who also follow
             you) who use the app, to determine which profiles to show to you,
             and who can view your profile."""
