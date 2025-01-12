@@ -51,13 +51,11 @@ viewUser : Model -> Model.Profile -> { isMe : Bool } -> Html Msg
 viewUser model user { isMe } =
   let
     icons =
-      [ List.filterMap
-          (\i -> Dict.get i model.facebookUsers)
-          user.facebookIds
+      [ user.facebookIds
         |> List.map
-            (\u ->
+            (\i ->
               icon
-                { linkTo = u.link
+                { linkTo = Dict.get i model.facebookUsers |> Maybe.andThen .link
                 , src = "/icons/2023_Facebook_icon.svg"
                 , title = Nothing
                 }
