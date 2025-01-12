@@ -642,7 +642,8 @@ viewGoogleLogin model =
   let
     button disabled text =
       Html.button
-        [ Events.onClick [Model.UrlReq { internal = False, url = "/auth/login/google/start" }]
+        [ Events.onClick
+            [ Model.UrlReq { internal = False, url = "/auth/login/google/start" } ]
         , Attributes.class "auth"
         , Attributes.disabled disabled
         ]
@@ -652,19 +653,16 @@ viewGoogleLogin model =
     Model.LoggedIn { googleEmail } ->
       case googleEmail of
         Nothing -> []
-        Just email ->
-          [ button True ("Logged in as " ++ email)
-          , logoutButton { loggingOut = False }
-          ]
+        Just email -> [ button True ("Logged in as " ++ email) ]
     Model.NotLoggedIn ->
       [ button False "Log in with Google" ]
     Model.LoggingIn -> [ button True "Logging in..." ]
-    Model.LoggingOut -> [ logoutButton { loggingOut = True } ]
+    Model.LoggingOut -> []
     Model.Unknown -> [ button True "Checking login status..." ]
 
-viewLogin : Model -> List (Html Msg)
-viewLogin model =
-  if not model.facebookEnabled && not model.googleEnabled
+viewLogin : Model -> { blueskyEnabled : Bool } -> List (Html Msg)
+viewLogin model { blueskyEnabled } =
+  if not model.facebookEnabled && not model.googleEnabled && not blueskyEnabled
   then [ Html.p [] [ Html.text "No login methods available :(" ] ]
   else
     let
@@ -672,6 +670,11 @@ viewLogin model =
     in
     [ pIfEnabled model.facebookEnabled (viewFacebookLogin model)
     , pIfEnabled model.googleEnabled (viewGoogleLogin model)
+    , pIfEnabled blueskyEnabled (viewBlueskyLogin model)
+    , case model.apiLoggedIn of
+        Model.LoggedIn _ -> [ logoutButton { loggingOut = False } ]
+        Model.LoggingOut -> [ logoutButton { loggingOut = True } ]
+        _ -> []
     ] |> List.concat
 
 viewAudienceControls : Model -> List (Html Msg)
@@ -787,7 +790,7 @@ viewRoot { customiseColumns } model =
       , if customiseColumns then viewCustomiseColumns model { myUserId = userId } else []
       ] |> List.concat
     privacyPrompt reason =
-      [ Html.div
+      [ Html.p
           [ Attributes.style "padding-left" "1em"
           , Attributes.class "error"
           ]
@@ -796,7 +799,7 @@ viewRoot { customiseColumns } model =
           ]
       ]
   in
-  [ viewLogin model
+  [ viewLogin model { blueskyEnabled = False }
   , case model.apiLoggedIn of
       Model.LoggedIn { userId } ->
         case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
@@ -949,7 +952,7 @@ viewAccount model { deleteConfirmations } =
           ]
       ]
   in
-  [ viewLogin model
+  [ viewLogin model { blueskyEnabled = False }
   , [ Html.h2 [] [ Html.text "Delete your account" ]
     , Html.p [] [
         Html.text """
@@ -1000,6 +1003,66 @@ viewWhyNotFacebook _ =
             necessary Facebook relationship could see it and help me out. """
       , Html.text "Send an e-mail to contact@[this domain] if you can help?"
       ]
+  ]
+
+
+viewBlueskyLogin : Model -> List (Html Msg)
+viewBlueskyLogin model =
+  let
+    startLogin =
+      [ Model.UrlReq
+          { internal = False
+          , url = "/auth/login/bluesky/start?handle=" ++ model.blueskyLoginHandle
+          }
+      ]
+    button extraAttrs text =
+      Html.button
+        ([ Events.onClick startLogin
+        , Attributes.class "auth"
+        , Attributes.class "bluesky"
+        ] ++ extraAttrs)
+        [ Html.text text
+        ]
+  in
+  case model.apiLoggedIn of
+    Model.LoggedIn { blueskyHandle } ->
+      case blueskyHandle of
+        Nothing -> []
+        Just handle ->
+          [ button [ Attributes.disabled True ] ("Logged in with Bluesky as @" ++ handle)
+          ]
+    Model.NotLoggedIn ->
+      [ button
+          [ Attributes.disabled (model.blueskyLoginHandle == "")
+          , Attributes.style "padding-right" "0.2em"
+          ]
+          "Log in with Bluesky as @"
+      , Html.form
+          [ Events.onSubmit startLogin
+          , Attributes.style "display" "inline"
+          ]
+          [ Html.input
+              [ Attributes.type_ "text"
+              , Attributes.class "blueskyHandle"
+              , Attributes.value model.blueskyLoginHandle
+              , Attributes.placeholder "handle"
+              , Events.onInput (List.singleton << Model.SetBlueskyLoginHandle)
+              , Events.onSubmit startLogin
+              ]
+              []
+          ]
+      ]
+    Model.LoggingIn -> [ button [ Attributes.disabled True ] "Logging in..." ]
+    Model.LoggingOut -> []
+    Model.Unknown -> [ button [ Attributes.disabled True ] "Checking login status..." ]
+
+
+viewTest : Model -> List (Html Msg)
+viewTest model =
+  [ Html.p []
+      [ Html.text "Thanks for helping test new flexiprocity functionality!" ]
+  , Html.p [] [ Html.text "Today's is Bluesky login. Here's the login form:" ]
+  , Html.p [] (viewLogin model { blueskyEnabled = True })
   ]
 
 
@@ -1072,6 +1135,7 @@ view model =
         Model.Unsubscribe _ -> "Unsubscribe - reciprocity"
         Model.Security -> "Security - reciprocity"
         Model.WhyNotFacebook -> "Facebook? - reciprocity"
+        Model.Test -> "Test - reciprocity"
   , body =
       header
       ++ navBar
@@ -1084,4 +1148,5 @@ view model =
         Model.Unsubscribe unsub -> viewUnsubscribe model unsub
         Model.Security -> viewSecurity model
         Model.WhyNotFacebook -> viewWhyNotFacebook model
+        Model.Test -> viewTest model
   }

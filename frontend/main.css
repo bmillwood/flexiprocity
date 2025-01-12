@@ -1,6 +1,14 @@
 input[type="text"] {
     border: 0;
 }
+button {
+    margin-left: 0.2em;
+    color: white;
+    background-color: hsl(300, 100%, 20%);
+}
+button:hover {
+    background-color: hsl(300, 100%, 30%);
+}
 .auth {
     font-family: serif;
     font-size: 100%;
@@ -23,6 +31,20 @@ input[type="text"] {
 }
 .facebook-logged-in {
     background-color: hsl(214, 89%, 75%);
+}
+.bluesky {
+    background-color: hsl(211, 100%, 53%); /* taken from the logo */
+}
+.bluesky:hover {
+    background-color: hsl(211, 100%, 68%);
+}
+.bluesky:disabled {
+    background-color: hsla(211, 60%, 53%, 50%);
+    color: #ddd;
+}
+.blueskyHandle {
+    font-size: 100%;
+    width: 10em;
 }
 /* also used for "delete your account" */
 .logout {

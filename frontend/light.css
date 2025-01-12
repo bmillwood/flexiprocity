@@ -1,5 +1,10 @@
 body {
     background-color: hsl(285, 80%, 80%);
+    color: black;
+}
+button:disabled {
+    color: hsla(0, 0%, 100%, 50%);
+    background-color: hsl(300, 50%, 50%);
 }
 table#people thead {
     background-color: hsl(270, 100%, 70%);

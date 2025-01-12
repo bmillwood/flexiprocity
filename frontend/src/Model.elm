@@ -105,6 +105,7 @@ type Page
       }
   | Security
   | WhyNotFacebook
+  | Test
 
 accountPage : Page
 accountPage = Account { deleteConfirmations = Set.empty }
@@ -123,7 +124,12 @@ type alias Drag =
   , over : Maybe DragTarget
   }
 
-type alias ApiLoginStatus = LoginStatus { googleEmail : Maybe String, userId : UserId }
+type alias ApiLoginStatus =
+  LoginStatus
+    { blueskyHandle : Maybe String
+    , googleEmail : Maybe String
+    , userId : UserId
+    }
 
 type alias Model =
   { errors : List { id: Int, msg : String }
@@ -138,6 +144,7 @@ type alias Model =
   , facebookUsers : Dict FacebookId Ports.FacebookUser
   , facebookFriends : Maybe (List Ports.FacebookUser)
   , googleEnabled : Bool
+  , blueskyLoginHandle : String
   , profiles : Dict UserId Profile
   , wouldsById : Dict WouldId Would
   , columns : List WouldId
@@ -159,6 +166,7 @@ type OneMsg
   | SetPage Page
   | FromJS Ports.Update
   | StartFacebookLogin
+  | SetBlueskyLoginHandle String
   | StartLogout
   | CheckApiLogin
   | ApiLoginResult ApiLoginStatus
@@ -210,6 +218,7 @@ parseUrl url =
                 (Url.Parser.Query.string "token")
         , Url.Parser.map Security (Url.Parser.s "security")
         , Url.Parser.map WhyNotFacebook (Url.Parser.s "why-not-facebook")
+        , Url.Parser.map Test (Url.Parser.s "test")
         ]
   in
   Url.Parser.parse parser url
@@ -243,6 +252,7 @@ init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
     , facebookUsers = Dict.empty
     , facebookFriends = Nothing
     , googleEnabled = googleEnabled
+    , blueskyLoginHandle = ""
     , profiles = Dict.empty
     , wouldsById = Dict.empty
     , columns = []
@@ -323,6 +333,10 @@ checkApiLogin =
       Json.Decode.at
         ["data", "getOrCreateUserId", "userId"]
         (Json.Decode.nullable Json.Decode.string)
+    decodeBlueskyHandle =
+      Json.Decode.at
+        ["data", "getOrCreateUserId", "query", "getBlueskyHandle"]
+        (Json.Decode.nullable Json.Decode.string)
     decodeGoogleEmail =
       Json.Decode.at
         ["data", "getOrCreateUserId", "query", "getGoogleEmail"]
@@ -340,19 +354,21 @@ checkApiLogin =
           _ -> Nothing
       )
     decodeResult =
-      Json.Decode.map3
-        (\nu nge nppv ->
+      Json.Decode.map4
+        (\nu nbsh nge nppv ->
           [ Just << ApiLoginResult <| case nu of
               Nothing -> NotLoggedIn
               Just u ->
                 LoggedIn
                   { userId = u
+                  , blueskyHandle = nbsh
                   , googleEmail = nge
                   }
           , nppv
           ] |> List.filterMap identity
         )
         decodeUserId
+        decodeBlueskyHandle
         decodeGoogleEmail
         decodeMyPrivacyPolicy
   in
@@ -360,7 +376,7 @@ checkApiLogin =
     { query =
         [ "mutation L{"
         , "getOrCreateUserId(input:{}){"
-        , "userId query{getGoogleEmail myUser{privacyPolicyVersion}}"
+        , "userId query{getBlueskyHandle getGoogleEmail myUser{privacyPolicyVersion}}"
         , "}"
         , "}"
         ] |> String.concat
@@ -581,6 +597,8 @@ updateOne msg model =
           ( { model | facebookLoggedIn = LoggingIn }
           , Ports.facebookLogin
           )
+    SetBlueskyLoginHandle s ->
+      ({ model | blueskyLoginHandle = s }, Cmd.none)
     StartLogout ->
       let
         newModel =
