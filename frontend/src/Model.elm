@@ -54,7 +54,9 @@ type alias WouldId = String
 
 type alias Profile =
   { userId : UserId
-  , facebookId : Maybe String
+  , facebookIds : List String
+  , blueskyHandles : List String
+  , hasGoogle : Bool
   , name : Maybe String
   , bio : String
   , picture : Maybe String
@@ -72,18 +74,20 @@ decodeProfile =
       Json.Decode.list Json.Decode.string
       |> Json.Decode.map Set.fromList
   in
-  Json.Decode.map3
+  Json.Decode.map5
     identity
     (Json.Decode.map8
       Profile
       (Json.Decode.field "userId" Json.Decode.string)
-      (Json.Decode.field "facebookId" (Json.Decode.nullable Json.Decode.string))
+      (Json.Decode.field "facebookIds" (Json.Decode.list Json.Decode.string))
+      (Json.Decode.field "blueskyHandles" (Json.Decode.list Json.Decode.string))
+      (Json.Decode.field "hasGoogle" Json.Decode.bool)
       (Json.Decode.field "name" (Json.Decode.nullable Json.Decode.string))
       (Json.Decode.field "bio" Json.Decode.string)
       (Json.Decode.field "picture" (Json.Decode.nullable Json.Decode.string))
-      (Json.Decode.field "audience" decodeAudience)
-      (Json.Decode.field "friendsSince" (Json.Decode.nullable Json.Decode.string))
-      (Json.Decode.field "createdAt" Json.Decode.string))
+      (Json.Decode.field "audience" decodeAudience))
+    (Json.Decode.field "friendsSince" (Json.Decode.nullable Json.Decode.string))
+    (Json.Decode.field "createdAt" Json.Decode.string)
     (Json.Decode.field "matchedWoulds" decodeWouldIds)
     (Json.Decode.field "youWould" decodeWouldIds)
 
@@ -423,7 +427,7 @@ sendFriends model =
 
 profileFragment : String
 profileFragment =
-  "fragment F on UserProfile{userId facebookId name bio picture audience friendsSince createdAt matchedWoulds youWould}"
+  "fragment F on UserProfile{userId facebookIds blueskyHandles hasGoogle name bio picture audience friendsSince createdAt matchedWoulds youWould}"
 
 decodeWouldStats : Json.Decode.Decoder (Dict WouldId Would)
 decodeWouldStats =

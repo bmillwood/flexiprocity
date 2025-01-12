@@ -403,7 +403,20 @@ CREATE OR REPLACE TRIGGER restrict_custom_woulds BEFORE INSERT OR UPDATE OR DELE
 CREATE VIEW public.user_profiles AS
   SELECT
     users.user_id
-  , fb.facebook_id
+  , COALESCE(
+        array_agg(fb.facebook_id)
+          FILTER (WHERE fb.facebook_id IS NOT NULL)
+      , '{}' -- thanks I hate it
+      ) AS facebook_ids
+  , COALESCE(
+        array_agg(bs.bluesky_handle)
+          FILTER (WHERE bs.bluesky_handle IS NOT NULL)
+      , '{}'
+      ) AS bluesky_handles
+  , EXISTS (
+      SELECT 1 FROM google_login
+      WHERE user_id = users.user_id
+    ) AS has_google
   , users.name
   , users.bio
   , users.picture

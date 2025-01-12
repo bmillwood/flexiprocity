@@ -16,9 +16,9 @@
 
 let
   pkgs = import nixpkgs config;
-  inherit (pkgs) stdenv;
+  inherit (pkgs) stdenvNoCC;
 in
-stdenv.mkDerivation {
+stdenvNoCC.mkDerivation {
   name = "flexiprocity-frontend";
   src = gitRoot;
   buildInputs = [
@@ -34,7 +34,7 @@ stdenv.mkDerivation {
   buildPhase = ''
     mkdir "$out"
     pushd "./${flexiprocitySubmodule}/frontend"
-    cp *.{html,css} driver.js "$out/"
+    cp -r icons *.{html,css} driver.js "$out/"
     bash output-version-file.sh > "$out"/version.js
     elm make --output="$out/elm.js" src/Main.elm
     popd

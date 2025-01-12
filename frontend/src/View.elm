@@ -16,7 +16,11 @@ import SearchWords
 import Sort
 
 profileFbUser : Model -> Model.Profile -> Maybe Ports.FacebookUser
-profileFbUser model profile = profile.facebookId |> Maybe.andThen (\i -> Dict.get i model.facebookUsers)
+profileFbUser model profile =
+  case List.filterMap (\i -> Dict.get i model.facebookUsers) profile.facebookIds of
+    [] -> Nothing
+    -- Perhaps we shouldn't just ignore all the others. But we do.
+    p :: _ -> Just p
 
 profileName : Model -> Model.Profile -> Maybe String
 profileName model profile =
@@ -24,9 +28,62 @@ profileName model profile =
     Nothing -> profile.name
     Just { name } -> Just name
 
+icon : { linkTo : Maybe String, src : String, title : Maybe String } -> Html msg
+icon { linkTo, src, title } =
+  let
+    linkAttrs =
+      [ Maybe.map Attributes.href linkTo
+      , Maybe.map Attributes.title title
+      ] |> List.filterMap identity
+    makeLink iconImg =
+      if List.isEmpty linkAttrs
+      then iconImg
+      else Html.a linkAttrs [ iconImg ]
+  in
+  Html.img
+    [ Attributes.src src
+    , Attributes.height 15
+    ]
+    []
+  |> makeLink
+
 viewUser : Model -> Model.Profile -> { isMe : Bool } -> Html Msg
 viewUser model user { isMe } =
   let
+    icons =
+      [ List.filterMap
+          (\i -> Dict.get i model.facebookUsers)
+          user.facebookIds
+        |> List.map
+            (\u ->
+              icon
+                { linkTo = u.link
+                , src = "/icons/2023_Facebook_icon.svg"
+                , title = Nothing
+                }
+            )
+      , user.blueskyHandles
+        |> List.map
+            (\h ->
+              icon
+                { linkTo = Just ("https://bsky.app/profile/" ++ h)
+                , src = "/icons/Bluesky_Logo.svg"
+                , title = Just h
+                }
+            )
+      , if user.hasGoogle
+        then
+          [ icon
+              { linkTo = Nothing
+              , src = "/icons/Google_G_logo.svg"
+              , title =
+                  if isMe
+                  then Nothing
+                  else Just "Google account identities aren't visible to other users"
+              }
+          ]
+        else []
+      ] |> List.concat
     facebookUser = profileFbUser model user
     name =
       profileName model user
@@ -63,14 +120,6 @@ viewUser model user { isMe } =
     , Html.div
         []
         [ let
-            linkName nameHtml =
-              case facebookUser |> Maybe.andThen .link of
-                Nothing -> nameHtml
-                Just link ->
-                  [ Html.a
-                      [ Attributes.href link ]
-                      nameHtml
-                  ]
             highlightedName =
               if isMe
               then [ Html.text name ]
@@ -78,7 +127,7 @@ viewUser model user { isMe } =
           in
           Html.div
             [ Attributes.style "font-weight" "bold" ]
-            (linkName highlightedName)
+            (highlightedName ++ [ Html.text " " ] ++ icons)
         , Html.div
             [ Attributes.style "margin" "0.1em 0.5em"
             , Attributes.style "font-size" "90%"
