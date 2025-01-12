@@ -680,6 +680,13 @@ viewLogin model { blueskyEnabled } =
 viewAudienceControls : Model -> List (Html Msg)
 viewAudienceControls model =
   let
+    hasFriendList =
+      case model.apiLoggedIn of
+        Model.LoggedIn { blueskyHandle } ->
+          case blueskyHandle of
+            Just _ -> True
+            Nothing -> model.facebookEnabled
+        _ -> model.facebookEnabled
     audienceRadio { name, currentWho, onCheck, who, label } =
       let
         thisId = name ++ "-" ++ Model.audienceToString who
@@ -709,7 +716,7 @@ viewAudienceControls model =
     in
     [ [ Html.text "Show my profile to people I've ticked and:" ]
     , radio Model.Self "Nobody else"
-    , if model.facebookEnabled
+    , if hasFriendList
       then radio Model.Friends "Friends"
       else []
     , radio Model.Everyone "Everyone"
@@ -760,7 +767,7 @@ viewAudienceControls model =
           , label = label
           }
     in
-    if model.facebookEnabled
+    if hasFriendList
     then
       [ [ Html.text "I want to see:" ]
       , radio Model.Friends "My friends"
