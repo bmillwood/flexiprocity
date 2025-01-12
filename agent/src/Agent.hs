@@ -72,6 +72,28 @@ bskyMutuals httpManager conn taskDid = do
   resp <- HTTP.httpLbs req httpManager
   print resp
 
+fetchAndDoTasks :: HTTP.Manager -> SQL.Connection -> IO ()
+fetchAndDoTasks httpManager conn = do
+  done <- SQL.withTransaction conn $ do
+    tasks <-
+      mapM (\(SQL.Only v) -> either fail pure $ Aeson.parseEither Aeson.parseJSON v)
+      =<< SQL.query_ conn [QQ.sql|
+        WITH t AS (
+          SELECT id FROM agent_tasks ORDER BY requested_at ASC LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        DELETE FROM agent_tasks todo
+        USING t WHERE todo.id = t.id
+        RETURNING todo.task
+      |]
+    for_ tasks $ \case
+      BskyProfile taskDid -> bskyProfile httpManager conn taskDid
+      BskyMutuals taskDid -> bskyMutuals httpManager conn taskDid
+    pure (null tasks)
+  when (not done) $ do
+    threadDelay 1000000
+    fetchAndDoTasks httpManager conn
+
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
@@ -87,21 +109,6 @@ main = do
       writeChan wakeUp ()
   withLinkedAsync notifyThread . forever $ do
     () <- readChan wakeUp
-    SQL.withTransaction conn $ do
-      tasks <-
-        mapM (\(SQL.Only v) -> either fail pure $ Aeson.parseEither Aeson.parseJSON v)
-        =<< SQL.query_ conn [QQ.sql|
-          WITH t AS (
-            SELECT id FROM agent_tasks ORDER BY requested_at ASC LIMIT 1
-            FOR UPDATE SKIP LOCKED
-          )
-          DELETE FROM agent_tasks todo
-          USING t WHERE todo.id = t.id
-          RETURNING todo.task
-        |]
-      for_ tasks $ \case
-        BskyProfile taskDid -> bskyProfile httpManager conn taskDid
-        BskyMutuals taskDid -> bskyMutuals httpManager conn taskDid
-    threadDelay 1000000
+    fetchAndDoTasks httpManager conn
   where
     withLinkedAsync act then_ = withAsync act $ \thread -> link thread >> then_
