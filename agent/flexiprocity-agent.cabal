@@ -37,6 +37,7 @@ library
     async ^>= 2.2,
     base >= 4.16.4.0 && < 4.19,
     bluesky-tools ^>= 0.6,
+    containers >=0.6.5.1 && < 0.8,
     http-client ^>= 0.7,
     http-client-tls ^>= 0.3,
     network-uri ^>= 2.6,

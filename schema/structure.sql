@@ -259,6 +259,22 @@ CREATE FUNCTION public.set_facebook_friends(friend_fbids text[]) RETURNS unit
 REVOKE EXECUTE ON FUNCTION set_facebook_friends FROM public;
 GRANT  EXECUTE ON FUNCTION set_facebook_friends TO api;
 
+CREATE TABLE public.bluesky_mutuals
+  ( user_id   bigint REFERENCES users(user_id) ON DELETE CASCADE
+  , friend_id bigint REFERENCES users(user_id) ON DELETE CASCADE
+  , CHECK (user_id < friend_id)
+  , since     timestamptz NOT NULL DEFAULT now()
+  , PRIMARY KEY (user_id, friend_id)
+  );
+GRANT SELECT, INSERT, DELETE ON bluesky_mutuals TO agent;
+
+CREATE VIEW public.friends AS
+  SELECT user_id, friend_id, since FROM bluesky_mutuals
+  UNION ALL
+  SELECT friend_id, user_id, since FROM bluesky_mutuals
+  UNION ALL
+  SELECT user_id, friend_id, since FROM facebook_friends;
+
 CREATE TABLE public.woulds
   ( would_id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY
   , name text NOT NULL UNIQUE
@@ -438,10 +454,10 @@ CREATE VIEW public.user_profiles AS
   FROM users
   LEFT JOIN facebook_login fb USING (user_id)
   LEFT JOIN bluesky_login bs USING (user_id)
-  LEFT JOIN facebook_friends fwu
+  LEFT JOIN friends fwu
     ON fwu.user_id = users.user_id
    AND fwu.friend_id = current_user_id()
-  LEFT JOIN facebook_friends uf
+  LEFT JOIN friends uf
     ON uf.user_id = current_user_id()
    AND uf.friend_id = users.user_id
   LEFT JOIN user_woulds uw

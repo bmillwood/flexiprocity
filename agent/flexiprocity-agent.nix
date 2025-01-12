@@ -1,5 +1,6 @@
-{ mkDerivation, aeson, async, base, bluesky-tools, http-client
-, http-client-tls, lib, network-uri, postgresql-simple, text
+{ mkDerivation, aeson, async, base, bluesky-tools, containers
+, http-client, http-client-tls, lib, network-uri, postgresql-simple
+, text
 }:
 mkDerivation {
   pname = "flexiprocity-agent";
@@ -11,8 +12,8 @@ mkDerivation {
   enableLibraryProfiling = false;
   enableSharedLibraries = false;
   libraryHaskellDepends = [
-    aeson async base bluesky-tools http-client http-client-tls
-    network-uri postgresql-simple text
+    aeson async base bluesky-tools containers http-client
+    http-client-tls network-uri postgresql-simple text
   ];
   executableHaskellDepends = [ base ];
   description = "Server which runs misc tasks for flexiprocity";
