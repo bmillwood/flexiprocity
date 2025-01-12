@@ -54,10 +54,16 @@ viewUser model user { isMe } =
       [ user.facebookIds
         |> List.map
             (\i ->
+              let
+                link = Dict.get i model.facebookUsers |> Maybe.andThen .link
+              in
               icon
-                { linkTo = Dict.get i model.facebookUsers |> Maybe.andThen .link
+                { linkTo = link
                 , src = "/icons/2023_Facebook_icon.svg"
-                , title = Nothing
+                , title =
+                    case link of
+                      Nothing -> Just "User profile link unavailable"
+                      Just _ -> Nothing
                 }
             )
       , user.blueskyHandles
