@@ -776,7 +776,15 @@ updateOne msg model =
         , youWouldChange = Dict.update user.userId redundantChange model.youWouldChange
         , myBio = if isMe user.userId then user.bio else model.myBio
         }
-      , Cmd.none
+      , if isMe user.userId && not (List.isEmpty user.blueskyHandles)
+        then
+          graphQL
+            { query = "mutation M{requestMyBlueskyProfile(input:{}){unit}}"
+            , operationName = "M"
+            , variables = []
+            , decodeResult = Json.Decode.field "data" (Json.Decode.succeed [])
+            }
+        else Cmd.none
       )
     EditBio bio -> ({ model | myBio = bio }, Cmd.none)
     SubmitBio ->
