@@ -404,12 +404,12 @@ CREATE VIEW public.user_profiles AS
   SELECT
     users.user_id
   , COALESCE(
-        array_agg(fb.facebook_id)
+        array_agg(DISTINCT fb.facebook_id)
           FILTER (WHERE fb.facebook_id IS NOT NULL)
       , '{}' -- thanks I hate it
       ) AS facebook_ids
   , COALESCE(
-        array_agg(bs.bluesky_handle)
+        array_agg(DISTINCT bs.bluesky_handle)
           FILTER (WHERE bs.bluesky_handle IS NOT NULL)
       , '{}'
       ) AS bluesky_handles
