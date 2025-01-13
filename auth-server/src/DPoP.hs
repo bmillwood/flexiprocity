@@ -6,6 +6,8 @@ import Control.Monad.IO.Class
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKM
 import qualified Data.ByteString.Lazy as BSL
+import Data.Foldable
+import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
@@ -23,14 +25,29 @@ import qualified Network.URI as URI
 
 import qualified PKCE
 
-createJwk :: IO JWK.JWK
-createJwk = JWK.genJWK $ JWK.ECGenParam JWK.P_256
+data Session = Session
+  { jwk :: JWK.JWK
+  , nonceStore :: IORef.IORef Text
+  }
 
 getNonce :: HTTP.Response a -> Maybe Text
 getNonce resp = Text.decodeASCII <$> lookup "DPoP-Nonce" (HTTP.responseHeaders resp)
 
-header :: JWK.JWK -> JWS.JWSHeader ()
-header key =
+initSession :: HTTP.Response a -> IO Session
+initSession resp =
+  case getNonce resp of
+    Nothing -> fail "DPoP.initSession: no DPoP-Nonce"
+    Just nonce -> do
+      jwk <- JWK.genJWK $ JWK.ECGenParam JWK.P_256
+      nonceStore <- IORef.newIORef nonce
+      pure Session{ jwk, nonceStore }
+
+readNonceFromResponse :: Session -> HTTP.Response a -> IO ()
+readNonceFromResponse Session{ nonceStore } resp =
+  for_ (getNonce resp) $ IORef.writeIORef nonceStore
+
+jwtHeader :: JWK.JWK -> JWS.JWSHeader ()
+jwtHeader key =
   JWS.newJWSHeader ((), JWS.ES256)
   & Header.typ ?~ Header.HeaderParam () "dpop+jwt"
   & Header.jwk .~ (Header.HeaderParam () <$> key ^. JWK.asPublicKey)
@@ -72,13 +89,14 @@ makeClaims method uri nonce = do
     , nonce
     }
 
-dpopRequest :: Text -> JWK.JWK -> HTTP.Request -> IO HTTP.Request
-dpopRequest nonce key req = do
+dpopRequest :: Session -> HTTP.Request -> IO HTTP.Request
+dpopRequest Session{ jwk, nonceStore } req = do
   let
     method = HTTP.method req
     uri = HTTP.getUri req
+  nonce <- IORef.readIORef nonceStore
   Right @JOSE.Error jwt <- JOSE.runJOSE
-    $ JWT.signJWT key (header key) =<< liftIO (makeClaims method uri nonce)
+    $ JWT.signJWT jwk (jwtHeader jwk) =<< liftIO (makeClaims method uri nonce)
   let jwtEnc = BSL.toStrict $ JC.encodeCompact jwt
   pure req
     { HTTP.requestHeaders = ("DPoP", jwtEnc) : HTTP.requestHeaders req }

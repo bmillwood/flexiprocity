@@ -20,7 +20,6 @@ import GHC.Generics
 
 import qualified Bluesky.Did as Did
 import qualified Bluesky.Handle as Handle
-import qualified Crypto.JOSE.JWK as JWK
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
 import qualified Network.URI.Static as URI
@@ -35,8 +34,7 @@ import qualified Sessions
 
 data Session = Session
   { state :: BS.ByteString
-  , dpopJwk :: JWK.JWK
-  , dpopNonce :: Text
+  , dpop :: DPoP.Session
   , pkce :: PKCE.PKCE
   , handle :: Handle.Handle
   , did :: Did.Did
@@ -127,13 +125,6 @@ data AuthServerInfo = AuthServerInfo
   } deriving stock (Eq, Ord, Show, Generic)
     deriving anyclass (Aeson.FromJSON)
 
-checkDPoPNonceForChanges :: Text -> HTTP.Response a -> IO ()
-checkDPoPNonceForChanges existing resp =
-  when (n /= Just existing) $
-    putStrLn $ "DPoP nonce changed: " <> show existing <> " -> " <> show n
-  where
-    n = DPoP.getNonce resp
-
 start :: Env -> Maybe Handle.Handle -> Servant.Handler Api.CookieRedirect
 start Env{ httpManager, clientAssertion, sessions } mHandle = do
   handle <- or400 "Query parameter handle is required" mHandle
@@ -164,13 +155,10 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
     decodeResponse "auth server info" =<< HTTP.httpLbs req httpManager
   pkce@PKCE.PKCE{ challenge } <- liftIO PKCE.makePKCE
   state <- BSC.pack <$> liftIO Sessions.randomString
-  dpopJwk <- liftIO DPoP.createJwk
-  dpopNonce <- liftIO $ do
+  dpop <- liftIO $ do
     -- First request deliberately failed in order to get a DPoP nonce
-    getDpopReq <- HTTP.requestFromURI parURI
-      <&> HTTP.urlEncodedBody []
-    dpopResp <- HTTP.httpLbs getDpopReq httpManager
-    maybe (fail "No DPoP nonce on initial request") pure $ DPoP.getNonce dpopResp
+    getDpopReq <- HTTP.requestFromURI parURI <&> HTTP.urlEncodedBody []
+    DPoP.initSession =<< HTTP.httpLbs getDpopReq httpManager
   requestUri <- liftIO $ do
     authJwt <- ClientAssertion.makeAssertion clientAssertion authorizationServer
     req <- HTTP.requestFromURI parURI
@@ -189,9 +177,9 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
         , ("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         , ("client_assertion", authJwt)
         ]
-      >>= DPoP.dpopRequest dpopNonce dpopJwk
+      >>= DPoP.dpopRequest dpop
     resp <- HTTP.httpLbs req httpManager
-    checkDPoPNonceForChanges dpopNonce resp
+    DPoP.readNonceFromResponse dpop resp
     decodeResponseWith "PAR"
       (Aeson.withObject "PAR" $ (.: "request_uri"))
       resp
@@ -202,8 +190,7 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
       <> "&client_id=" <> URI.uriToString id clientId ""
     session = Session
       { state
-      , dpopJwk
-      , dpopNonce
+      , dpop
       , pkce
       , handle
       , did
@@ -241,8 +228,7 @@ complete Env{ clientAssertion, httpManager, sessions, jwt }
   Api.Issuer iss <- or400 "Expected query parameter: iss" mIss
   stateFromClient <- or400 "Expected query parameter: state" mState
   code <- or400 "Expected query parameter: code" mCode
-  Session
-    { state, dpopJwk, dpopNonce, pkce, handle, did, authorizationServer, tokenURI }
+  Session { state, dpop, pkce, handle, did, authorizationServer, tokenURI }
     <- or400 "Can't find your session. Probably it just expired."
       =<< liftIO (Sessions.getSession sessId sessions)
   when (iss /= authorizationServer) $
@@ -263,9 +249,9 @@ complete Env{ clientAssertion, httpManager, sessions, jwt }
         , ("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
         , ("client_assertion", authJwt)
         ]
-      >>= DPoP.dpopRequest dpopNonce dpopJwk
+      >>= DPoP.dpopRequest dpop
     resp <- HTTP.httpLbs req httpManager
-    checkDPoPNonceForChanges dpopNonce resp
+    DPoP.readNonceFromResponse dpop resp
     decodeResponse "token response" resp
   when (scope /= "atproto") $
     Except.throwError Servant.err400
