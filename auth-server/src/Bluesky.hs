@@ -24,9 +24,6 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
 import qualified Network.URI.Static as URI
 import qualified Servant
-import Text.Blaze ((!))
-import qualified Text.Blaze.Html5 as Html
-import qualified Text.Blaze.Html5.Attributes as Attr
 
 import qualified Api
 import qualified ClientAssertion
@@ -128,23 +125,7 @@ data AuthServerInfo = AuthServerInfo
   } deriving stock (Eq, Ord, Show, Generic)
     deriving anyclass (Aeson.FromJSON)
 
-redirectDoc :: URI.URI -> Html.Markup
-redirectDoc uri = Html.docTypeHtml $ do
-  Html.head $ do
-    Html.title $ "Bluesky login redirect - reciprocity"
-    Html.script ! Attr.type_ "text/javascript"
-      $ "window.location.replace(\"" <> Html.toHtml (show uri) <> "\");"
-  Html.body $ do
-    Html.p $ do
-      "Doing a crappy JavaScript redirect to work around "
-      Html.a ! Attr.href "https://github.com/bluesky-social/atproto/issues/3362"
-        $ "this issue"
-      ". If it doesn't work, please follow "
-      Html.a ! Attr.href (Html.toValue $ show uri)
-        $ "this link"
-      " to continue with the login process."
-
-start :: Env -> Maybe Handle.Handle -> Servant.Handler (Api.SetCookie Html.Markup)
+start :: Env -> Maybe Handle.Handle -> Servant.Handler Api.CookieRedirect
 start Env{ httpManager, clientAssertion, sessions } mHandle = do
   handle <- or400 "Query parameter handle is required" mHandle
   did <- maybe (fail "Can't find DID") pure
@@ -220,7 +201,8 @@ start Env{ httpManager, clientAssertion, sessions } mHandle = do
   liftIO $ Sessions.setSession sessId session sessions
   pure
     $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/bluesky" sessId)
-    $ redirectDoc authURI{ URI.uriQuery }
+    $ Servant.addHeader (Api.Location authURI{ URI.uriQuery })
+    $ Servant.NoContent
 
 data TokenResponse = TokenResponse
   { access_token :: Text
