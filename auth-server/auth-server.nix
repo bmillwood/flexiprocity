@@ -1,9 +1,9 @@
-{ mkDerivation, aeson, async, base, bluesky-tools, bytestring
-, containers, cookie, crypton, crypton-x509, crypton-x509-store
-, http-api-data, http-client, http-client-tls, http-types, jose
-, lens, lib, memory, mtl, network-uri, oidc-client, random
-, raven-haskell, req, servant, servant-server, text, time, wai
-, wai-cors, warp
+{ mkDerivation, aeson, async, base, blaze-html, blaze-markup
+, bluesky-tools, bytestring, containers, cookie, crypton
+, crypton-x509, crypton-x509-store, http-api-data, http-client
+, http-client-tls, http-types, jose, lens, lib, memory, mtl
+, network-uri, oidc-client, random, raven-haskell, req, servant
+, servant-blaze, servant-server, text, time, wai, wai-cors, warp
 }:
 mkDerivation {
   pname = "flexiprocity-auth-server";
@@ -15,11 +15,11 @@ mkDerivation {
   enableLibraryProfiling = false;
   enableSharedLibraries = false;
   libraryHaskellDepends = [
-    aeson async base bluesky-tools bytestring containers cookie crypton
-    crypton-x509 crypton-x509-store http-api-data http-client
-    http-client-tls http-types jose lens memory mtl network-uri
-    oidc-client random raven-haskell req servant servant-server text
-    time wai wai-cors warp
+    aeson async base blaze-html blaze-markup bluesky-tools bytestring
+    containers cookie crypton crypton-x509 crypton-x509-store
+    http-api-data http-client http-client-tls http-types jose lens
+    memory mtl network-uri oidc-client random raven-haskell req servant
+    servant-blaze servant-server text time wai wai-cors warp
   ];
   executableHaskellDepends = [ base ];
   description = "Server which provides jwts for flexiprocity";

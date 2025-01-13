@@ -1,12 +1,14 @@
 module Api where
 
 import qualified Data.Aeson as Aeson
-import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified Bluesky.Handle as Bluesky
-import Servant.API
 import qualified Network.URI as URI
+import Servant.API
+import Servant.HTML.Blaze (HTML)
+import qualified Text.Blaze as Blaze
 
 import qualified Facebook
 import qualified Sessions
@@ -63,7 +65,7 @@ instance FromHttpApiData Issuer where
 type LoginBluesky =
   "start"
     :> QueryParam "handle" Bluesky.Handle
-    :> Verb 'GET 303 '[JSON] CookieRedirect
+    :> Verb 'GET 200 '[HTML] (SetCookie Blaze.Markup)
   :<|> "complete"
     :> Header "Cookie" Sessions.SessionId
     :> QueryParam "iss" Issuer
