@@ -66,14 +66,19 @@ bskyProfileTask httpManager conn taskDid = do
     <- either fail pure . Aeson.eitherDecode $ HTTP.responseBody resp
   when (did /= taskDid) . error
     $ "returned did not match query: " <> show (did, taskDid)
-  affected <- SQL.execute conn [QQ.sql|
+  affected :: [SQL.Only Integer] <- SQL.query conn [QQ.sql|
+      WITH upd(did, name, picture) AS (
+        VALUES (?, ?, ?)
+      )
       UPDATE users u
-      SET name = ?, picture = ?
-      FROM bluesky_login bs
+      SET name = upd.name, picture = upd.picture
+      FROM upd, bluesky_login bs
       WHERE u.user_id = bs.user_id
-      AND bs.bluesky_did = ?
-    |] (displayName, avatar, Did.rawDid did)
-  putStrLn $ "Updated " <> show affected <> " profile(s)"
+      AND bs.bluesky_did = upd.did
+      AND (u.name <> upd.name OR u.picture <> upd.picture)
+      RETURNING u.user_id
+    |] (Did.rawDid did, displayName, avatar)
+  putStrLn $ "Updated " <> show (length affected) <> " profile(s)"
 
 mapToChunks :: (Ord k) => Int -> Map k v -> [Map k v]
 mapToChunks size = unfoldr go
