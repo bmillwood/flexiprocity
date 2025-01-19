@@ -75,7 +75,7 @@ bskyProfileTask httpManager conn taskDid = do
       FROM upd, bluesky_login bs
       WHERE u.user_id = bs.user_id
       AND bs.bluesky_did = upd.did
-      AND (u.name <> upd.name OR u.picture <> upd.picture)
+      AND (u.name IS DISTINCT FROM upd.name OR u.picture IS DISTINCT FROM upd.picture)
       RETURNING u.user_id
     |] (Did.rawDid did, displayName, avatar)
   putStrLn $ "Updated " <> show (length affected) <> " profile(s)"
