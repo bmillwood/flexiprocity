@@ -641,18 +641,19 @@ updateOne msg model =
       (model, checkApiLogin)
     ApiLoginResult newState ->
       let
-        (newModel, cmd) = tryApiLogin { model | apiLoggedIn = newState }
-        initialQuery userId =
-          getProfiles
-            { getMyAudiences = True, getWoulds = True, userId = userId }
-            model
+        newModel = { model | apiLoggedIn = newState }
       in
       case newState of
         LoggedIn { userId } ->
           ( newModel
-          , Cmd.batch [cmd, initialQuery userId, sendFriends newModel]
+          , Cmd.batch
+              [ getProfiles
+                  { getMyAudiences = True, getWoulds = True, userId = userId }
+                  newModel
+              , sendFriends newModel
+              ]
           )
-        _ -> (newModel, cmd)
+        _ -> tryApiLogin newModel
     SetDeleteConfirm { id, setTo } ->
       let
         newPage =
