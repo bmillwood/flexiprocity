@@ -28,6 +28,9 @@ if(facebookEnabled) {
     };
     document.body.appendChild(fbScript);
 }
+
+var websocket;
+
 const app = Elm.Main.init({
     flags: {
         latestPrivacyPolicy,
@@ -72,6 +75,43 @@ app.ports.sendToJS.subscribe(function(request) {
         break;
     case 'sentry':
         window.Sentry && Sentry.captureMessage(request.message);
+        break;
+    case 'connect-websocket':
+        if(websocket) {
+            websocket.close(1000, "re-opening websocket");
+            websocket = null;
+        }
+        websocket = new WebSocket("/graphql", "graphql-transport-ws");
+        websocket.addEventListener("open", function (ev) {
+            console.log(ev);
+            ev.target.send(JSON.stringify({type: "connection_init", payload: {}}));
+        });
+        websocket.addEventListener("close", function(ev) {
+            console.log(ev);
+            if(ev.target == websocket) {
+                app.ports.receiveFromJS.send({
+                    kind: "websocket-closed",
+                    code: ev.code,
+                    reason: ev.reason
+                });
+            } else {
+                // don't want to prompt the frontend to try to reconnect
+                console.log("close event is for an old websocket, discarding");
+            }
+        });
+        websocket.addEventListener("message", function(ev) {
+            console.log(ev);
+            app.ports.receiveFromJS.send({
+                kind: "websocket-message",
+                message: JSON.parse(ev.data)
+            });
+        });
+        break;
+    case 'send-websocket':
+        websocket.send(JSON.stringify(request.message));
+        break;
+    case 'disconnect-websocket':
+        websocket.close(1000, "frontend requested");
         break;
     }
 });

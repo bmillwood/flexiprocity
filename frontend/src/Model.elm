@@ -6,7 +6,9 @@ import Dict exposing (Dict)
 import Http
 import Json.Decode
 import Json.Encode
+import Process
 import Set exposing (Set)
+import Task
 import Url exposing (Url)
 import Url.Parser exposing ((<?>))
 import Url.Parser.Query
@@ -165,6 +167,8 @@ type OneMsg
   | UrlReq { internal : Bool, url : String }
   | SetPage Page
   | FromJS Ports.Update
+  | ConnectWebsocket
+  | SendWebsocket Json.Decode.Value
   | StartFacebookLogin
   | SetBlueskyLoginHandle String
   | StartLogout
@@ -590,6 +594,43 @@ updateOne msg model =
           _ -> Cmd.none
       )
     FromJS (Ports.InProgress continue) -> (model, Cmd.map (\() -> []) continue)
+    FromJS Ports.WebsocketClosed ->
+      ( model
+      , Process.sleep 1000
+        |> Task.perform (always [ConnectWebsocket])
+      )
+    FromJS (Ports.FromWebsocket Ports.ConnectionAck) ->
+      ( model
+      , Json.Encode.object
+          [ ("id", Json.Encode.string "main")
+          , ("type", Json.Encode.string "subscribe")
+          , ( "payload"
+            , Json.Encode.object
+                [ ( "query"
+                  , [ profileFragment
+                    , "subscription S{userUpdate{profile{...F}}}"
+                    ] |> String.concat >> Json.Encode.string
+                  )
+                , ("operationName", Json.Encode.string "S")
+                ]
+            )
+          ]
+        |> Ports.sendWebsocket
+      )
+    FromJS (Ports.FromWebsocket (Ports.Next { payload })) ->
+      let
+        decodePayload =
+            Json.Decode.at ["data", "userUpdate", "profile"] decodeProfile
+      in
+      ( model
+      , Task.perform identity
+        << Task.succeed
+        <| case Json.Decode.decodeValue decodePayload payload of
+          Ok profile -> [GotProfile profile]
+          Err error -> [AddError (Json.Decode.errorToString error)]
+      )
+    ConnectWebsocket -> (model, Ports.connectWebsocket)
+    SendWebsocket v -> (model, Ports.sendWebsocket v)
     StartFacebookLogin ->
       case model.facebookLoggedIn of
         LoggingIn -> (model, Cmd.none)
@@ -651,6 +692,7 @@ updateOne msg model =
                   { getMyAudiences = True, getWoulds = True, userId = userId }
                   newModel
               , sendFriends newModel
+              , Ports.connectWebsocket
               ]
           )
         _ -> tryApiLogin newModel

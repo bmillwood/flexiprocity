@@ -6,6 +6,27 @@ import Json.Encode
 port sendToJS : Json.Encode.Value -> Cmd msg
 port receiveFromJS : (Json.Decode.Value -> msg) -> Sub msg
 
+sentry : { message : String } -> Cmd msg
+sentry { message } =
+  Json.Encode.object
+    [ ("kind", Json.Encode.string "sentry")
+    , ("message", Json.Encode.string message)
+    ]
+  |> sendToJS
+
+connectWebsocket : Cmd msg
+connectWebsocket =
+  Json.Encode.object [ ("kind", Json.Encode.string "connect-websocket") ]
+  |> sendToJS
+
+sendWebsocket : Json.Decode.Value -> Cmd msg
+sendWebsocket message =
+  Json.Encode.object
+    [ ("kind", Json.Encode.string "send-websocket")
+    , ("message", message)
+    ]
+  |> sendToJS
+
 facebookLogin : Cmd msg
 facebookLogin =
   Json.Encode.object [ ("kind", Json.Encode.string "facebook-login") ]
@@ -65,14 +86,6 @@ facebookUser { personId } =
       , internal = Json.Encode.object [("id", Json.Encode.string "user")]
       }
 
-sentry : { message : String } -> Cmd msg
-sentry { message } =
-  Json.Encode.object
-    [ ("kind", Json.Encode.string "sentry")
-    , ("message", Json.Encode.string message)
-    ]
-  |> sendToJS
-
 type alias FacebookUser =
   { id : String
   , name : String
@@ -99,12 +112,32 @@ type Error
   | FacebookAccessTokenExpired { whileDoing : String }
   | FacebookUnknownError { whileDoing : String, error : Json.Decode.Value }
 
+type WebsocketMessage
+  = ConnectionAck
+  | Next { payload : Json.Decode.Value }
+
+decodeWebsocketMessage : Json.Decode.Decoder WebsocketMessage
+decodeWebsocketMessage =
+  let
+    decodeNext =
+      Json.Decode.field "payload" Json.Decode.value
+      |> Json.Decode.map (\p -> Next { payload = p })
+  in
+  Json.Decode.field "type" Json.Decode.string
+  |> Json.Decode.andThen (\t -> case t of
+      "connection_ack" -> Json.Decode.succeed ConnectionAck
+      "next" -> decodeNext
+      _ -> Json.Decode.fail ("unknown type: " ++ t)
+    )
+
 type Update
   = FacebookConnected { userId : String, accessToken: String }
   | FacebookLoginFailed
   | FacebookGotUser FacebookUser
   | FacebookFriends (List FacebookUser)
   | InProgress (Cmd ())
+  | WebsocketClosed
+  | FromWebsocket WebsocketMessage
 
 type alias FromJS = Result Error Update
 
@@ -200,6 +233,10 @@ fromJS =
               , Json.Decode.at ["response", "error"] (decodeApiError id)
               ]
           )
+        "websocket-closed" -> Json.Decode.succeed (Ok WebsocketClosed)
+        "websocket-message" ->
+          Json.Decode.field "message" decodeWebsocketMessage
+          |> Json.Decode.map (Ok << FromWebsocket)
         _ -> Json.Decode.fail ("Unknown kind: " ++ kind)
   in
   Json.Decode.field "kind" Json.Decode.string

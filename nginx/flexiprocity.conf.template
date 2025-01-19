@@ -9,6 +9,10 @@ map $http_host $https_host {
     ~^(.*):57958$ "$1:57959";
     default $http_host;
 }
+map $http_upgrade $ws_connection {
+    default upgrade;
+    ''      close;
+}
 # require that the server is accessed with the correct hostname
 server {
     listen 57958 default_server;
@@ -38,8 +42,11 @@ server {
         proxy_set_header X-Forwarded-Host $http_host;
     }
     location /graphql {
-        proxy_set_header Authorization "$authorization";
         proxy_pass http://localhost:5000/graphql;
+        proxy_set_header Authorization "$authorization";
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $ws_connection;
     }
     location /graphiql {
         proxy_pass http://localhost:5000/;
