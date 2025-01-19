@@ -105,6 +105,7 @@ in
               proxy_set_header Authorization "$authorization";
             '';
             proxyPass = "http://localhost:5000/graphql";
+            proxyWebsockets = true;
             recommendedProxySettings = true;
           };
         }
