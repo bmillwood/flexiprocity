@@ -103,11 +103,13 @@ COMMENT ON COLUMN public.users.show_me
   IS 'stored in the database but applied on the client';
 
 CREATE OR REPLACE FUNCTION public.notify_user_channel() RETURNS TRIGGER
-  LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  LANGUAGE plpgsql SECURITY INVOKER VOLATILE PARALLEL UNSAFE
   AS $$BEGIN
     PERFORM pg_notify('user:' || NEW.user_id, '{}');
     RETURN NEW;
   END$$;
+REVOKE EXECUTE ON FUNCTION notify_user_channel FROM public;
+GRANT  EXECUTE ON FUNCTION notify_user_channel TO api;
 
 CREATE OR REPLACE TRIGGER notify_user_channel AFTER UPDATE ON users
   FOR EACH ROW
@@ -630,12 +632,13 @@ REVOKE EXECUTE ON FUNCTION request_my_bluesky_profile FROM public;
 GRANT  EXECUTE ON FUNCTION request_my_bluesky_profile TO api;
 
 CREATE OR REPLACE FUNCTION public.new_bluesky_login() RETURNS TRIGGER
-  LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  LANGUAGE plpgsql SECURITY INVOKER VOLATILE PARALLEL UNSAFE
   AS $$BEGIN
     INSERT INTO agent_tasks (task)
     VALUES (jsonb_build_object('tag', 'BskyMutuals', 'contents', NEW.bluesky_did));
     RETURN NEW;
   END$$;
+REVOKE EXECUTE ON FUNCTION new_bluesky_login FROM public;
 
 CREATE OR REPLACE TRIGGER new_bluesky_login AFTER INSERT ON bluesky_login
   FOR EACH ROW
