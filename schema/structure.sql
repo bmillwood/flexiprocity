@@ -102,6 +102,17 @@ GRANT SELECT, UPDATE(name, picture) ON users TO agent;
 COMMENT ON COLUMN public.users.show_me
   IS 'stored in the database but applied on the client';
 
+CREATE OR REPLACE FUNCTION public.notify_user_channel() RETURNS TRIGGER
+  LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+  AS $$BEGIN
+    PERFORM pg_notify('user:' || NEW.user_id, '');
+    RETURN NEW;
+  END$$;
+
+CREATE OR REPLACE TRIGGER notify_user_channel AFTER UPDATE ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_user_channel();
+
 CREATE TABLE public.facebook_login
   ( facebook_id text PRIMARY KEY
   , user_id bigint NOT NULL REFERENCES users(user_id)

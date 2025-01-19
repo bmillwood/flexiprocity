@@ -30,10 +30,14 @@ esac
 
 npm exec \
     --package postgraphile \
+    --package graphile-utils \
+    --package @graphile/pg-pubsub \
     --package @graphile-contrib/pg-simplify-inflector \
     -- \
     postgraphile \
-    --append-plugins @graphile-contrib/pg-simplify-inflector \
+    --plugins @graphile/pg-pubsub \
+    --append-plugins @graphile-contrib/pg-simplify-inflector,"$PWD/subscriptions.js" \
+    --subscriptions \
     --dynamic-json \
     --no-setof-functions-contain-nulls \
     --no-ignore-rbac \

@@ -1,6 +1,8 @@
 {
 	"dependencies": {
 		"@graphile-contrib/pg-simplify-inflector": "^6.1.0",
+		"@graphile/pg-pubsub": "^4.13.0",
+		"graphile-utils": "^4.13.0",
 		"postgraphile": "^4.13.0"
 	}
 }
