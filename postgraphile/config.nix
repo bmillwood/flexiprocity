@@ -37,15 +37,19 @@ in
           "--enhance-graphiql"
           "--allow-explain"
         ];
+        workDir = "${config.users.users.api.home}/postgraphile";
         scriptPieces = [
           # -y: skip installation confirmation
           "npm exec -y"
           # seems like it should be implied by the command being run, but apparently not
           "--package postgraphile"
+          "--package @graphile/pg-pubsub"
           "--package @graphile-contrib/pg-simplify-inflector"
           "--"
           "postgraphile"
-          "--append-plugins @graphile-contrib/pg-simplify-inflector"
+          "--plugins @graphile/pg-pubsub"
+          "--append-plugins @graphile-contrib/pg-simplify-inflector,${workDir}/subscriptions.js"
+          "--subscriptions"
           "--dynamic-json"
           "--no-setof-functions-contain-nulls"
           "--no-ignore-rbac"
@@ -70,12 +74,17 @@ in
       ];
       script = lib.concatStringsSep "\n" [
         # since we want to create this directory, WorkingDirectory isn't useful
-        "mkdir -p ~/postgraphile"
-        "cd ~/postgraphile"
+        "mkdir -p ${workDir}"
+        "cd ${workDir}"
         # somewhat silly to copy this every time, but can't think of a better way
-        "cp ${./postgraphile.tags.json5} postgraphile.tags.json5"
-        # because otherwise overwriting it next time will fail
-        "chmod u+w postgraphile.tags.json5"
+        # need -m because otherwise overwriting it next time will fail
+        # need to specify target name because src name is actually <hash>-<name>
+        "install -m 644 ${./postgraphile.tags.json5} postgraphile.tags.json5"
+        # look I'm sure there's a better way to have this script
+        # find its dependencies, but I'm not a node developer
+        "npm init -y"
+        "npm install graphile-utils"
+        "install -m 644 ${./subscriptions.js} subscriptions.js"
         (lib.concatStringsSep " " scriptPieces)
       ];
       serviceConfig = {
