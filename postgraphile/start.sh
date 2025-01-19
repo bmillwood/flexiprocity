@@ -4,9 +4,7 @@ set -o errexit -o nounset -o pipefail
 # per https://www.graphile.org/postgraphile/usage-cli/
 dev="\
     --show-error-stack=json \
-    --watch \
     --extended-errors hint,detail,errcode \
-    --owner-connection socket:/run/postgresql?db=flexiprocity&user=postgres \
     --export-schema-graphql schema.graphql \
     --graphiql / \
     --enhance-graphiql \
@@ -28,6 +26,9 @@ case "$1" in
     exit 1;;
 esac
 
+export PGUSER=api
+export PGDATABASE=flexiprocity
+
 npm exec \
     --package postgraphile \
     --package graphile-utils \
@@ -43,7 +44,7 @@ npm exec \
     --no-ignore-rbac \
     --enable-query-batching \
     --legacy-relations omit \
-    --connection "socket:/run/postgresql?db=flexiprocity&user=api" \
+    --connection socket:/run/postgresql \
     --jwt-secret "$(cat ../secrets/jwt/public-key.pem)" \
     --jwt-verify-algorithms RS256 \
     --jwt-verify-clock-tolerance 1 \
