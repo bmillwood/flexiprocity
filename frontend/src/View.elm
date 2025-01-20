@@ -660,22 +660,19 @@ viewGoogleLogin model =
     Model.LoggingOut -> []
     Model.Unknown -> [ button True "Checking login status..." ]
 
-viewLogin : Model -> { blueskyEnabled : Bool } -> List (Html Msg)
-viewLogin model { blueskyEnabled } =
-  if not model.facebookEnabled && not model.googleEnabled && not blueskyEnabled
-  then [ Html.p [] [ Html.text "No login methods available :(" ] ]
-  else
-    let
-      pIfEnabled cond l = if cond then [ Html.p [] l ] else []
-    in
-    [ pIfEnabled model.facebookEnabled (viewFacebookLogin model)
-    , pIfEnabled model.googleEnabled (viewGoogleLogin model)
-    , pIfEnabled blueskyEnabled (viewBlueskyLogin model)
-    , case model.apiLoggedIn of
-        Model.LoggedIn _ -> [ logoutButton { loggingOut = False } ]
-        Model.LoggingOut -> [ logoutButton { loggingOut = True } ]
-        _ -> []
-    ] |> List.concat
+viewLogin : Model -> List (Html Msg)
+viewLogin model =
+  let
+    pIfEnabled cond l = if cond then [ Html.p [] l ] else []
+  in
+  [ pIfEnabled model.facebookEnabled (viewFacebookLogin model)
+  , pIfEnabled model.googleEnabled (viewGoogleLogin model)
+  , [ Html.p [] (viewBlueskyLogin model) ]
+  , case model.apiLoggedIn of
+      Model.LoggedIn _ -> [ logoutButton { loggingOut = False } ]
+      Model.LoggingOut -> [ logoutButton { loggingOut = True } ]
+      _ -> []
+  ] |> List.concat
 
 viewAudienceControls : Model -> List (Html Msg)
 viewAudienceControls model =
@@ -806,7 +803,7 @@ viewRoot { customiseColumns } model =
           ]
       ]
   in
-  [ viewLogin model { blueskyEnabled = False }
+  [ viewLogin model
   , case model.apiLoggedIn of
       Model.LoggedIn { userId } ->
         case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
@@ -959,7 +956,7 @@ viewAccount model { deleteConfirmations } =
           ]
       ]
   in
-  [ viewLogin model { blueskyEnabled = False }
+  [ viewLogin model
   , [ Html.h2 [] [ Html.text "Delete your account" ]
     , Html.p [] [
         Html.text """
@@ -1068,8 +1065,10 @@ viewTest : Model -> List (Html Msg)
 viewTest model =
   [ Html.p []
       [ Html.text "Thanks for helping test new flexiprocity functionality!" ]
-  , Html.p [] [ Html.text "Today's is Bluesky login. Here's the login form:" ]
-  , Html.p [] (viewLogin model { blueskyEnabled = True })
+  , Html.p []
+      [ Html.text """I deployed the functionality I was testing before, so there's
+          nothing to test for now."""
+      ]
   ]
 
 
