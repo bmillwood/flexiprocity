@@ -178,6 +178,17 @@ bskyMutualsTask httpManager conn taskDid = do
         WHERE user_id = ? AND friend_id = ?
       |] $ map pairWithMe (Set.toList noLonger)
     putStrLn $ "Removed " <> show count <> " mutuals"
+  let
+    allChanged = Set.union newMutuals noLonger
+    toNotify
+      | Set.null allChanged = Set.empty
+      | otherwise = Set.insert taskUserId allChanged
+  results :: [SQL.Only ()] <- SQL.returning conn [QQ.sql|
+      WITH uids(user_id) AS (VALUES (?))
+      SELECT pg_notify('user:' || user_id, json_build_object('topic', 'friend')::text)
+      FROM uids
+    |] (map SQL.Only $ Set.toList toNotify)
+  putStrLn $ "Notified " <> show (length results) <> " users"
 
 fetchAndDoTasks :: HTTP.Manager -> SQL.Connection -> IO ()
 fetchAndDoTasks httpManager conn = do

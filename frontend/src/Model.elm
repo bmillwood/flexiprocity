@@ -185,6 +185,7 @@ type OneMsg
   | SetColumns (List WouldId)
   | EditProposedWould String
   | ChangeWoulds WouldUpdate
+  | RefreshProfiles
   | GotProfile Profile
   | EditBio String
   | SubmitBio
@@ -608,7 +609,10 @@ updateOne msg model =
             , Json.Encode.object
                 [ ( "query"
                   , [ profileFragment
-                    , "subscription S{userUpdate{profile{...F}}}"
+                    , "subscription S{update{"
+                    , "... on UserUpdate{profile{...F}}"
+                    , "... on FriendUpdate{unit}"
+                    , "}}"
                     ] |> String.concat >> Json.Encode.string
                   )
                 , ("operationName", Json.Encode.string "S")
@@ -619,14 +623,21 @@ updateOne msg model =
       )
     FromJS (Ports.FromWebsocket (Ports.Next { payload })) ->
       let
+        decodeUserUpdate =
+          Json.Decode.field "profile" decodeProfile
+          |> Json.Decode.map (List.singleton << GotProfile)
+        decodeFriendUpdate =
+          Json.Decode.field "unit"
+            (Json.Decode.succeed [RefreshProfiles])
         decodePayload =
-            Json.Decode.at ["data", "userUpdate", "profile"] decodeProfile
+            Json.Decode.oneOf [decodeUserUpdate, decodeFriendUpdate]
+            |> Json.Decode.at ["data", "update"]
       in
       ( model
       , Task.perform identity
         << Task.succeed
         <| case Json.Decode.decodeValue decodePayload payload of
-          Ok profile -> [GotProfile profile]
+          Ok msgs -> msgs
           Err error -> [AddError (Json.Decode.errorToString error)]
       )
     ConnectWebsocket -> (model, Ports.connectWebsocket)
@@ -810,6 +821,18 @@ updateOne msg model =
                 (Json.Decode.at ["query", "wouldStats", "nodes"] decodeWouldStats)
                 (Json.Decode.at ["would", "wouldId"] Json.Decode.string)
           }
+      )
+    RefreshProfiles ->
+      ( model
+      , case model.apiLoggedIn of
+          LoggedIn { userId } ->
+            getProfiles
+              { getMyAudiences = False
+              , getWoulds = False
+              , userId = userId
+              }
+              model
+          _ -> Cmd.none
       )
     GotProfile user ->
       let

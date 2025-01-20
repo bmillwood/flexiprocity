@@ -13,14 +13,35 @@ const userTopic = async (_args, context, _resolveInfo) => {
 
 module.exports = makeExtendSchemaPlugin(({ pgSql }) => ({
     typeDefs: gql`
+        type FriendUpdate {
+            unit: Unit
+        }
         type UserUpdate {
             profile: UserProfile
         }
+        union Update = FriendUpdate | UserUpdate
         extend type Subscription {
-            userUpdate: UserUpdate @pgSubscription(topic: ${embed(userTopic)})
+            update: Update @pgSubscription(topic: ${embed(userTopic)})
         }
     `,
     resolvers: {
+        Update: {
+            __resolveType(payload) {
+                switch(payload.topic) {
+                case 'user':
+                    return 'UserUpdate';
+                case 'friend':
+                    return 'FriendUpdate';
+                default:
+                    return null;
+                }
+            }
+        },
+        FriendUpdate: {
+            unit: async (_payload, _args, _context, _resolveInfo) => {
+                return null;
+            }
+        },
         UserUpdate: {
             profile: async (payload, args, context, resolveInfo) => {
                 const rows = await resolveInfo.graphile.selectGraphQLResultFromTable(

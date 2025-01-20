@@ -105,7 +105,7 @@ COMMENT ON COLUMN public.users.show_me
 CREATE OR REPLACE FUNCTION public.notify_user_channel() RETURNS TRIGGER
   LANGUAGE plpgsql SECURITY INVOKER VOLATILE PARALLEL UNSAFE
   AS $$BEGIN
-    PERFORM pg_notify('user:' || NEW.user_id, '{}');
+    PERFORM pg_notify('user:' || NEW.user_id, json_build_object('topic', 'user')::text);
     RETURN NEW;
   END$$;
 REVOKE EXECUTE ON FUNCTION notify_user_channel FROM public;
@@ -625,7 +625,12 @@ CREATE OR REPLACE FUNCTION public.request_my_bluesky_profile() RETURNS unit
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
   BEGIN ATOMIC
     INSERT INTO agent_tasks (task)
-    VALUES (jsonb_build_object('tag', 'BskyProfile', 'contents', get_bluesky_did()))
+    SELECT jsonb_build_object(
+        'tag', 'BskyProfile',
+        'contents', did
+      )
+    FROM get_bluesky_did() d(did)
+    WHERE did IS NOT NULL
     RETURNING 'unit'::unit;
   END;
 REVOKE EXECUTE ON FUNCTION request_my_bluesky_profile FROM public;
