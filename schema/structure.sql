@@ -621,30 +621,18 @@ CREATE OR REPLACE TRIGGER notify_agent_tasks AFTER INSERT ON agent_tasks
   FOR EACH ROW
   EXECUTE FUNCTION trigger_notify('agent', '');
 
-CREATE OR REPLACE FUNCTION public.request_my_bluesky_profile() RETURNS unit
+CREATE OR REPLACE FUNCTION public.request_my_bluesky_updates() RETURNS unit
   LANGUAGE sql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
   BEGIN ATOMIC
     INSERT INTO agent_tasks (task)
     SELECT jsonb_build_object(
-        'tag', 'BskyProfile',
-        'contents', did
+        'tag', t.tag,
+        'contents', bs.bluesky_did
       )
-    FROM get_bluesky_did() d(did)
-    WHERE did IS NOT NULL
+    FROM bluesky_login bs
+    , (VALUES ('BskyProfile'), ('BskyMutuals')) t(tag)
+    WHERE bs.user_id = current_user_id()
     RETURNING 'unit'::unit;
   END;
-REVOKE EXECUTE ON FUNCTION request_my_bluesky_profile FROM public;
-GRANT  EXECUTE ON FUNCTION request_my_bluesky_profile TO api;
-
-CREATE OR REPLACE FUNCTION public.new_bluesky_login() RETURNS TRIGGER
-  LANGUAGE plpgsql SECURITY INVOKER VOLATILE PARALLEL UNSAFE
-  AS $$BEGIN
-    INSERT INTO agent_tasks (task)
-    VALUES (jsonb_build_object('tag', 'BskyMutuals', 'contents', NEW.bluesky_did));
-    RETURN NEW;
-  END$$;
-REVOKE EXECUTE ON FUNCTION new_bluesky_login FROM public;
-
-CREATE OR REPLACE TRIGGER new_bluesky_login AFTER INSERT ON bluesky_login
-  FOR EACH ROW
-  EXECUTE FUNCTION new_bluesky_login();
+REVOKE EXECUTE ON FUNCTION request_my_bluesky_updates FROM public;
+GRANT  EXECUTE ON FUNCTION request_my_bluesky_updates TO api;

@@ -694,6 +694,13 @@ updateOne msg model =
     ApiLoginResult newState ->
       let
         newModel = { model | apiLoggedIn = newState }
+        bskyUpdates =
+          graphQL
+            { query = "mutation M{requestMyBlueskyUpdates(input:{}){unit}}"
+            , operationName = "M"
+            , variables = []
+            , decodeResult = Json.Decode.field "data" (Json.Decode.succeed [])
+            }
       in
       case newState of
         LoggedIn { userId } ->
@@ -702,6 +709,7 @@ updateOne msg model =
               [ getProfiles
                   { getMyAudiences = True, getWoulds = True, userId = userId }
                   newModel
+              , bskyUpdates
               , sendFriends newModel
               , Ports.connectWebsocket
               ]
@@ -860,15 +868,7 @@ updateOne msg model =
         , youWouldChange = Dict.update user.userId redundantChange model.youWouldChange
         , myBio = if isMe user.userId then user.bio else model.myBio
         }
-      , if isMe user.userId && not (List.isEmpty user.blueskyHandles)
-        then
-          graphQL
-            { query = "mutation M{requestMyBlueskyProfile(input:{}){unit}}"
-            , operationName = "M"
-            , variables = []
-            , decodeResult = Json.Decode.field "data" (Json.Decode.succeed [])
-            }
-        else Cmd.none
+      , Cmd.none
       )
     EditBio bio -> ({ model | myBio = bio }, Cmd.none)
     SubmitBio ->
