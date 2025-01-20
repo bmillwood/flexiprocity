@@ -239,25 +239,29 @@ onUrlChange : Url -> Msg
 onUrlChange url = [SetPage (parseUrl url)]
 
 init
-  : { latestPrivacyPolicy : Maybe String, facebookEnabled : Bool, googleEnabled : Bool }
+  : { latestPrivacyPolicy : Maybe String
+    , facebookEnabled : Bool
+    , googleEnabled : Bool
+    , blueskyLoginHandle : Maybe String
+    }
   -> Url -> Nav.Key -> (Model, Cmd Msg)
-init { latestPrivacyPolicy, facebookEnabled, googleEnabled } url navKey =
+init flags url navKey =
   let
     initPage = parseUrl url
   in
   ( { errors = []
     , nextErrorId = 0
     , navKey = navKey
-    , latestPrivacyPolicy = latestPrivacyPolicy
+    , latestPrivacyPolicy = flags.latestPrivacyPolicy
     , myPrivacyPolicy = Nothing
     , page = initPage
     , apiLoggedIn = Unknown
-    , facebookEnabled = facebookEnabled
+    , facebookEnabled = flags.facebookEnabled
     , facebookLoggedIn = Unknown
     , facebookUsers = Dict.empty
     , facebookFriends = Nothing
-    , googleEnabled = googleEnabled
-    , blueskyLoginHandle = ""
+    , googleEnabled = flags.googleEnabled
+    , blueskyLoginHandle = flags.blueskyLoginHandle |> Maybe.withDefault ""
     , profiles = Dict.empty
     , wouldsById = Dict.empty
     , columns = []
@@ -694,22 +698,28 @@ updateOne msg model =
     ApiLoginResult newState ->
       let
         newModel = { model | apiLoggedIn = newState }
-        bskyUpdates =
-          graphQL
-            { query = "mutation M{requestMyBlueskyUpdates(input:{}){unit}}"
-            , operationName = "M"
-            , variables = []
-            , decodeResult = Json.Decode.field "data" (Json.Decode.succeed [])
-            }
+        bskyUpdates { blueskyHandle } =
+          case blueskyHandle of
+            Nothing -> Cmd.none
+            Just h ->
+              Cmd.batch
+                [ graphQL
+                    { query = "mutation M{requestMyBlueskyUpdates(input:{}){unit}}"
+                    , operationName = "M"
+                    , variables = []
+                    , decodeResult = Json.Decode.field "data" (Json.Decode.succeed [])
+                    }
+                , Ports.storeBlueskyLoginHandle h
+                ]
       in
       case newState of
-        LoggedIn { userId } ->
+        LoggedIn { blueskyHandle, userId } ->
           ( newModel
           , Cmd.batch
               [ getProfiles
                   { getMyAudiences = True, getWoulds = True, userId = userId }
                   newModel
-              , bskyUpdates
+              , bskyUpdates { blueskyHandle = blueskyHandle }
               , sendFriends newModel
               , Ports.connectWebsocket
               ]

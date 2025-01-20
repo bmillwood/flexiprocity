@@ -35,7 +35,8 @@ const app = Elm.Main.init({
     flags: {
         latestPrivacyPolicy,
         facebookEnabled,
-        googleEnabled: true
+        googleEnabled: true,
+        blueskyLoginHandle: localStorage.getItem("blueskyLoginHandle")
     }
 });
 app.ports.sendToJS.subscribe(function(request) {
@@ -113,5 +114,7 @@ app.ports.sendToJS.subscribe(function(request) {
     case 'disconnect-websocket':
         websocket.close(1000, "frontend requested");
         break;
+    case 'local-store':
+        localStorage.setItem(request.key, request.value);
     }
 });

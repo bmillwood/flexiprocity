@@ -27,6 +27,15 @@ sendWebsocket message =
     ]
   |> sendToJS
 
+storeBlueskyLoginHandle : String -> Cmd msg
+storeBlueskyLoginHandle h =
+  Json.Encode.object
+    [ ("kind", Json.Encode.string "local-store")
+    , ("key", Json.Encode.string "blueskyLoginHandle")
+    , ("value", Json.Encode.string h)
+    ]
+  |> sendToJS
+
 facebookLogin : Cmd msg
 facebookLogin =
   Json.Encode.object [ ("kind", Json.Encode.string "facebook-login") ]
