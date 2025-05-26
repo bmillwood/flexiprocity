@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        ghc-version: ['9.6']
+        ghc-version: ['9.8']
     defaults:
       run:
         shell: bash -euo pipefail {0}
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up GHC ${{ matrix.ghc-version }}
-        uses: haskell-actions/setup@v2.7.5
+        uses: haskell-actions/setup@v2.8.0
         id: setup
         with:
           ghc-version: ${{ matrix.ghc-version }}
@@ -42,6 +42,10 @@ jobs:
       - name: Check cabal file for auth-server
         run: cabal check
         working-directory: auth-server
+
+      - name: Check cabal file for agent
+        run: cabal check
+        working-directory: agent
 
       - name: Configure the build
         run: |
@@ -78,12 +82,3 @@ jobs:
 
       - name: Run tests
         run: cabal test all
-
-      - name: Get binaries
-        run: cabal install all --installdir=haskell-bin
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@v4.3.4
-        with:
-          name: haskell-bin
-          path: haskell-bin
