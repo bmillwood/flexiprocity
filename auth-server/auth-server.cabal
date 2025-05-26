@@ -51,10 +51,10 @@ library
   build-depends:
     aeson >= 2.1 && < 2.3,
     async ^>= 2.2,
-    base >= 4.16.4.0 && < 4.19,
+    base >= 4.16.4.0 && < 4.22,
     bluesky-tools ^>= 0.6,
     bytestring >=0.11.4.0 && < 0.13,
-    containers >=0.6.5.1 && < 0.8,
+    containers >=0.6.5.1 && < 0.9,
     cookie >=0.4 && <0.6,
     crypton >=0.30 && < 1.1,
     crypton-x509 ^>= 1.7,
@@ -69,9 +69,9 @@ library
     mtl >=2.2 && <2.4,
     network-uri ^>= 2.6,
     oidc-client ^>= 0.8,
-    random ^>=1.2,
+    random >=1.2 && <1.4,
     raven-haskell ^>=0.1,
-    req ^>=3.13.0,
+    req >=3.13.4 && <3.14,
     servant >=0.19.1 && <0.21,
     servant-server >=0.19.1 && <0.21,
     text >=1.2.5.0 && < 2.2,
@@ -89,5 +89,5 @@ executable auth-server
   -- other-extensions:
   build-depends:
     auth-server,
-    base >= 4.16.4.0 && < 4.19,
+    base >= 4.16.4.0 && < 4.22,
   hs-source-dirs:   app
