@@ -43,10 +43,6 @@ jobs:
         run: cabal check
         working-directory: auth-server
 
-      - name: Check cabal file for meddler
-        run: cabal check
-        working-directory: meddler
-
       - name: Configure the build
         run: |
           cabal configure --enable-tests --enable-benchmarks --disable-documentation
