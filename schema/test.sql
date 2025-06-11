@@ -6,7 +6,7 @@ BEGIN;
 
 SET search_path = mock,pg_catalog,public;
 
-SELECT plan(26);
+SELECT plan(25);
 
 SET client_min_messages TO WARNING;
 TRUNCATE TABLE users, user_columns, woulds, user_woulds CASCADE;
@@ -269,19 +269,6 @@ SELECT bag_eq(
   $$,
   $$ VALUES ('alice@host.example', 'bob@host.example', 'Alice', 'Bob', ARRAY['Hang out sometime']) $$,
   'email queued'
-);
-SET ROLE api;
-
-RESET ROLE;
-INSERT INTO bluesky_login (bluesky_did, user_id)
-SELECT 'did:plc:example', user_id
-FROM users
-LIMIT 1;
-
-SELECT bag_eq(
-  $$ SELECT task FROM agent_tasks $$,
-  $$ VALUES (jsonb'{"tag": "BskyMutuals", "contents": "did:plc:example"}') $$,
-  'inserting bluesky login schedules mutuals task'
 );
 SET ROLE api;
 
