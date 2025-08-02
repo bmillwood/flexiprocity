@@ -79,13 +79,18 @@ makeClaims method uri nonce = do
   now <- Time.getCurrentTime
   let
     roundedNow = now{ Time.utctDayTime = fromInteger $ round (Time.utctDayTime now) }
+    htu =
+      -- https://datatracker.ietf.org/doc/html/rfc9449#section-4.2-4.6
+      -- "htu: The HTTP target URI [...] without query and fragment parts
+      URI.uriToString id uri{ URI.uriQuery = "", URI.uriFragment = "" } ""
+      & Text.pack
   pure $ DPoPClaims
     { jwtClaims =
         JWT.emptyClaimsSet
         & JWT.claimJti ?~ jti
         & JWT.claimIat ?~ JWT.NumericDate roundedNow
     , htm = Text.decodeASCII method
-    , htu = Text.pack (URI.uriToString id uri "")
+    , htu
     , nonce
     }
 
