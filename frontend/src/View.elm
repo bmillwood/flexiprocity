@@ -806,14 +806,13 @@ viewRoot { customiseColumns } model =
   [ viewLogin model
   , case model.apiLoggedIn of
       Model.LoggedIn { userId } ->
-        case (model.latestPrivacyPolicy, model.myPrivacyPolicy) of
-          (Nothing, _) -> normalPage { userId = userId }
-          (Just _, Nothing) ->
+        case model.myPrivacyPolicy of
+          Nothing ->
             [ privacyPrompt "I think you're new here, so you'll need to agree to the privacy policy."
             , whatIsReciprocity
             ] |> List.concat
-          (Just latestVersion, Just myVersion) ->
-            if latestVersion == myVersion
+          Just myVersion ->
+            if PrivacyPolicy.version == myVersion
             then normalPage { userId = userId }
             else
               privacyPrompt "Looks like the privacy policy has been updated since you agreed to it."
@@ -824,20 +823,20 @@ viewPrivacy : Model -> List (Html Msg)
 viewPrivacy model =
   let
     updatePrivacy =
-      case (model.apiLoggedIn, model.latestPrivacyPolicy) of
-        (Model.LoggedIn _, Just latestVersion) ->
+      case model.apiLoggedIn of
+        Model.LoggedIn _ ->
           let
             agreeButton text =
               Html.p
                 []
                 [ Html.button
-                    [ Events.onClick [Model.AgreeToPrivacyPolicy { version = latestVersion }] ]
+                    [ Events.onClick [Model.AgreeToPrivacyPolicy { version = PrivacyPolicy.version }] ]
                     [ Html.text text ]
                 ]
             needsButton =
               case model.myPrivacyPolicy of
                 Nothing -> True
-                Just myVersion -> latestVersion /= myVersion
+                Just myVersion -> PrivacyPolicy.version /= myVersion
           in
           case model.myPrivacyPolicy of
             Nothing ->
@@ -845,12 +844,12 @@ viewPrivacy model =
               , agreeButton "Agree"
               ]
             Just myVersion ->
-              if latestVersion == myVersion
+              if PrivacyPolicy.version == myVersion
               then []
               else
                 [ Html.p []
                     [ Html.text "You have agreed to an older privacy policy (latest is "
-                    , Html.text latestVersion
+                    , Html.text PrivacyPolicy.version
                     , Html.text ", you have "
                     , Html.text myVersion
                     , Html.text "). I haven't yet worked out how to conveniently show you the changes, but maybe you will find the "
@@ -863,7 +862,7 @@ viewPrivacy model =
                 ]
         _ -> []
   in
-  updatePrivacy ++ PrivacyPolicy.viewPrivacyPolicy
+  updatePrivacy ++ PrivacyPolicy.view
 
 viewUnsubscribe
   : Model -> { r | requestUnsubAddress : String, success : Bool } -> List (Html Msg)

@@ -35,6 +35,11 @@
         version = "1.0.0";
       };
 
+      "ktonon/elm-crypto" = {
+        sha256 = "14qs4ggg7w18pmarbjnwicb11zwl6k7h2yz5nspazwhhrnmjrn9w";
+        version = "1.1.2";
+      };
+
       "elm/bytes" = {
         sha256 = "02ywbf52akvxclpxwj9n04jydajcbsbcbsnjs53yjc5lwck3abwj";
         version = "1.0.8";
@@ -63,6 +68,11 @@
       "elm/virtual-dom" = {
         sha256 = "1yvb8px2z62xd578ag2q0r5hd1vkz9y7dfkx05355iiy1d7jwq4v";
         version = "1.0.3";
+      };
+
+      "ktonon/elm-word" = {
+        sha256 = "055rs4aacvhl4m25lj70wlk71f4yinwgd74wa4nx36mpj2m743b6";
+        version = "2.1.2";
       };
 
       "rtfeldman/elm-hex" = {

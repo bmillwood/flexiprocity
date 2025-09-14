@@ -137,7 +137,6 @@ type alias Model =
   { errors : List { id: Int, msg : String }
   , nextErrorId : Int
   , navKey : Nav.Key
-  , latestPrivacyPolicy : Maybe String
   , myPrivacyPolicy : Maybe String
   , page : Page
   , apiLoggedIn : ApiLoginStatus
@@ -239,8 +238,7 @@ onUrlChange : Url -> Msg
 onUrlChange url = [SetPage (parseUrl url)]
 
 init
-  : { latestPrivacyPolicy : Maybe String
-    , facebookEnabled : Bool
+  : { facebookEnabled : Bool
     , googleEnabled : Bool
     , blueskyLoginHandle : Maybe String
     }
@@ -252,7 +250,6 @@ init flags url navKey =
   ( { errors = []
     , nextErrorId = 0
     , navKey = navKey
-    , latestPrivacyPolicy = flags.latestPrivacyPolicy
     , myPrivacyPolicy = Nothing
     , page = initPage
     , apiLoggedIn = Unknown

@@ -33,7 +33,6 @@ var websocket;
 
 const app = Elm.Main.init({
     flags: {
-        latestPrivacyPolicy,
         facebookEnabled,
         googleEnabled: true,
         blueskyLoginHandle: localStorage.getItem("blueskyLoginHandle")

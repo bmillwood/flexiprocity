@@ -1,12 +1,16 @@
-module PrivacyPolicy exposing (viewPrivacyPolicy)
+module PrivacyPolicy exposing (version, view)
 
+import Crypto.Hash
 import Html exposing (Html)
 import Html.Attributes as Attributes
 import Markdown.Parser
 import Markdown.Renderer
 
-privacyPolicyMarkdown : String
-privacyPolicyMarkdown = """
+version : String
+version = Crypto.Hash.sha256 markdown |> String.left 16
+
+markdown : String
+markdown = """
 ## Privacy policy
 
 Below are detailed the kinds of data collected for the app,
@@ -89,13 +93,13 @@ to leave at least 6 months since a policy was obsoleted before I delete accounts
 relating to it, but if necessary I can delete any account at any time.
 """
 
-viewPrivacyPolicy : List (Html msg)
-viewPrivacyPolicy =
+view : List (Html msg)
+view =
   case
-    privacyPolicyMarkdown
+    markdown
     |> Markdown.Parser.parse
     |> Result.mapError (String.join "\n" << List.map Markdown.Parser.deadEndToString)
     |> Result.andThen (Markdown.Renderer.render Markdown.Renderer.defaultHtmlRenderer)
   of
     Ok rendered -> rendered
-    Err errors -> [ Html.pre [] [ Html.text privacyPolicyMarkdown ] ]
+    Err errors -> [ Html.pre [] [ Html.text markdown ] ]
