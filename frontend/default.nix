@@ -26,7 +26,7 @@ stdenvNoCC.mkDerivation {
     pkgs.git
   ];
   configurePhase = pkgs.elmPackages.fetchElmDeps {
-    # generate with `elm2nix --convert`
+    # generate with `elm2nix convert`
     elmPackages = import ./elm-srcs.nix;
     elmVersion = "0.19.1";
     registryDat = ./registry.dat;

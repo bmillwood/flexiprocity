@@ -1,5 +1,10 @@
 {
 
+      "dillonkearns/elm-markdown" = {
+        sha256 = "0gmajcqih4fam4ydjkc10lz4sh9rig1vq2k1jz748jijwngbbhha";
+        version = "7.0.1";
+      };
+
       "elm/browser" = {
         sha256 = "0nagb9ajacxbbg985r4k9h0jadqpp0gp84nm94kcgbr5sf8i9x13";
         version = "1.0.2";
@@ -40,6 +45,16 @@
         version = "1.0.5";
       };
 
+      "elm/parser" = {
+        sha256 = "0a3cxrvbm7mwg9ykynhp7vjid58zsw03r63qxipxp3z09qks7512";
+        version = "1.1.0";
+      };
+
+      "elm/regex" = {
+        sha256 = "0lijsp50w7n1n57mjg6clpn9phly8vvs07h0qh2rqcs0f1jqvsa2";
+        version = "1.0.0";
+      };
+
       "elm/time" = {
         sha256 = "0vch7i86vn0x8b850w1p69vplll1bnbkp8s383z7pinyg94cm2z1";
         version = "1.0.0";
@@ -48,6 +63,11 @@
       "elm/virtual-dom" = {
         sha256 = "1yvb8px2z62xd578ag2q0r5hd1vkz9y7dfkx05355iiy1d7jwq4v";
         version = "1.0.3";
+      };
+
+      "rtfeldman/elm-hex" = {
+        sha256 = "1y0aa16asvwdqmgbskh5iba6psp43lkcjjw9mgzj3gsrg33lp00d";
+        version = "1.0.0";
       };
 
       "elm-explorations/test" = {
