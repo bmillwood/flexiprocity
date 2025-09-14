@@ -3,9 +3,7 @@ let
   cfg = config.services.flexiprocity;
   agent = pkgs.callPackage ./agent {};
   authServer = pkgs.callPackage ./auth-server {};
-  frontend = pkgs.callPackage ./frontend {
-    inherit (cfg) gitRoot flexiprocitySubmodule;
-  };
+  frontend = pkgs.callPackage ./frontend {};
   inherit (lib) mkIf mkMerge mkOption types;
 in
 {
@@ -29,14 +27,6 @@ in
       sentry.loaderUrl = mkOption {
         type = types.nullOr types.str;
         default = null;
-      };
-
-      # see frontend for why we need these two
-      gitRoot = mkOption {
-        type = types.path;
-      };
-      flexiprocitySubmodule = mkOption {
-        type = types.str;
       };
     };
   };
