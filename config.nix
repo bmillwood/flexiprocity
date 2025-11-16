@@ -33,16 +33,17 @@ in
 
   config = mkIf cfg.enable {
     systemd.services = {
-      agent = {
+      flexiprocity-agent = {
         description = "flexiprocity agent process";
-        wants = [ "postgresql.service" ];
+        requires = [ "postgresql.service" ];
+        after = [ "postgresql.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
           User = "api";
           ExecStart = "${agent}/bin/flexiprocity-agent";
         };
       };
-      authServer = {
+      flexiprocity-auth-server = {
         description = "flexiprocity auth server";
         after = [ "network.target" ];
         wantedBy = [ "multi-user.target" ];
