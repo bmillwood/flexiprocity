@@ -69,8 +69,7 @@ in
       path = with pkgs; [
         # I don't know why it needs bash
         bash
-        nodePackages.nodejs
-        nodePackages.npm
+        nodejs
       ];
       script = lib.concatStringsSep "\n" [
         # since we want to create this directory, WorkingDirectory isn't useful
