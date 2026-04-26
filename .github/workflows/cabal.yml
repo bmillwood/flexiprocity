@@ -2,7 +2,10 @@ name: Build Haskell binaries
 on:
   push:
     branches:
-      - build
+      - main
+  pull_request:
+    paths:
+      - .github/workflows/cabal.yml
 
 # Below copies significantly from
 # https://github.com/haskell-actions/setup/blob/v2.6.2/README.md
