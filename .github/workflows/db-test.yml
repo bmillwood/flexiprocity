@@ -13,7 +13,7 @@ jobs:
     services:
       # https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers
       postgres:
-        image: postgres:16@sha256:71e27bf60b70bded003791b5573f8b808365613f341df20ffcf0c1ed7bc13ddf
+        image: ghcr.io/bmillwood/flexiprocity/postgres-pgtap:16
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
@@ -29,5 +29,5 @@ jobs:
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - run: ./apply.sh
+      - run: ./test.sh
         working-directory: schema
