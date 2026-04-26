@@ -29,13 +29,9 @@ esac
 export PGUSER=api
 export PGDATABASE=flexiprocity
 
-npm exec \
-    --package postgraphile \
-    --package graphile-utils \
-    --package @graphile/pg-pubsub \
-    --package @graphile-contrib/pg-simplify-inflector \
-    -- \
-    postgraphile \
+npm install
+
+npm exec -- postgraphile \
     --plugins @graphile/pg-pubsub \
     --append-plugins @graphile-contrib/pg-simplify-inflector,"$PWD/subscriptions.js" \
     --subscriptions \
