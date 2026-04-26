@@ -7,6 +7,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
     services:
       # https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers
       postgres:
