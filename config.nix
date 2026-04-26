@@ -35,8 +35,8 @@ in
     systemd.services = {
       flexiprocity-agent = {
         description = "flexiprocity agent process";
-        requires = [ "postgresql.service" ];
-        after = [ "postgresql.service" ];
+        requires = [ "postgresql.target" ];
+        after = [ "postgresql.target" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
           User = "api";

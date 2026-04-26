@@ -64,7 +64,8 @@ in
         ] ++ (if cfg.postgraphileDevMode then devFlags else prodFlags);
       in {
       description = "flexiprocity postgraphile";
-      after = [ "postgresql.service" ];
+      requires = [ "postgresql.target" ];
+      after = [ "postgresql.target" ];
       wantedBy = [ "multi-user.target" ];
       path = with pkgs; [
         # I don't know why it needs bash

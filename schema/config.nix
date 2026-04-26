@@ -39,8 +39,9 @@ in
         '';
       };
       # I'd normally put --single-transaction on this psql, but you can't create databases
-      # inside a transaction
-      systemd.services.postgresql.postStart = lib.mkAfter ''
+      # inside a transaction.
+      # Hook into postgresql-setup, not postgresql, so that ensureUsers has run first.
+      systemd.services.postgresql-setup.postStart = lib.mkAfter ''
         psql --tuples-only --no-align -v ON_ERROR_STOP=1 <<EOF
           SELECT NOT EXISTS (SELECT 1 FROM pg_catalog.pg_database WHERE datname = 'flexiprocity') AS need_db
           \gset
