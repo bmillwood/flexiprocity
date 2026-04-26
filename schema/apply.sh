@@ -19,5 +19,10 @@ EOF
   echo "GRANT CONNECT ON DATABASE :DBNAME TO $role;"
 done | psql -v ON_ERROR_STOP=on
 
-psql -v ON_ERROR_STOP=on \
-  -f structure.sql -f ../secrets/seeds.sql
+psql -v ON_ERROR_STOP=on -f structure.sql
+
+for extra in ../secrets/seeds.sql
+do
+  [ -r "$extra" ] || continue
+  psql -v ON_ERROR_STOP=on -f "$extra"
+done
