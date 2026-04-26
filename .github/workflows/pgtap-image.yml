@@ -42,6 +42,10 @@ jobs:
           context: .
           file: ci/postgres-pgtap.Dockerfile
           tags: ghcr.io/${{ github.repository }}/postgres-pgtap:16
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
           push: ${{ github.event_name != 'pull_request' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
