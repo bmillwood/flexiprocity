@@ -31,7 +31,7 @@ pkgs.testers.nixosTest {
 
   testScript = ''
     machine.wait_for_unit("multi-user.target")
-    machine.wait_for_unit("postgresql.service")
+    machine.wait_for_unit("postgresql.target")
     machine.wait_for_unit("nginx.service")
     machine.wait_for_open_port(80)
 
