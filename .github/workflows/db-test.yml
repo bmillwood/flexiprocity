@@ -5,7 +5,9 @@ on:
   pull_request:
     paths:
       - .github/workflows/db-test.yml
-      - schema/**
+      - schema/test.sh
+      - schema/create-users.sh
+      - schema/**.sql
 
 jobs:
   test:
