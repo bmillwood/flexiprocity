@@ -6,14 +6,11 @@ on:
       - main
     paths:
       - ci/postgres-pgtap.Dockerfile
-      - .github/workflows/postgres-image.yml
+      - .github/workflows/pgtap-image.yml
   pull_request:
     paths:
       - ci/postgres-pgtap.Dockerfile
-      - .github/workflows/postgres-image.yml
-  # Pick up base-image security updates even when nothing in this repo changes.
-  schedule:
-    - cron: '0 6 * * 1'
+      - .github/workflows/pgtap-image.yml
   workflow_dispatch:
 
 concurrency:
