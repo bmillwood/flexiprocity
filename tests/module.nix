@@ -21,10 +21,10 @@ pkgs.testers.nixosTest {
     # that the test sandbox doesn't have. Skip it here.
     systemd.services.postgraphile.enable = lib.mkForce false;
 
-    # auth-server expects this directory; create an empty stand-in.
-    systemd.tmpfiles.rules = [
-      "d /home/api/secrets 0700 api api -"
-    ];
+    # auth-server's whole job is talking to external identity providers,
+    # and it reads several secret files (RSA key, client secrets) at
+    # startup. Not much we can usefully test in a sealed VM.
+    systemd.services.flexiprocity-auth-server.enable = lib.mkForce false;
 
     networking.hosts."127.0.0.1" = [ "flexiprocity.test" ];
   };
@@ -32,6 +32,7 @@ pkgs.testers.nixosTest {
   testScript = ''
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("postgresql.target")
+    machine.wait_for_unit("flexiprocity-agent.service")
     machine.wait_for_unit("nginx.service")
     machine.wait_for_open_port(80)
 
