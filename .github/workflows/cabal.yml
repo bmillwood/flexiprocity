@@ -1,4 +1,3 @@
-name: Build Haskell binaries
 on:
   push:
     branches:
@@ -18,13 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build on GHC ${{ matrix.ghc-version }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  build-and-test:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
         ghc-version: ['9.8']
     defaults:
       run:
@@ -80,8 +77,6 @@ jobs:
           path: ${{ steps.setup.outputs.cabal-store }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      - name: Build
-        run: cabal build all
+      - run: cabal build all
 
-      - name: Run tests
-        run: cabal test all
+      - run: cabal test all

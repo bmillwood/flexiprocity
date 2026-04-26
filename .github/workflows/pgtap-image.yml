@@ -1,5 +1,3 @@
-name: Build postgres-pgtap image
-
 on:
   push:
     branches:
