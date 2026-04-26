@@ -23,6 +23,9 @@ in
     {
       services.postgresql = {
         enable = true;
+        # It's not ideal that we duplicate knowledge of the user list here. But
+        # we need to know about it anyway in order to construct the identMap,
+        # so we wouldn't win much by deferring to create-users.sh (or whatever)
         ensureUsers = [
           { name = "agent"; ensureClauses.login = true; }
           { name = "api"; ensureClauses.login = true; }
