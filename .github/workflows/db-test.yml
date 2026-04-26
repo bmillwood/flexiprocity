@@ -10,7 +10,7 @@ on:
       - schema/**.sql
 
 jobs:
-  test:
+  pgtap:
     runs-on: ubuntu-latest
     defaults:
       run:

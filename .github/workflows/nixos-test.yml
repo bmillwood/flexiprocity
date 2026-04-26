@@ -15,7 +15,7 @@ on:
       - frontend/**
 
 jobs:
-  test:
+  nixos-test:
     runs-on: ubuntu-latest
     defaults:
       run:

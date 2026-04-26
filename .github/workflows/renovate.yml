@@ -9,7 +9,7 @@ on:
     - .github/workflows/renovate.yml
 
 jobs:
-  upgrade:
+  renovate:
     name: Upgrade dependencies
     runs-on: ubuntu-latest
     env:
