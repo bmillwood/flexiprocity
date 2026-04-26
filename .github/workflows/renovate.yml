@@ -1,0 +1,37 @@
+name: Upgrade dependencies
+on:
+  schedule:
+  - cron: "30 17 * * 5" # Friday afternoon
+  workflow_dispatch:
+  pull_request:
+    paths:
+    - .github/renovate.json
+    - .github/workflows/renovate.yml
+
+jobs:
+  upgrade:
+    name: Upgrade dependencies
+    runs-on: ubuntu-latest
+    env:
+      RENOVATE_DRY_RUN: ${{ github.event_name == 'pull_request' }}
+      RENOVATE_ONBOARDING: false
+      RENOVATE_REPOSITORIES: ${{ github.repository }}
+      LOG_LEVEL: debug
+    steps:
+    - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+      id: app-token
+      with:
+        client-id: ${{ secrets.RENOVATE_APP_CLIENT_ID }}
+        private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+        permission-contents: write
+        permission-issues: write
+        permission-workflows: write
+        # When run from a PR, it should be in dry-run mode, so shouldn't create PRs.
+        # But if it did, it's not too hard to imagine a PR creation loop. So
+        # let's add another layer of protection.
+        permission-pull-requests: "${{ github.event_name == 'pull_request' && 'read' || 'write' }}"
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+    - uses: renovatebot/github-action@83ec54fee49ab67d9cd201084c1ff325b4b462e4 # v46.1.10
+      with:
+        renovate-version: 43.141.4 # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+        token: ${{ steps.app-token.outputs.token }}
