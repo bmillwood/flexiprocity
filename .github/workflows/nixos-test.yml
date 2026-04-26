@@ -1,4 +1,3 @@
-name: NixOS module test
 on:
   push:
     branches:
@@ -29,5 +28,4 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build NixOS module test
-        run: nix-build tests/module.nix --no-out-link
+      - run: nix-build tests/module.nix --no-out-link
