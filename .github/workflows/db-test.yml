@@ -16,7 +16,7 @@ jobs:
     services:
       # https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers
       postgres:
-        image: ghcr.io/bmillwood/flexiprocity/postgres-pgtap:16
+        image: ghcr.io/bmillwood/flexiprocity/postgres-pgtap:16@sha256:80c8759576ba08d966707fd34d0cc030e0ec3c3ce5545b6d6f41f11e49723964
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
