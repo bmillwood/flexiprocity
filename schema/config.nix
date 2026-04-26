@@ -26,13 +26,11 @@ in
         ensureUsers = [
           { name = "agent"; ensureClauses.login = true; }
           { name = "api"; ensureClauses.login = true; }
-          { name = "inbox"; ensureClauses.login = true; }
           { name = "meddler"; ensureClauses.login = true; }
         ];
         identMap = ''
           local api agent
           local api api
-          local api inbox
           local api meddler
           local postgres postgres
         '';
@@ -48,7 +46,7 @@ in
           \gset
           \if :need_db
             CREATE DATABASE flexiprocity;
-            GRANT CONNECT ON DATABASE flexiprocity TO agent, api, inbox, meddler;
+            GRANT CONNECT ON DATABASE flexiprocity TO agent, api, meddler;
             \c flexiprocity
             \i ${./structure.sql}
           \endif

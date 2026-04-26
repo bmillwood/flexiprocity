@@ -6,5 +6,5 @@ export PGDATABASE=${PGDATABASE:-flexiprocity}
 dropdb "$PGDATABASE" || true
 createdb "$PGDATABASE"
 psql -v ON_ERROR_STOP=on \
-     -c "GRANT CONNECT ON DATABASE flexiprocity TO api, inbox, meddler" \
+     -c "GRANT CONNECT ON DATABASE flexiprocity TO api, meddler" \
      -f structure.sql -f ../secrets/seeds.sql

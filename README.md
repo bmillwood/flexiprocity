@@ -59,12 +59,12 @@ compatible.
 
 Create `secrets/seeds.sql`. You can leave it blank for now.
 
-Create the local users `api`, `inbox`, and `meddler`. I set them up to be able
-to log in via unix socket only, using peer authentication and
+Create the local users `api` `and `meddler`. I set them up to be able to log in
+via unix socket only, using peer authentication and
 [`pg_ident.conf`](https://www.postgresql.org/docs/current/auth-username-maps.html)
 so I can run everything as my local user. You may be able to get password
-authentication working with judicious application of the appropriate environment
-variables, but that's up to you for now.
+authentication working with judicious application of the appropriate
+environment variables, but that's up to you for now.
 
 Run `schema/apply.sh` as the superuser (set the `PGUSER` environment variable if
 the superuser is not `postgres`).
