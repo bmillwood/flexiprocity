@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up GHC ${{ matrix.ghc-version }}
-        uses: haskell-actions/setup@96f3dafd067155f32643c2a0757ab71d2910e2c2 # v2.8.0
+        uses: haskell-actions/setup@cd0d9bdd65b20557f41bea4dbe43d0b5fbbfe553 # v2.11
         id: setup
         with:
           ghc-version: ${{ matrix.ghc-version }}
