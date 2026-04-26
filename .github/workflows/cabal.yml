@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc-version: ['9.8']
+        ghc-version: ['9.10']
     defaults:
       run:
         shell: bash -euo pipefail {0}
