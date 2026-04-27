@@ -33,6 +33,23 @@ in
 
   config = mkIf cfg.enable {
     systemd.services = {
+      flexiprocity-jwt-keys = {
+        description = "Generate JWT signing keypair for flexiprocity";
+        wantedBy = [ "multi-user.target" ];
+        unitConfig.ConditionPathExists = "!/home/api/secrets/jwt/private-key.pem";
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          User = "api";
+        };
+        path = [ pkgs.openssl ];
+        script = ''
+          mkdir -p /home/api/secrets/jwt
+          cd /home/api/secrets/jwt
+          openssl genrsa -out private-key.pem 3072
+          openssl rsa -in private-key.pem -pubout -out public-key.pem
+        '';
+      };
       flexiprocity-agent = {
         description = "flexiprocity agent process";
         requires = [ "postgresql.target" ];
@@ -45,11 +62,14 @@ in
       };
       flexiprocity-auth-server = {
         description = "flexiprocity auth server";
-        after = [ "network.target" ];
+        requires = [ "flexiprocity-jwt-keys.service" ];
+        after = [ "network.target" "flexiprocity-jwt-keys.service" ];
         wantedBy = [ "multi-user.target" ];
         environment = mkMerge [
           {
-            # Currently this dir has to be set up manually, which is a shame
+            # JWT keys under jwt/ are auto-generated; other files in
+            # this dir (Google client secret, Friendica instances list,
+            # etc.) are still set up manually.
             SECRETS_DIR = "/home/api/secrets";
           }
           (mkIf (cfg.sentry.dsn != null) {

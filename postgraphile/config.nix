@@ -52,8 +52,8 @@ in
         ] ++ (if cfg.postgraphileDevMode then devFlags else prodFlags);
       in {
       description = "flexiprocity postgraphile";
-      requires = [ "postgresql.target" ];
-      after = [ "postgresql.target" ];
+      requires = [ "postgresql.target" "flexiprocity-jwt-keys.service" ];
+      after = [ "postgresql.target" "flexiprocity-jwt-keys.service" ];
       wantedBy = [ "multi-user.target" ];
       # cd into pkgRoot so postgraphile auto-detects postgraphile.tags.json5
       # (it only looks in cwd) and node resolves graphile-utils for
