@@ -9,7 +9,8 @@ on:
       - config.nix
       - schema/config.nix
       - schema/structure.sql
-      - postgraphile/config.nix
+      - postgraphile/**
+      - secrets/new-jwt-key.sh
       - agent/**
       - auth-server/**
       - frontend/**
