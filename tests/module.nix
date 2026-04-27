@@ -17,9 +17,17 @@ pkgs.testers.nixosTest {
       enableACME = lib.mkForce false;
     };
 
-    # postgraphile runs `npm exec` at startup, which needs network access
-    # that the test sandbox doesn't have. Skip it here.
-    systemd.services.postgraphile.enable = lib.mkForce false;
+    # postgraphile reads /home/api/secrets/jwt/public-key.pem to verify
+    # JWTs. Generate a throwaway keypair at activation, using the same
+    # script as local dev so we don't drift.
+    system.activationScripts.flexiprocity-test-jwt = ''
+      if [ ! -f /home/api/secrets/jwt/public-key.pem ]; then
+        mkdir -p /home/api/secrets
+        cd /home/api/secrets
+        PATH=${pkgs.openssl}/bin:$PATH ${pkgs.bash}/bin/bash ${../secrets/new-jwt-key.sh}
+        chown -R api /home/api/secrets
+      fi
+    '';
 
     # auth-server's whole job is talking to external identity providers,
     # and it reads several secret files (RSA key, client secrets) at
@@ -33,6 +41,7 @@ pkgs.testers.nixosTest {
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("postgresql.target")
     machine.wait_for_unit("flexiprocity-agent.service")
+    machine.wait_for_unit("postgraphile.service")
     machine.wait_for_unit("nginx.service")
     machine.wait_for_open_port(80)
 

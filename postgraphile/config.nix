@@ -1,11 +1,8 @@
-# I did not get postgraphile working as a "real" package.
-# The latest version requires yarn's v2 lockfile, and nixpkgs doesn't support it:
-#   https://github.com/NixOS/nixpkgs/issues/254369
-# npm exec works OK in the meantime, though maybe I should learn how to pin
-# package versions.
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.flexiprocity;
+  postgraphile = pkgs.callPackage ./postgraphile.nix {};
+  pkgRoot = "${postgraphile}/lib/node_modules/flexiprocity-postgraphile";
   inherit (lib) mkIf mkMerge mkOption types;
 in
 {
@@ -37,18 +34,9 @@ in
           "--enhance-graphiql"
           "--allow-explain"
         ];
-        workDir = "${config.users.users.api.home}/postgraphile";
-        scriptPieces = [
-          # -y: skip installation confirmation
-          "npm exec -y"
-          # seems like it should be implied by the command being run, but apparently not
-          "--package postgraphile"
-          "--package @graphile/pg-pubsub"
-          "--package @graphile-contrib/pg-simplify-inflector"
-          "--"
-          "postgraphile"
+        flags = [
           "--plugins @graphile/pg-pubsub"
-          "--append-plugins @graphile-contrib/pg-simplify-inflector,${workDir}/subscriptions.js"
+          "--append-plugins @graphile-contrib/pg-simplify-inflector,${pkgRoot}/subscriptions.js"
           "--subscriptions"
           "--dynamic-json"
           "--no-setof-functions-contain-nulls"
@@ -67,26 +55,14 @@ in
       requires = [ "postgresql.target" ];
       after = [ "postgresql.target" ];
       wantedBy = [ "multi-user.target" ];
-      path = with pkgs; [
-        # I don't know why it needs bash
-        bash
-        nodejs
-      ];
-      script = lib.concatStringsSep "\n" [
-        # since we want to create this directory, WorkingDirectory isn't useful
-        "mkdir -p ${workDir}"
-        "cd ${workDir}"
-        # somewhat silly to copy this every time, but can't think of a better way
-        # need -m because otherwise overwriting it next time will fail
-        # need to specify target name because src name is actually <hash>-<name>
-        "install -m 644 ${./postgraphile.tags.json5} postgraphile.tags.json5"
-        # look I'm sure there's a better way to have this script
-        # find its dependencies, but I'm not a node developer
-        "npm init -y"
-        "npm install graphile-utils"
-        "install -m 644 ${./subscriptions.js} subscriptions.js"
-        (lib.concatStringsSep " " scriptPieces)
-      ];
+      # cd into pkgRoot so postgraphile auto-detects postgraphile.tags.json5
+      # (it only looks in cwd) and node resolves graphile-utils for
+      # subscriptions.js via the bundled node_modules.
+      script = ''
+        cd ${pkgRoot}
+        exec ${postgraphile}/bin/postgraphile ${lib.concatStringsSep " " flags}
+      '';
+      path = [ pkgs.coreutils ];
       serviceConfig = {
         User = "api";
       };

@@ -12,6 +12,8 @@ buildNpmPackage {
     fileset = lib.fileset.unions [
       ./package.json
       ./package-lock.json
+      ./subscriptions.js
+      ./postgraphile.tags.json5
     ];
   };
 
