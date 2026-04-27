@@ -38,6 +38,8 @@ pkgs.testers.nixosTest {
   };
 
   testScript = ''
+    import json
+
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("postgresql.target")
     machine.wait_for_unit("flexiprocity-agent.service")
@@ -47,5 +49,16 @@ pkgs.testers.nixosTest {
 
     # Frontend root is served by nginx.
     machine.succeed("curl -fsS http://flexiprocity.test/ -o /dev/null")
+
+    # Hit a postgres function through postgraphile. Anonymous, so it
+    # should resolve to null rather than an auth error.
+    machine.wait_for_open_port(5000)
+    response = machine.succeed(
+      "curl -fsS -X POST -H 'Content-Type: application/json' "
+      "-d '{\"query\":\"{ currentUserId }\"}' "
+      "http://flexiprocity.test/graphql"
+    )
+    payload = json.loads(response)
+    assert payload == {"data": {"currentUserId": None}}, payload
   '';
 }
