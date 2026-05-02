@@ -42,12 +42,13 @@ in
           RemainAfterExit = true;
           User = "api";
         };
-        path = [ pkgs.openssl ];
+        # bash is for the script's shebang; openssl is what it actually
+        # invokes. The script creates `jwt/` under cwd.
+        path = [ pkgs.bash pkgs.openssl ];
         script = ''
-          mkdir -p /home/api/secrets/jwt
-          cd /home/api/secrets/jwt
-          openssl genrsa -out private-key.pem 3072
-          openssl rsa -in private-key.pem -pubout -out public-key.pem
+          mkdir -p /home/api/secrets
+          cd /home/api/secrets
+          ${./secrets/new-jwt-key.sh}
         '';
       };
       flexiprocity-agent = {
