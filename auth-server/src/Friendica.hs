@@ -52,14 +52,15 @@ data Env = Env
   { sessions :: Sessions.Store Session
   , httpManager :: HTTP.Manager
   , jwt :: MakeJwt.Env
-  , instances :: Map.Map Api.InstanceName Instance
   }
 
 init :: HTTP.Manager -> MakeJwt.Env -> IO Env
 init httpManager jwt = do
   sessions <- Sessions.newStore
-  instances <- Secrets.getJson "friendica_instances.json"
-  pure Env{ sessions, httpManager, jwt, instances }
+  pure Env{ sessions, httpManager, jwt }
+
+getInstances :: Servant.Handler (Map.Map Api.InstanceName Instance)
+getInstances = liftIO $ Secrets.getJson "friendica_instances.json"
 
 orError :: (Except.MonadError e m) => e -> Maybe a -> m a
 orError err = maybe (Except.throwError err) pure
@@ -67,7 +68,8 @@ orError err = maybe (Except.throwError err) pure
 start :: Env -> Api.InstanceName -> Maybe Text -> Servant.Handler Api.CookieRedirect
 start _ _ Nothing =
   Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
-start Env{ sessions, instances } instanceName (Just host) = do
+start Env{ sessions } instanceName (Just host) = do
+  instances <- getInstances
   Instance{ clientId, clientSecret = _, baseUrl }
     <- orError Servant.err404 $ Map.lookup instanceName instances
   sessId <- liftIO $ Sessions.newSessionId
@@ -121,9 +123,10 @@ complete
   -> Maybe Text
   -> Servant.Handler Api.CookieRedirect
 complete
-    Env{ httpManager, sessions, jwt, instances } instanceName
+    Env{ httpManager, sessions, jwt } instanceName
     maybeSessId maybeError maybeCode maybeState
   = do
+  instances <- getInstances
   Instance{ clientId, clientSecret, baseUrl } <-
     orError Servant.err404 $ Map.lookup instanceName instances
   let
