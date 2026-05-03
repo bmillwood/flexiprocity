@@ -13,7 +13,6 @@ import qualified Data.Text.Encoding as Text
 import GHC.Generics (Generic)
 
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.URI as URI
 import qualified Network.URI.Static as URI
 import qualified Servant
 import qualified Web.OIDC.Client as OC
@@ -84,28 +83,23 @@ oidcWithRedirectUri ProviderEnv{ getProvider, provider = Provider{ clientId, cli
     OC.setCredentials (Text.encodeUtf8 clientId) (Text.encodeUtf8 clientSecret) redirectUri
       . OC.newOIDC <$> getProvider
 
-startUrlForOrigin :: ProviderEnv -> Text -> IO (Sessions.SessionId, URI.URI)
-startUrlForOrigin env@ProviderEnv{ providerName, sessions } origin = do
-  sessId <- Sessions.newSessionId
-  let
-    redirectUri =
-      "https://" <> Text.encodeUtf8 origin <> redirectUriRelative providerName
-    sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
-    scopes = [OC.openId, OC.profile, OC.email]
-  oidc <- oidcWithRedirectUri env redirectUri
-  url <- OC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
-  pure (sessId, url)
-
 start :: Env -> Api.ProviderName -> Maybe Text -> Servant.Handler Api.CookieRedirect
 start _ _ Nothing =
   Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
 start env name (Just host) = do
-  pe <- lookupProvider env name
-  (sessId, url) <- liftIO $ startUrlForOrigin pe host
-  pure
-    $ Servant.addHeader (Sessions.sessionIdCookie (redirectUriRelative name) sessId)
-    $ Servant.addHeader (Api.Location url)
-    $ Servant.NoContent
+  pe@ProviderEnv{ sessions } <- lookupProvider env name
+  let redirectUri = "https://" <> Text.encodeUtf8 host <> redirectUriRelative name
+  liftIO $ do
+    sessId <- Sessions.newSessionId
+    let
+      sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
+      scopes = [OC.openId, OC.profile, OC.email]
+    oidc <- oidcWithRedirectUri pe redirectUri
+    url <- OC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
+    pure
+      $ Servant.addHeader (Sessions.sessionIdCookie (redirectUriRelative name) sessId)
+      $ Servant.addHeader (Api.Location url)
+      $ Servant.NoContent
 
 data Claims = Claims
   { email :: Text
