@@ -64,9 +64,9 @@ init httpManager jwt = do
 -- communicates "we don't support any Friendica instances" rather than "we tried
 -- to support Friendica but named the file wrong" or whatever.
 --
--- This is also run twice on every Friendica login. You could imagine wanting to
--- cache the file contents or something, but honestly I doubt it's ever going to
--- be a bottleneck.
+-- This is run on every login instead of in init because I expect most of the
+-- time there will be no logins (the frontend doesn't offer it), so let's not
+-- bother demanding the file exists in that case.
 getInstances :: Servant.Handler (Map.Map Api.InstanceName Instance)
 getInstances = liftIO $ Secrets.getJson "friendica_instances.json"
 
