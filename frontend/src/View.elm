@@ -643,7 +643,7 @@ viewGoogleLogin model =
     button disabled text =
       Html.button
         [ Events.onClick
-            [ Model.UrlReq { internal = False, url = "/auth/login/google/start" } ]
+            [ Model.UrlReq { internal = False, url = "/auth/login/oidc/start/google" } ]
         , Attributes.class "auth"
         , Attributes.disabled disabled
         ]

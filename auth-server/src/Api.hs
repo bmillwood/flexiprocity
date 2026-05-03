@@ -25,11 +25,17 @@ instance ToHttpApiData Location where
 
 type CookieRedirect = Headers '[Header "Set-Cookie" Text, Header "Location" Location] NoContent
 
-type LoginGoogle =
+newtype ProviderName = ProviderName { getProviderName :: Text }
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Aeson.FromJSON, Aeson.FromJSONKey, Aeson.ToJSONKey, FromHttpApiData)
+
+type LoginOidc =
   "start"
+    :> Capture "name" ProviderName
     :> Header "X-Forwarded-Host" Text
     :> Verb 'GET 303 '[PlainText] CookieRedirect
   :<|> "complete"
+    :> Capture "name" ProviderName
     :> Header "Cookie" Sessions.SessionId
     :> QueryParam "error" Text
     :> QueryParam "code" Text
@@ -79,7 +85,7 @@ type Api =
   "login" :> (
     Verb 'DELETE 204 '[JSON] (SetCookie NoContent)
     :<|> "facebook" :> LoginFacebook
-    :<|> "google" :> LoginGoogle
+    :<|> "oidc" :> LoginOidc
     :<|> "friendica" :> LoginFriendica
     :<|> "bluesky" :> LoginBluesky
   )

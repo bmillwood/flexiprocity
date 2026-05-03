@@ -28,25 +28,25 @@ import qualified Facebook
 import qualified Friendica
 import qualified MakeJwt
 import qualified OIDC
-import qualified Secrets
+import qualified Sentry
 import qualified Sessions
 
 data Env = Env
   { bluesky :: Bluesky.Env
   , friendica :: Friendica.Env
-  , google :: OIDC.Env
+  , oidc :: OIDC.Env
   , jwt :: MakeJwt.Env
   }
 
 doInit :: IO Env
 doInit = do
   httpManager <- HTTP.newManager HTTPS.tlsManagerSettings
+  sentry <- Sentry.init
   jwt <- MakeJwt.init
   bluesky <- Bluesky.init httpManager jwt
   friendica <- Friendica.init httpManager jwt
-  Secrets.GoogleSecret secret <- Secrets.getJson "google_client_secret.json"
-  google <- OIDC.init httpManager secret "/auth/login/google/complete" "https://accounts.google.com"
-  pure Env{ bluesky, friendica, google, jwt }
+  oidc <- OIDC.init httpManager sentry
+  pure Env{ bluesky, friendica, oidc, jwt }
 
 facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
 facebookLogin jwtEnv userToken = do
@@ -59,33 +59,47 @@ logout :: Servant.Handler (Api.SetCookie Servant.NoContent)
 logout =
   pure $ Servant.addHeader "jwt=; Path=/; Max-Age=0" Servant.NoContent
 
-googleStart :: OIDC.Env -> Maybe Text -> Servant.Handler Api.CookieRedirect
-googleStart _ Nothing =
+lookupOidc :: OIDC.Env -> Api.ProviderName -> Servant.Handler OIDC.ProviderEnv
+lookupOidc oidcEnv name =
+  maybe (Except.throwError Servant.err404) pure $ OIDC.lookup oidcEnv name
+
+oidcStart :: OIDC.Env -> Api.ProviderName -> Maybe Text -> Servant.Handler Api.CookieRedirect
+oidcStart _ _ Nothing =
   Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
-googleStart env (Just host) = do
-  (sessId, url) <- liftIO $ OIDC.startUrlForOrigin env host
+oidcStart oidcEnv name (Just host) = do
+  pe <- lookupOidc oidcEnv name
+  (sessId, url) <- liftIO $ OIDC.startUrlForOrigin pe host
   pure
-    $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/google" sessId)
+    $ Servant.addHeader (Sessions.sessionIdCookie (OIDC.redirectUriRelative name) sessId)
     $ Servant.addHeader (Api.Location url)
     $ Servant.NoContent
 
-googleComplete :: Env -> Maybe Sessions.SessionId -> Maybe Text -> Maybe Text -> Maybe Text -> Servant.Handler Api.CookieRedirect
-googleComplete _ _ (Just errMsg) _ _ = do
-  liftIO . Diagnose.logMsg $ "googleComplete error: " <> show errMsg
+oidcComplete
+  :: Env
+  -> Api.ProviderName
+  -> Maybe Sessions.SessionId
+  -> Maybe Text
+  -> Maybe Text
+  -> Maybe Text
+  -> Servant.Handler Api.CookieRedirect
+oidcComplete _ name _ (Just errMsg) _ _ = do
+  liftIO . Diagnose.logMsg $ "oidcComplete error (" <> show name <> "): " <> show errMsg
   Except.throwError Servant.err403
-googleComplete _ Nothing _ _ _ = do
-  liftIO . Diagnose.logMsg $ "googleComplete error: no sessId"
+oidcComplete _ name Nothing _ _ _ = do
+  liftIO . Diagnose.logMsg $ "oidcComplete error (" <> show name <> "): no sessId"
   Except.throwError Servant.err403
-googleComplete _ _ _ Nothing _ = do
-  liftIO . Diagnose.logMsg $ "googleComplete error: no code"
+oidcComplete _ name _ _ Nothing _ = do
+  liftIO . Diagnose.logMsg $ "oidcComplete error (" <> show name <> "): no code"
   Except.throwError Servant.err403
-googleComplete _ _ _ _ Nothing = do
-  liftIO . Diagnose.logMsg $ "googleComplete error: no state"
+oidcComplete _ name _ _ _ Nothing = do
+  liftIO . Diagnose.logMsg $ "oidcComplete error (" <> show name <> "): no state"
   Except.throwError Servant.err403
-googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) (Just state) = do
+oidcComplete Env{ oidc, jwt } name (Just sessId) Nothing (Just code) (Just state) = do
+  pe <- lookupOidc oidc name
   liftIO $ do
-    claims <- OIDC.codeToClaims google sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
-    cookie <- MakeJwt.cookie jwt (Map.singleton "google" (Aeson.toJSON claims))
+    claims <- OIDC.codeToClaims pe sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
+    cookie <- MakeJwt.cookie jwt
+      $ Map.singleton (Api.getProviderName name) (Aeson.toJSON claims)
     pure
       $ Servant.addHeader (Text.decodeUtf8 cookie)
       $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
@@ -102,7 +116,7 @@ facebookDecodeSignedReq signedReq = do
     bsFromString = BSL.fromStrict . Text.encodeUtf8 . Text.pack
 
 server :: Env -> Servant.Server Api.Api
-server env@Env{ bluesky, friendica, google, jwt } =
+server env@Env{ bluesky, friendica, oidc, jwt } =
   loginServer
   :<|> facebookDecodeSignedReq
   :<|> Bluesky.serveClientMetadata bluesky
@@ -110,7 +124,7 @@ server env@Env{ bluesky, friendica, google, jwt } =
     loginServer =
       logout
       :<|> facebookLogin jwt
-      :<|> (googleStart google :<|> googleComplete env)
+      :<|> (oidcStart oidc :<|> oidcComplete env)
       :<|> (Friendica.start friendica :<|> Friendica.complete friendica)
       :<|> (Bluesky.start bluesky :<|> Bluesky.complete bluesky)
 

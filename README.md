@@ -76,8 +76,21 @@ Run `secrets/new-jwt-key.sh`.
 Create `secrets/friendica_instances.json` as an empty JSON object (a file
 containing only `{}`).
 
-Create `secrets/google_client_secret.json` as a JSON object
-`{"web":{"client_id":"","client_secret":""}}`.
+Create `secrets/oidc_providers.json` as a JSON object mapping each provider
+name to its issuer location, client id, and client secret. The provider name
+is used both in the login URL (`/auth/login/oidc/start/<name>`) and as the
+JWT claims key, so the schema's `get_google_field` etc. expect the name
+`google` for Google. For example:
+
+```json
+{
+  "google": {
+    "issuer": "https://accounts.google.com",
+    "client_id": "",
+    "client_secret": ""
+  }
+}
+```
 
 You should now be able to run the `auth-server` process. Try
 `cd auth-server; cabal run auth-server` to confirm.
