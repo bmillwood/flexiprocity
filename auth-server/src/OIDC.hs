@@ -2,7 +2,6 @@ module OIDC where
 -- https://docs.servant.dev/en/stable/cookbook/open-id-connect/OpenIdConnect.html
 
 import qualified Data.Aeson as Aeson
-import Data.Aeson ((.:))
 import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
@@ -16,34 +15,23 @@ import qualified Secrets
 import qualified Sessions
 import qualified Sentry
 
-data ClientSecret = ClientSecret
-  { clientId :: BS.ByteString
-  , clientSecret :: BS.ByteString
-  }
-
-instance Aeson.FromJSON ClientSecret where
-  parseJSON = Aeson.withObject "ClientSecret" $ \o -> do
-    web <- o .: "web"
-    clientId <- Text.encodeUtf8 <$> web .: "client_id"
-    clientSecret <- Text.encodeUtf8 <$> web .: "client_secret"
-    pure ClientSecret{ clientId, clientSecret }
-
 data Env = Env
   { sessions :: Sessions.Store Sessions.Session
+  , redirectUriRelative :: BS.ByteString
   , httpManager :: HTTP.Manager
   , getProvider :: IO OC.Provider
-  , secret :: ClientSecret
+  , secret :: Secrets.ClientSecret
   , sentry :: Sentry.Service
   }
 
-init :: HTTP.Manager -> IO Env
-init httpManager = do
+init :: HTTP.Manager -> Secrets.ClientSecret -> BS.ByteString -> OC.IssuerLocation -> IO Env
+init httpManager secret redirectUriRelative issuerLocation = do
   sessions <- Sessions.newStore
-  getProvider <- OC.cachedDiscover "https://accounts.google.com" httpManager
-  secret <- Secrets.getJson "google_client_secret.json"
+  getProvider <- OC.cachedDiscover issuerLocation httpManager
   sentry <- Sentry.init
   pure Env
     { sessions
+    , redirectUriRelative
     , httpManager
     , getProvider
     , secret
@@ -54,13 +42,13 @@ oidcWithRedirectUri :: Env -> BS.ByteString -> IO OC.OIDC
 oidcWithRedirectUri Env{ getProvider, secret } redirectUri = do
     OC.setCredentials clientId clientSecret redirectUri . OC.newOIDC <$> getProvider
   where
-    ClientSecret{ clientId, clientSecret } = secret
+    Secrets.ClientSecret{ clientId, clientSecret } = secret
 
 startUrlForOrigin :: Env -> Text -> IO (Sessions.SessionId, URI.URI)
-startUrlForOrigin env@Env{ sessions } origin = do
+startUrlForOrigin env@Env{ sessions, redirectUriRelative } origin = do
   sessId <- Sessions.newSessionId
   let
-    redirectUri = "https://" <> Text.encodeUtf8 origin <> "/auth/login/google/complete"
+    redirectUri = "https://" <> Text.encodeUtf8 origin <> redirectUriRelative
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
     scopes = [OC.openId, OC.profile, OC.email]
   oidc <- oidcWithRedirectUri env redirectUri

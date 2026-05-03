@@ -28,6 +28,7 @@ import qualified Facebook
 import qualified Friendica
 import qualified MakeJwt
 import qualified OIDC
+import qualified Secrets
 import qualified Sessions
 
 data Env = Env
@@ -43,7 +44,8 @@ doInit = do
   jwt <- MakeJwt.init
   bluesky <- Bluesky.init httpManager jwt
   friendica <- Friendica.init httpManager jwt
-  google <- OIDC.init httpManager
+  Secrets.GoogleSecret secret <- Secrets.getJson "google_client_secret.json"
+  google <- OIDC.init httpManager secret "/auth/login/google/complete" "https://accounts.google.com"
   pure Env{ bluesky, friendica, google, jwt }
 
 facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
