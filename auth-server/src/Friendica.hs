@@ -59,6 +59,14 @@ init httpManager jwt = do
   sessions <- Sessions.newStore
   pure Env{ sessions, httpManager, jwt }
 
+-- If the file is not present, this will turn into an error 500. If you want a
+-- 404 instead, create the file as an empty object. This more clearly
+-- communicates "we don't support any Friendica instances" rather than "we tried
+-- to support Friendica but named the file wrong" or whatever.
+--
+-- This is also run twice on every Friendica login. You could imagine wanting to
+-- cache the file contents or something, but honestly I doubt it's ever going to
+-- be a bottleneck.
 getInstances :: Servant.Handler (Map.Map Api.InstanceName Instance)
 getInstances = liftIO $ Secrets.getJson "friendica_instances.json"
 
