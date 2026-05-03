@@ -42,8 +42,8 @@ library
     DPoP
     Facebook
     Friendica
-    Google
     MakeJwt
+    OIDC
     PKCE
     Secrets
     Sessions

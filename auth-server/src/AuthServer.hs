@@ -26,14 +26,14 @@ import qualified Bluesky
 import qualified Diagnose
 import qualified Facebook
 import qualified Friendica
-import qualified Google
 import qualified MakeJwt
+import qualified OIDC
 import qualified Sessions
 
 data Env = Env
   { bluesky :: Bluesky.Env
   , friendica :: Friendica.Env
-  , google :: Google.Env
+  , google :: OIDC.Env
   , jwt :: MakeJwt.Env
   }
 
@@ -43,7 +43,7 @@ doInit = do
   jwt <- MakeJwt.init
   bluesky <- Bluesky.init httpManager jwt
   friendica <- Friendica.init httpManager jwt
-  google <- Google.init httpManager
+  google <- OIDC.init httpManager
   pure Env{ bluesky, friendica, google, jwt }
 
 facebookLogin :: MakeJwt.Env -> Facebook.UserToken -> Servant.Handler (Api.SetCookie Servant.NoContent)
@@ -57,11 +57,11 @@ logout :: Servant.Handler (Api.SetCookie Servant.NoContent)
 logout =
   pure $ Servant.addHeader "jwt=; Path=/; Max-Age=0" Servant.NoContent
 
-googleStart :: Google.Env -> Maybe Text -> Servant.Handler Api.CookieRedirect
+googleStart :: OIDC.Env -> Maybe Text -> Servant.Handler Api.CookieRedirect
 googleStart _ Nothing =
   Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
 googleStart env (Just host) = do
-  (sessId, url) <- liftIO $ Google.startUrlForOrigin env host
+  (sessId, url) <- liftIO $ OIDC.startUrlForOrigin env host
   pure
     $ Servant.addHeader (Sessions.sessionIdCookie "/auth/login/google" sessId)
     $ Servant.addHeader (Api.Location url)
@@ -82,7 +82,7 @@ googleComplete _ _ _ _ Nothing = do
   Except.throwError Servant.err403
 googleComplete Env{ google, jwt } (Just sessId) Nothing (Just code) (Just state) = do
   liftIO $ do
-    claims <- Google.codeToClaims google sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
+    claims <- OIDC.codeToClaims google sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
     cookie <- MakeJwt.cookie jwt (Map.singleton "google" (Aeson.toJSON claims))
     pure
       $ Servant.addHeader (Text.decodeUtf8 cookie)

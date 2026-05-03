@@ -1,4 +1,4 @@
-module Google where
+module OIDC where
 -- https://docs.servant.dev/en/stable/cookbook/open-id-connect/OpenIdConnect.html
 
 import qualified Data.Aeson as Aeson
@@ -10,7 +10,7 @@ import GHC.Generics (Generic)
 
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
-import qualified Web.OIDC.Client as OIDC
+import qualified Web.OIDC.Client as OC
 
 import qualified Secrets
 import qualified Sessions
@@ -31,7 +31,7 @@ instance Aeson.FromJSON ClientSecret where
 data Env = Env
   { sessions :: Sessions.Store Sessions.Session
   , httpManager :: HTTP.Manager
-  , getProvider :: IO OIDC.Provider
+  , getProvider :: IO OC.Provider
   , secret :: ClientSecret
   , sentry :: Sentry.Service
   }
@@ -39,7 +39,7 @@ data Env = Env
 init :: HTTP.Manager -> IO Env
 init httpManager = do
   sessions <- Sessions.newStore
-  getProvider <- OIDC.cachedDiscover "https://accounts.google.com" httpManager
+  getProvider <- OC.cachedDiscover "https://accounts.google.com" httpManager
   secret <- Secrets.getJson "google_client_secret.json"
   sentry <- Sentry.init
   pure Env
@@ -50,9 +50,9 @@ init httpManager = do
     , sentry
     }
 
-oidcWithRedirectUri :: Env -> BS.ByteString -> IO OIDC.OIDC
+oidcWithRedirectUri :: Env -> BS.ByteString -> IO OC.OIDC
 oidcWithRedirectUri Env{ getProvider, secret } redirectUri = do
-    OIDC.setCredentials clientId clientSecret redirectUri . OIDC.newOIDC <$> getProvider
+    OC.setCredentials clientId clientSecret redirectUri . OC.newOIDC <$> getProvider
   where
     ClientSecret{ clientId, clientSecret } = secret
 
@@ -62,9 +62,9 @@ startUrlForOrigin env@Env{ sessions } origin = do
   let
     redirectUri = "https://" <> Text.encodeUtf8 origin <> "/auth/login/google/complete"
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
-    scopes = [OIDC.openId, OIDC.profile, OIDC.email]
+    scopes = [OC.openId, OC.profile, OC.email]
   oidc <- oidcWithRedirectUri env redirectUri
-  url <- OIDC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
+  url <- OC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
   pure (sessId, url)
 
 data Claims = Claims
@@ -81,7 +81,7 @@ codeToClaims env@Env{ sentry, sessions, httpManager } sessId code clientState = 
   let
     sessionStore = Sessions.oidcSessionStore sessions sessId redirectUri
   oidc <- oidcWithRedirectUri env redirectUri
-  OIDC.Tokens { idToken = OIDC.IdTokenClaims { otherClaims } }
+  OC.Tokens { idToken = OC.IdTokenClaims { otherClaims } }
     <- Sentry.reportException sentry
-    $ OIDC.getValidTokens sessionStore oidc httpManager clientState code
+    $ OC.getValidTokens sessionStore oidc httpManager clientState code
   pure otherClaims
