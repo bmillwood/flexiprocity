@@ -3,5 +3,5 @@ packages: */*.cabal
 source-repository-package
   type: git
   location: https://github.com/bmillwood/haskell-oidc-client
-  tag: f9e6fe672b0e1e4cf89b29cad85ad07dcad364d4
+  tag: a0af0d617b8752ff4c30f009855257f5d6bc3153
 
