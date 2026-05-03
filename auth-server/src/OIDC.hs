@@ -1,6 +1,9 @@
+{-# LANGUAGE QuasiQuotes #-}
 module OIDC where
 -- https://docs.servant.dev/en/stable/cookbook/open-id-connect/OpenIdConnect.html
 
+import qualified Control.Monad.Except as Except
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
@@ -11,9 +14,13 @@ import GHC.Generics (Generic)
 
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI as URI
+import qualified Network.URI.Static as URI
+import qualified Servant
 import qualified Web.OIDC.Client as OC
 
 import qualified Api
+import qualified Diagnose
+import qualified MakeJwt
 import qualified Secrets
 import qualified Sessions
 import qualified Sentry
@@ -37,7 +44,10 @@ data ProviderEnv = ProviderEnv
   , sentry :: Sentry.Service
   }
 
-newtype Env = Env (Map Api.ProviderName ProviderEnv)
+data Env = Env
+  { providers :: Map Api.ProviderName ProviderEnv
+  , jwt :: MakeJwt.Env
+  }
 
 basePath :: BS.ByteString
 basePath = "/auth/login/oidc"
@@ -46,10 +56,11 @@ redirectUriRelative :: Api.ProviderName -> BS.ByteString
 redirectUriRelative name =
   basePath <> "/complete/" <> Text.encodeUtf8 (Api.getProviderName name)
 
-init :: HTTP.Manager -> Sentry.Service -> IO Env
-init httpManager sentry = do
-  providers <- Secrets.getJson "oidc_providers.json"
-  Env <$> Map.traverseWithKey (initProvider httpManager sentry) providers
+init :: HTTP.Manager -> Sentry.Service -> MakeJwt.Env -> IO Env
+init httpManager sentry jwt = do
+  parsed <- Secrets.getJson "oidc_providers.json"
+  providers <- Map.traverseWithKey (initProvider httpManager sentry) parsed
+  pure Env{ providers, jwt }
 
 initProvider :: HTTP.Manager -> Sentry.Service -> Api.ProviderName -> Provider -> IO ProviderEnv
 initProvider httpManager sentry providerName provider@Provider{ issuer } = do
@@ -64,8 +75,9 @@ initProvider httpManager sentry providerName provider@Provider{ issuer } = do
     , sentry
     }
 
-lookup :: Env -> Api.ProviderName -> Maybe ProviderEnv
-lookup (Env providers) name = Map.lookup name providers
+lookupProvider :: Env -> Api.ProviderName -> Servant.Handler ProviderEnv
+lookupProvider Env{ providers } name =
+  maybe (Except.throwError Servant.err404) pure $ Map.lookup name providers
 
 oidcWithRedirectUri :: ProviderEnv -> BS.ByteString -> IO OC.OIDC
 oidcWithRedirectUri ProviderEnv{ getProvider, provider = Provider{ clientId, clientSecret } } redirectUri =
@@ -83,6 +95,17 @@ startUrlForOrigin env@ProviderEnv{ providerName, sessions } origin = do
   oidc <- oidcWithRedirectUri env redirectUri
   url <- OC.prepareAuthenticationRequestUrl sessionStore oidc scopes []
   pure (sessId, url)
+
+start :: Env -> Api.ProviderName -> Maybe Text -> Servant.Handler Api.CookieRedirect
+start _ _ Nothing =
+  Except.throwError Servant.err400{ Servant.errBody = "Missing Host header" }
+start env name (Just host) = do
+  pe <- lookupProvider env name
+  (sessId, url) <- liftIO $ startUrlForOrigin pe host
+  pure
+    $ Servant.addHeader (Sessions.sessionIdCookie (redirectUriRelative name) sessId)
+    $ Servant.addHeader (Api.Location url)
+    $ Servant.NoContent
 
 data Claims = Claims
   { email :: Text
@@ -102,3 +125,34 @@ codeToClaims env@ProviderEnv{ sentry, sessions, httpManager } sessId code client
     <- Sentry.reportException sentry
     $ OC.getValidTokens sessionStore oidc httpManager clientState code
   pure otherClaims
+
+complete
+  :: Env
+  -> Api.ProviderName
+  -> Maybe Sessions.SessionId
+  -> Maybe Text
+  -> Maybe Text
+  -> Maybe Text
+  -> Servant.Handler Api.CookieRedirect
+complete _ name _ (Just errMsg) _ _ = do
+  liftIO . Diagnose.logMsg $ "OIDC.complete error (" <> show name <> "): " <> show errMsg
+  Except.throwError Servant.err403
+complete _ name Nothing _ _ _ = do
+  liftIO . Diagnose.logMsg $ "OIDC.complete error (" <> show name <> "): no sessId"
+  Except.throwError Servant.err403
+complete _ name _ _ Nothing _ = do
+  liftIO . Diagnose.logMsg $ "OIDC.complete error (" <> show name <> "): no code"
+  Except.throwError Servant.err403
+complete _ name _ _ _ Nothing = do
+  liftIO . Diagnose.logMsg $ "OIDC.complete error (" <> show name <> "): no state"
+  Except.throwError Servant.err403
+complete env@Env{ jwt } name (Just sessId) Nothing (Just code) (Just state) = do
+  pe <- lookupProvider env name
+  liftIO $ do
+    claims <- codeToClaims pe sessId (Text.encodeUtf8 code) (Text.encodeUtf8 state)
+    cookie <- MakeJwt.cookie jwt
+      $ Map.singleton (Api.getProviderName name) (Aeson.toJSON claims)
+    pure
+      $ Servant.addHeader (Text.decodeUtf8 cookie)
+      $ Servant.addHeader (Api.Location [URI.relativeReference|/|])
+      $ Servant.NoContent
