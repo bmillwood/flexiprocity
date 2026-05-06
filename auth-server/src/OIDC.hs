@@ -104,7 +104,7 @@ start env name (Just host) = do
 data Claims = Claims
   { email :: Text
   , name :: Text
-  , picture :: Text
+  , picture :: Maybe Text
   , email_verified :: Bool
   -- other keys: at_hash, au, azp, exp, family_name, given_name, iat, iss, nonce, sub
   } deriving (Generic, Aeson.FromJSON, Aeson.ToJSON, Show)
