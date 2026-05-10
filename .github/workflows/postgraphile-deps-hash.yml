@@ -1,0 +1,52 @@
+name: Update postgraphile npmDepsHash
+
+on:
+  push:
+    branches:
+      - 'renovate/*'
+    paths:
+      - postgraphile/package-lock.json
+      - .github/workflows/postgraphile-deps-hash.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-hash:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
+
+    steps:
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        id: app-token
+        with:
+          client-id: ${{ secrets.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Use the App token so the resulting push re-triggers CI;
+          # GITHUB_TOKEN-pushed commits don't fire workflow events.
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Recompute and commit if changed
+        run: |
+          new=$(nix-shell -p prefetch-npm-deps --run 'prefetch-npm-deps postgraphile/package-lock.json')
+          sed -i -E "s|npmDepsHash = \"sha256-[^\"]+\"|npmDepsHash = \"$new\"|" postgraphile/postgraphile.nix
+          if git diff --quiet; then
+            echo "npmDepsHash already up to date"
+            exit 0
+          fi
+          git config user.name "bmillwood-renovate[bot]"
+          git config user.email "269996043+bmillwood-renovate[bot]@users.noreply.github.com"
+          git add postgraphile/postgraphile.nix
+          git commit -m "Update postgraphile npmDepsHash"
+          git push
