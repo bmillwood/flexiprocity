@@ -31,7 +31,7 @@ in
 pkgs.testers.nixosTest {
   name = "flexiprocity-module";
 
-  nodes.machine = { config, lib, pkgs, ... }: {
+  containers.machine = { config, lib, pkgs, ... }: {
     imports = [ ../config.nix ];
 
     services.flexiprocity = {
