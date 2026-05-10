@@ -19,7 +19,7 @@ buildNpmPackage {
 
   # Set to lib.fakeHash on the first build, then copy the real hash from
   # the error message into here.
-  npmDepsHash = "sha256-U3dNXMEfsJ3dquUpbcveStFSqKgrfTGk3ZcthHbpT28=";
+  npmDepsHash = "sha256-pGJKdmLCoJ56w9mqsSyk82KsDCTX5B/JE4pPwJw9N0E=";
 
   # We don't have a build step — this "package" only declares deps so we
   # can pin them via package-lock.json.
