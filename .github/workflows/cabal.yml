@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - .github/workflows/cabal.yml
+      - cabal.project
+      - "**/*.cabal"
+      - "**/*.hs"
 
 # Below copies significantly from
 # https://github.com/haskell-actions/setup/blob/v2.6.2/README.md
