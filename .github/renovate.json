@@ -11,6 +11,18 @@
             "matchStrings": [
                 "-version:\\s*(?<currentValue>[0-9.]+)\\s*# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)"
             ]
+        },
+        {
+            "customType": "regex",
+            "description": "Pin nixpkgs to nixos-unstable HEAD",
+            "managerFilePatterns": [".github/workflows/*"],
+            "matchStrings": [
+                "nixpkgs=https://github\\.com/NixOS/nixpkgs/archive/(?<currentDigest>[a-f0-9]{40})\\.tar\\.gz"
+            ],
+            "currentValueTemplate": "nixos-unstable",
+            "depNameTemplate": "NixOS/nixpkgs",
+            "packageNameTemplate": "https://github.com/NixOS/nixpkgs",
+            "datasourceTemplate": "git-refs"
         }
     ]
 }
