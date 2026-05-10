@@ -1316,8 +1316,6 @@ type Subscription {
   update: Update
 }
 
-union Update = FriendUpdate | UserUpdate
-
 type FriendUpdate {
   unit: Unit
 }
@@ -1325,3 +1323,5 @@ type FriendUpdate {
 type UserUpdate {
   profile: UserProfile
 }
+
+union Update = FriendUpdate | UserUpdate
