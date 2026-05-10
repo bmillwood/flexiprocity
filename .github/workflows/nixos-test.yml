@@ -36,4 +36,4 @@ jobs:
 
       - run: nix-build tests/module.nix
 
-      - run: diff -u result/schema.graphql postgraphile/schema.graphql
+      - run: diff -u postgraphile/schema.graphql result/schema.graphql
