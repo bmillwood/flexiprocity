@@ -37,6 +37,7 @@ pkgs.testers.nixosTest {
     services.flexiprocity = {
       enable = true;
       virtualHost = testHost;
+      postgraphileDevMode = true;
     };
 
     # ACME isn't reachable from the test VM; substitute a self-signed cert
@@ -154,5 +155,9 @@ pkgs.testers.nixosTest {
     )
     payload = json.loads(response)
     assert payload["data"]["currentUserId"] is not None, payload
+
+    # Not strictly part of the test, but useful to pocket
+    machine.wait_for_file("/run/postgraphile/schema.graphql")
+    machine.copy_from_machine("/run/postgraphile/schema.graphql", ".")
   '';
 }

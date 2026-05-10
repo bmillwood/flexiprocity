@@ -29,7 +29,7 @@ in
           # copied from my dev script, but not possible here
           #"--watch"
           #"--owner-connection 'socket:/run/postgresql?db=flexiprocity&user=postgres'"
-          "--export-schema-graphql schema.graphql"
+          "--export-schema-graphql /run/postgraphile/schema.graphql"
           "--graphiql /"
           "--enhance-graphiql"
           "--allow-explain"
@@ -65,6 +65,7 @@ in
       path = [ pkgs.coreutils ];
       serviceConfig = {
         User = "api";
+        RuntimeDirectory = "postgraphile";
       };
     };
     services.nginx = {
