@@ -1,0 +1,42 @@
+name: Tidy Renovate PR body
+
+on:
+  pull_request:
+    types: [opened, edited]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tidy:
+    # Only Renovate PRs. Skip when we are the editor, so our own edits
+    # don't re-trigger the workflow.
+    if: >-
+      github.event.pull_request.user.login == 'bmillwood-renovate[bot]'
+      && github.event.sender.login != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Strip noise from PR body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          orig=$(mktemp)
+          new=$(mktemp)
+          gh pr view "$PR" --json body --jq .body > "$orig"
+          python3 scripts/edit-renovate-pr-body.py < "$orig" > "$new"
+          if cmp -s "$orig" "$new"; then
+            echo "No changes needed"
+            exit 0
+          fi
+          gh pr edit "$PR" --body-file "$new"
