@@ -1,4 +1,4 @@
-name: Tidy Renovate PR body
+# No pun intended.
 
 on:
   pull_request:
@@ -16,9 +16,7 @@ jobs:
   tidy:
     # Only Renovate PRs. Skip when we are the editor, so our own edits
     # don't re-trigger the workflow.
-    if: >-
-      github.event.pull_request.user.login == 'bmillwood-renovate[bot]'
-      && github.event.sender.login != 'github-actions[bot]'
+    if: github.event.sender.login == 'bmillwood-renovate[bot]'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,7 +32,7 @@ jobs:
           orig=$(mktemp)
           new=$(mktemp)
           gh pr view "$PR" --json body --jq .body > "$orig"
-          python3 scripts/edit-renovate-pr-body.py < "$orig" > "$new"
+          python3 ci/amend_renovate_pr_body.py < "$orig" > "$new"
           if cmp -s "$orig" "$new"; then
             echo "No changes needed"
             exit 0

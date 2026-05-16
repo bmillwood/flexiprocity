@@ -12,28 +12,22 @@ Currently strips:
 import re
 import sys
 
-HEADING_RE = re.compile(r"^(#{1,6}) ")
-DOC_SECTION_RE = re.compile(r"^##### Documentation\s*$")
-DEPS_ITEM_RE = re.compile(r"^- \*\*deps:\*\* ")
-DOC_SECTION_LEVEL = 5
-
-
 def strip(body: str) -> str:
     out = []
-    skipping = False
+    skip_section = None
     for line in body.splitlines(keepends=True):
-        if skipping:
-            heading = HEADING_RE.match(line)
-            if heading and len(heading.group(1)) <= DOC_SECTION_LEVEL:
-                skipping = False
-            elif line.rstrip() == "</details>":
-                skipping = False
+        for hashes in range(len(line)):
+            if line[hashes] != '#':
+                break
+        if skip_section is not None:
+            if 0 < hashes <= skip_section or line.rstrip() == "</details>":
+                skip_section = None
             else:
                 continue
-        if DOC_SECTION_RE.match(line):
-            skipping = True
+        if hashes >= 5 and line[hashes:].strip() == "Documentation":
+            skip_section = hashes
             continue
-        if DEPS_ITEM_RE.match(line):
+        if line.startswith("- **deps:** "):
             continue
         out.append(line)
     return "".join(out)
