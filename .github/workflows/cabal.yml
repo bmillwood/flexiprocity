@@ -30,9 +30,13 @@ jobs:
     defaults:
       run:
         shell: bash -euo pipefail {0}
+    env:
+      IS_RENOVATE: startsWith(github.head_ref, 'renovate/') # false for non-PR triggers
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: ${{ env.IS_RENOVATE == 'true' && '0' || '1' }}
 
       - name: Set up GHC ${{ matrix.ghc-version }}
         uses: haskell-actions/setup@cd0d9bdd65b20557f41bea4dbe43d0b5fbbfe553 # v2.11
@@ -50,6 +54,21 @@ jobs:
       - name: Check cabal file for agent
         run: cabal check
         working-directory: agent
+
+        # inspired by, but distinct from,
+        # https://github.com/haskell-actions/setup/blob/main/docs/examples.md#dependency-updates
+      - name: Require new package versions are tested
+        if: env.IS_RENOVATE == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git log \
+            --format="%(trailers:key=New-Versions,valueonly=true)" \
+            "$BASE..$HEAD" \
+            | sort -u \
+            | sed -re 's/^/constraint: /' \
+            | tee -a cabal.project
 
       - name: Configure the build
         run: |
