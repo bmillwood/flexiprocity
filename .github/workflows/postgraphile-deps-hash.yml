@@ -1,5 +1,3 @@
-name: Update postgraphile npmDepsHash
-
 on:
   push:
     branches:
