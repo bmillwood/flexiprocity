@@ -9,10 +9,6 @@ on:
       - "**/*.cabal"
       - "**/*.hs"
   workflow_dispatch:
-    inputs:
-      extraConfigureFlags:
-        default: ''
-        type: string
 
 # Below copies significantly from
 # https://github.com/haskell-actions/setup/blob/v2.6.2/README.md
@@ -56,11 +52,8 @@ jobs:
         working-directory: agent
 
       - name: Configure the build
-        env:
-          EXTRA: ${{ inputs.extraConfigureFlags }}
         run: |
-          # shellcheck disable=SC2086
-          cabal configure --enable-tests --enable-benchmarks --disable-documentation $EXTRA
+          cabal configure --enable-tests --enable-benchmarks --disable-documentation
           cabal build all --dry-run
         # The last step generates dist-newstyle/cache/plan.json for the cache key.
 
