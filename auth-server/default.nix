@@ -3,8 +3,6 @@ let
   inherit (nixpkgs) lib fetchFromGitHub haskell;
 in
 nixpkgs.haskellPackages.callPackage ./auth-server.nix {
-  bluesky-tools =
-    nixpkgs.haskellPackages.callPackage ./bluesky-tools.nix {};
   oidc-client =
     lib.pipe nixpkgs.haskellPackages.oidc-client [
       (haskell.lib.compose.overrideSrc {
