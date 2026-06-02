@@ -59,7 +59,7 @@ library
     crypton >=0.30 && < 1.1,
     crypton-x509 ^>= 1.7,
     crypton-x509-store ^>= 1.6,
-    http-api-data >=0.4 && <0.7,
+    http-api-data >=0.4 && <0.8,
     http-client ^>= 0.7,
     http-client-tls ^>= 0.3,
     http-types ^>=0.12,
