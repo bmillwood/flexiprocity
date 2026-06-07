@@ -17,5 +17,5 @@
     ],
     // Per https://github.com/haskell-actions/setup/blob/main/docs/examples.md#dependency-updates
     // lightly modified to taste
-    "commitBody": "{{#each upgrades}}New-Version: {{{depName}}}=={{{newVersion}}}\n{{/each}}"
+    "commitBody": "{{#each upgrades}}New-{{{datasource}}}-version: {{{depName}}}=={{{newVersion}}}\n{{/each}}"
 }
