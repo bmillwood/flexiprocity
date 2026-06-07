@@ -1,6 +1,7 @@
 {
     "extends": [
-        "config:recommended"
+        "config:recommended",
+        "helpers:pinGitHubActionDigestsToSemver"
     ],
     "pinDigests": true,
     "customManagers": [
