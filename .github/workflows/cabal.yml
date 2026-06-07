@@ -68,8 +68,7 @@ jobs:
             --format="%(trailers:key=New-hackage-version,valueonly=true)" \
             "$BASE..$HEAD" \
             | sort -u \
-            | grep . \
-            | sed -re 's/^/constraints: /' \
+            | sed -re '/./ s/^/constraints: /' \
             | tee -a cabal.project
 
       - name: Configure the build
