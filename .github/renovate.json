@@ -3,6 +3,11 @@
         {
             "matchDatasources": ["hackage"],
             "groupName": "Hackage deps"
+        },
+        {
+            "matchDatasources": ["hackage"],
+            "matchPackageNames": ["base"],
+            "groupName": "Hackage base"
         }
     ]
 }
