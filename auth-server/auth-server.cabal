@@ -58,7 +58,7 @@ library
     cookie >=0.4 && <0.6,
     crypton >=0.30 && < 1.1,
     crypton-x509 >= 1.7 && <1.8,
-    crypton-x509-store >= 1.6 && <1.7,
+    crypton-x509-store >=1.6 && <1.10,
     http-api-data >=0.4 && <0.8,
     http-client >= 0.7 && < 0.8,
     http-client-tls >= 0.3 && < 0.4,
