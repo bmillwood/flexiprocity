@@ -33,7 +33,7 @@ library
   exposed-modules:  Agent
   other-modules:
   build-depends:
-    aeson >= 2.1 && < 2.3,
+    aeson >=2.1 && <2.4,
     async >= 2.2 && <2.3,
     base >= 4.16.4.0 && < 4.22,
     bluesky-tools >= 0.6 && <0.7,
