@@ -61,7 +61,7 @@ library
     crypton-x509-store >= 1.6 && <1.7,
     http-api-data >=0.4 && <0.8,
     http-client >= 0.7 && < 0.8,
-    http-client-tls >= 0.3 && < 0.4,
+    http-client-tls >=0.3 && <0.5,
     http-types >=0.12 && < 0.13,
     jose >=0.11 && < 0.12,
     memory >=0.18 && < 0.19,
