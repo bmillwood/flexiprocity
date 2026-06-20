@@ -1,1 +1,8 @@
-{}
+{
+    "packageRules": [
+        {
+            "matchDatasources": ["hackage"],
+            "groupName": "Hackage deps"
+        }
+    ]
+}
