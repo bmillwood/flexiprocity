@@ -6,8 +6,8 @@
         },
         {
             "matchDatasources": ["hackage"],
-            "matchPackageNames": ["base"],
-            "groupName": "Hackage base"
+            "matchPackageNames": ["base", "time"],
+            "groupName": "Hackage {{{depName}}}"
         }
     ]
 }
