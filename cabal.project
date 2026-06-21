@@ -1,4 +1,15 @@
 packages: */*.cabal
+-- https://github.com/haskell-servant/servant/pull/1886
+allow-newer: servant:aeson
+-- https://github.com/fizruk/http-api-data/issues/158
+allow-newer: http-api-data:text-iso8601
+-- https://github.com/haskellari/postgresql-simple/issues/170
+allow-newer: postgresql-simple:aeson
+-- https://github.com/tekul/jose-jwt/pull/48
+allow-newer: jose-jwt:aeson
+-- I don't have an issue for this one. It's only necessary because there's been
+-- a metadata revision. I should take it up with the hackage trustees.
+allow-newer: raven-haskell:aeson
 
 source-repository-package
   type: git
