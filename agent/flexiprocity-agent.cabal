@@ -35,7 +35,7 @@ library
   build-depends:
     aeson >=2.1 && <2.4,
     async >= 2.2 && <2.3,
-    base >= 4.16.4.0 && < 4.22,
+    base >=4.16.4.0 && <4.23,
     bluesky-tools >= 0.6 && <0.7,
     containers >=0.6.5.1 && < 0.9,
     http-client >= 0.7 && <0.8,
@@ -52,5 +52,5 @@ executable flexiprocity-agent
   -- other-modules:
   build-depends:
     flexiprocity-agent,
-    base >= 4.16.4.0 && < 4.22,
+    base >=4.16.4.0 && <4.23,
   hs-source-dirs:   app
