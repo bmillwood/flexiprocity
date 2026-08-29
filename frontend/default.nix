@@ -5,18 +5,19 @@
 let
   pkgs = import nixpkgs config;
   inherit (pkgs) stdenvNoCC;
+  elm = pkgs.elmPackages.elm;
 in
 stdenvNoCC.mkDerivation {
   name = "flexiprocity-frontend";
   src = ./.;
   buildInputs = [
-    pkgs.elmPackages.elm
+    elm
     pkgs.git
   ];
   configurePhase = pkgs.elmPackages.fetchElmDeps {
     # generate with `elm2nix convert`
     elmPackages = import ./elm-srcs.nix;
-    elmVersion = "0.19.1";
+    elmVersion = elm.version;
     registryDat = ./registry.dat;
   };
   buildPhase = ''
