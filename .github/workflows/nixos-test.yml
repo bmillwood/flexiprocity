@@ -16,7 +16,7 @@ on:
       - frontend/**
 
 env:
-  nixpkgs_version: 9fbb54b33e91ee4ca368e35a78e0613c720600b3 # renovate: datasource=git-refs depName=NixOS/nixpkgs packageName=https://github.com/NixOS/nixpkgs currentValue=nixos-unstable
+  nixpkgs_version: 4975466d324710c576dc11ad614684e6bd8cad8e # renovate: datasource=git-refs depName=NixOS/nixpkgs packageName=https://github.com/NixOS/nixpkgs currentValue=nixos-unstable
 
 jobs:
   test:
