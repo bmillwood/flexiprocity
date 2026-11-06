@@ -1,4 +1,4 @@
-FROM postgres:16.13@sha256:5d143123fdf80462d1778cd4f24b9f7ca13c87174bca19141fb194c5a1ebca59
+FROM postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
 RUN apt-get update \
  && apt-get install -y --no-install-recommends postgresql-16-pgtap \
  && rm -rf /var/lib/apt/lists/*
